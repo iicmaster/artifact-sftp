@@ -1,0 +1,35 @@
+{
+  "name": "artifact-sftp",
+  "version": "0.1.0",
+  "description": "Publish self-contained HTML artifacts to your own SFTP web host with a stable URL and private-by-default visibility — a stand-in for the native Artifact tool on runtimes that lack it (Codex, OpenClaw).",
+  "author": {
+    "name": "NGS"
+  },
+  "license": "MIT",
+  "keywords": [
+    "artifact",
+    "sftp",
+    "publish",
+    "html",
+    "hosting"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Artifact SFTP",
+    "shortDescription": "Publish HTML artifacts to your own SFTP web host",
+    "longDescription": "Uploads one self-contained HTML file per artifact to an SFTP web host and returns a stable, redeploy-in-place URL that is private (HTTP basic auth) by default. Mimics the contract of the native Artifact tool for Codex and OpenClaw, which have no built-in artifact publishing.",
+    "developerName": "NGS",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Publish this report as an artifact",
+      "Update my published artifact in place",
+      "Set up artifact-sftp on this machine"
+    ],
+    "brandColor": "#3B82F6",
+    "screenshots": []
+  }
+}
