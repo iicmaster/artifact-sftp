@@ -57,6 +57,11 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 
 - Success: exit 0, **last stdout line = artifact URL**. All diagnostics go to stderr.
 - Exit codes: `2` usage/validation, `3` config or auth, `4` secret scan blocked, `5` upload failed, `6` served content mismatch.
+- A private artifact behind **Cloudflare Access** uploads and exits `0` but prints
+  `HTTP verify skipped (Cloudflare Access)` — the upload is confirmed, the sha256 re-fetch is
+  not (basic auth can't pass Access). This is success, not failure. Add a CF Access service
+  token (`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`, see `references/setup.md`) to enable
+  the verify. `/public/` artifacts always verify.
 - `--dry-run` validates everything and prints the would-be URL without uploading.
 
 ## Safety rules (non-negotiable)

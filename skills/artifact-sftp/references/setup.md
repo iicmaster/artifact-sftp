@@ -69,8 +69,30 @@ Config values must be shell-safe (the file is both `source`d by `publish.sh` and
 `sftp_helper.py`); `setup.sh` rejects a password with spaces/quotes/`$` and points you to
 `--ssh-key`. To hand-write the config instead, the keys are: `SFTP_HOST`, `SFTP_USER`,
 `SFTP_PORT`, `REMOTE_DIR`, `PUBLIC_BASE_URL`, `DEFAULT_TOOL`, one of
-`SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `BASIC_AUTH` — one `KEY=value` per line,
-`chmod 600`.
+`SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `BASIC_AUTH`,
+`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` — one `KEY=value` per line, `chmod 600`.
+
+## Private verify behind Cloudflare Access
+
+The current deployment gates `*/private/` with **Cloudflare Access (Zero Trust SSO)**, not
+`.htpasswd` — so `BASIC_AUTH` cannot satisfy it. A private publish still uploads fine and
+`publish.sh` exits 0, but it prints `HTTP verify skipped (Cloudflare Access)` because it
+cannot fetch the artifact back to hash-check it. `/public/` is open and verifies normally.
+
+To make private artifacts hash-verify, add a **Cloudflare Access service token** (Zero Trust →
+Access → Service Auth → create a service token; then add its identity to the Access policy for
+`artifacts.ngs.bz`). Store it in the config:
+
+```bash
+printf '%s' "$CF_ACCESS_CLIENT_SECRET" | bash scripts/setup.sh \
+  --host sftp.artifacts.ngs.bz --user artifacts --remote-dir /files \
+  --url https://artifacts.ngs.bz --tool codex --ssh-key ~/.ssh/id_ed25519_artifacts \
+  --cf-access-id "$CF_ACCESS_CLIENT_ID" --cf-access-secret -
+```
+
+`publish.sh` then sends `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers on the verify
+fetch and confirms the served sha256 matches. Without the token, private publishes work but
+skip the HTTP verify (upload is still confirmed via SFTP).
 
 Notes for the current deployment: web is proxied by Cloudflare (`artifacts.ngs.bz`), SFTP
 DNS points straight at the origin (`sftp.artifacts.ngs.bz`). SFTP login lands in a chroot

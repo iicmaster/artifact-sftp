@@ -29,7 +29,14 @@ exit "${MOCK_SFTP_EXIT:-0}"
 EOF
 cat > "$WORK/bin/curl" <<'EOF'
 #!/usr/bin/env bash
-if [ -n "${MOCK_CURL_BODY:-}" ]; then cat "$MOCK_CURL_BODY"; else cat "${MOCK_LAST_PUT:?}"; fi
+# mock curl for publish.sh verify: honours -o <body> -D <hdr> -w '%{http_code}'.
+out='' hdr='' prev=''
+for a in "$@"; do case "$prev" in -o) out=$a ;; -D) hdr=$a ;; esac; prev=$a; done
+code="${MOCK_HTTP_CODE:-200}"
+src="${MOCK_CURL_BODY:-${MOCK_LAST_PUT:?}}"
+[ -n "$hdr" ] && { printf 'HTTP/2 %s \n' "$code" > "$hdr"; [ -n "${MOCK_LOCATION:-}" ] && printf 'location: %s\n' "$MOCK_LOCATION" >> "$hdr"; }
+if [ -n "$out" ]; then cat "$src" > "$out"; else cat "$src"; fi
+printf '%s' "$code"   # -w '%{http_code}'
 EOF
 chmod +x "$WORK/bin/sftp" "$WORK/bin/curl"
 export PATH="$WORK/bin:$PATH"
@@ -128,6 +135,27 @@ unset MOCK_SFTP_EXIT
 chmod 644 "$cfg"
 expect 3 "world-readable config rejected"          -- bash "$PUB" --slug ok "$good"
 chmod 600 "$cfg"
+
+# --- config-injection guard: a config value that SOURCES cleanly but is unsafe for the curl -K
+#     config (embedded quote via bash $'...') must be rejected at read time, before any upload ---
+cp "$cfg" "$cfg.pre-inj"
+cat >> "$cfg" <<'INJ'
+BASIC_AUTH=$'a:b"c'
+INJ
+expect 3 "unsafe BASIC_AUTH (quote via \$'') rejected"  -- bash "$PUB" --slug injtest "$good"
+mv "$cfg.pre-inj" "$cfg"
+
+# --- Cloudflare Access gate: private + basic-auth, server 302s to Access login -> graceful skip (exit 0, NOT 6) ---
+echo 'BASIC_AUTH=viewer:secret' >> "$cfg"
+export MOCK_HTTP_CODE=302 MOCK_LOCATION='https://team.cloudflareaccess.com/cdn-cgi/access/login/host'
+unset MOCK_CURL_BODY
+cfrc=0; out=$(bash "$PUB" --slug cfgate "$good" 2>"$WORK/errout") || cfrc=$?
+if [ "$cfrc" -eq 0 ] && grep -q 'Cloudflare Access' "$WORK/errout"; then
+  echo "PASS Cloudflare Access gate -> graceful skip (exit 0, not 6)"
+else
+  echo "FAIL: CF Access gate — want exit 0 + skip note, got exit $cfrc"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+unset MOCK_HTTP_CODE MOCK_LOCATION
 
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi

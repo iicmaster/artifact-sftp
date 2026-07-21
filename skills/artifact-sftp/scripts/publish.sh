@@ -65,7 +65,8 @@ case "$perm" in 600|400) ;; *) die 3 "config $CONFIG must be mode 0600 (is $perm
 # Config values must come from the file alone — a pre-exported KNOWN_HOSTS or SSH_KEY
 # would defeat host-key pinning / key selection via the ${VAR:-default} fallbacks below.
 unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
-      DEFAULT_TOOL SSH_KEY BASIC_AUTH OP_KEY_REF SFTP_PASS
+      DEFAULT_TOOL SSH_KEY BASIC_AUTH OP_KEY_REF SFTP_PASS \
+      CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET
 # shellcheck disable=SC1090
 . "$CONFIG"
 : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
@@ -75,6 +76,16 @@ KNOWN_HOSTS=${KNOWN_HOSTS:-$HOME/.config/artifact-sftp/known_hosts}
 TOOL=${TOOL:-${DEFAULT_TOOL:-}}
 case "$TOOL" in openclaw|codex) ;; *) die 2 "--tool must be openclaw or codex (got '${TOOL:-<empty>}')";; esac
 [ -f "$KNOWN_HOSTS" ] || die 3 "pinned known_hosts missing: $KNOWN_HOSTS (seed with ssh-keyscan — see references/setup.md)"
+
+# Defense in depth: setup.sh's allowlist only guards values it WRITES, but this config is
+# sourced directly (`.`), so it may be hand-edited, restored from a backup, or appended to by
+# another tool. Re-validate every value interpolated into the curl -K verify config here: a
+# value with an embedded quote+newline (legal via bash $'...' quoting) would otherwise inject a
+# rogue directive (e.g. url=) into -K and exfiltrate the credentials on the next private publish.
+_cfg_safe() { case "$1" in *[!A-Za-z0-9_.:/@%+-]*) return 1;; *) return 0;; esac; }
+for _v in "${BASIC_AUTH:-}" "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}"; do
+  [ -z "$_v" ] || _cfg_safe "$_v" || die 3 "a verify-auth config value has characters unsafe for the curl -K config (allowed: A-Za-z0-9 _.:/@%+-) — fix BASIC_AUTH/CF_ACCESS_* in $CONFIG"
+done
 
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10
           -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$KNOWN_HOSTS"
@@ -263,25 +274,62 @@ mkdir -p "$(dirname "$MANIFEST")"
 grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null || printf '%s/%s/%s\n' "$TOOL" "$VIS" "$SLUG" >> "$MANIFEST"
 
 # ---------- verify (content hash, not just HTTP 200) ----------
-verify_url() {
-  local got want
+# Returns 0 = served bytes match; 1 = real mismatch/error; 2 = gated by Cloudflare Access
+# (a 302 to the Access login — these credentials can't see the artifact, so we cannot verify,
+# but the upload itself is fine). No -f: we inspect the status code ourselves so a 302 gate is
+# distinguishable from a 4xx/5xx failure.
+# Auth goes to curl via a -K config on STDIN, never argv — a header/user on the command line
+# would expose BASIC_AUTH / the CF service secret to `ps` for the fetch's lifetime.
+verify_url() {  # $1 = curl config text (may be empty); 0=match 1=fail 2=Cloudflare-Access-gated
+  local body hdr code want got
+  body=$(mktemp); hdr=$(mktemp)
+  code=$(printf '%s' "$1" | _timeout 30 curl -sS -K - -o "$body" -D "$hdr" -w '%{http_code}' "${URL}index.html?cb=$$") \
+    || { rm -f "$body" "$hdr"; return 1; }
+  if [ "$code" != 200 ]; then
+    if [ "$code" = 302 ] && grep -qiE '^location:.*(cloudflareaccess\.com|/cdn-cgi/access/)' "$hdr"; then
+      rm -f "$body" "$hdr"; return 2
+    fi
+    rm -f "$body" "$hdr"; return 1
+  fi
   want=$(_sha256 < "$STAMPED" | cut -d' ' -f1)
-  got=$(_timeout 30 curl -fsS "$@" "${URL}index.html?cb=$$" | _sha256 | cut -d' ' -f1) || return 1
+  got=$(_sha256 < "$body" | cut -d' ' -f1)
+  rm -f "$body" "$hdr"
   [ "$got" = "$want" ]
 }
+
+# Build the curl auth config (kept off argv): CF Access service token and/or basic auth, from
+# config only. Values are shell-safe per setup.sh's allowlist, so no quote can escape the config.
+VERIFY_CFG=''
+if [ -n "${CF_ACCESS_CLIENT_ID:-}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+  VERIFY_CFG="header = \"CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}\"
+header = \"CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}\"
+"
+fi
+[ -n "${BASIC_AUTH:-}" ] && VERIFY_CFG="${VERIFY_CFG}user = \"${BASIC_AUTH}\"
+"
+
+rc=0
 if [ "$VIS" = public ]; then
-  verify_url || die 6 "uploaded but $URL does not serve the expected content"
-  err "verified: served content matches local sha256"
-elif [ -n "${BASIC_AUTH:-}" ]; then
-  verify_url -u "$BASIC_AUTH" || die 6 "uploaded but $URL does not serve the expected content (basic auth)"
-  err "verified: served content matches local sha256 (basic auth)"
+  verify_url '' || rc=$?
+  case $rc in
+    0) err "verified: served content matches local sha256" ;;
+    2) err "note: uploaded; public path unexpectedly behind Cloudflare Access — HTTP verify skipped" ;;
+    *) die 6 "uploaded but $URL does not serve the expected content" ;;
+  esac
+elif [ -n "$VERIFY_CFG" ]; then
+  verify_url "$VERIFY_CFG" || rc=$?
+  case $rc in
+    0) err "verified: served content matches local sha256 (authenticated)" ;;
+    2) err "note: private artifact uploaded; it is gated by Cloudflare Access and these credentials do not satisfy it — HTTP verify skipped. Set CF_ACCESS_CLIENT_ID + CF_ACCESS_CLIENT_SECRET (a Zero Trust service token) in the config to enable verification." ;;
+    *) die 6 "uploaded but $URL does not serve the expected content (authenticated)" ;;
+  esac
 else
-  err "note: private artifact uploaded; HTTP verify skipped (no BASIC_AUTH in config)"
+  err "note: private artifact uploaded; HTTP verify skipped (no CF_ACCESS_* or BASIC_AUTH in config)"
 fi
 
 if [ "$VIS" = public ]; then
   err "WARNING: PUBLIC artifact — anyone with the URL can read it"
 else
-  err "private artifact — readable only with the basic-auth credentials"
+  err "private artifact — readable only with the configured credentials (basic auth or Cloudflare Access)"
 fi
 printf '%s\n' "$URL"
