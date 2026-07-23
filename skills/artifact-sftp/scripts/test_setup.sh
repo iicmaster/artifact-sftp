@@ -145,7 +145,7 @@ assert_contains "$UNCONFIRMED_OUT" '--known-hosts-file is required' \
 [ ! -e "$UNCONFIRMED_HOME/.config/artifact-sftp/config" ] \
   || fail "unconfirmed host setup wrote a config"
 
-BASIC_SECRET='fixture-user:fixture-password-redact-me'
+BASIC_SECRET='fixture-user:fixture-password-redact-me'  # pragma: allowlist secret
 SECRET_INPUT="$TMP_ROOT/setup.stdin"
 printf '%s\n' "$BASIC_SECRET" >"$SECRET_INPUT"
 FIRST_OUT="$TMP_ROOT/first-setup.out"
@@ -226,7 +226,7 @@ assert_not_contains "$WIZARD_STATUS_OUT" "$BASIC_SECRET" "setup wizard status le
 # Password auth must read its secret from stdin, never argv/output, and remain
 # discoverable as the selected auth mode in redacted status.
 PASSWORD_HOME="$TMP_ROOT/password home"
-PASSWORD_SECRET='fixture-sftp-password-redact-me'
+PASSWORD_SECRET='fixture-sftp-password-redact-me'  # pragma: allowlist secret
 PASSWORD_STDIN="$TMP_ROOT/password.stdin"
 PASSWORD_OUT="$TMP_ROOT/password-setup.out"
 PASSWORD_KNOWN_SOURCE="$TMP_ROOT/password-preverified-known-hosts"

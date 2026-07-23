@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.14"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Check syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(find skills -type f -name '*.sh' -print0)
+          python -m py_compile skills/artifact-sftp/scripts/sftp_helper.py
+
+      - name: Verify password-auth dependency
+        run: |
+          python -m pip install --disable-pip-version-check paramiko==5.0.0
+          python -c "import paramiko; assert paramiko.__version__ == '5.0.0'"
+
+      - name: Run offline regression tests
+        shell: bash
+        run: |
+          bash skills/artifact-sftp/scripts/test_publish.sh
+          bash skills/artifact-sftp/scripts/test_setup.sh
+
+      - name: Scan the release tree for secrets
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check detect-secrets==1.5.0
+          detect-secrets scan --all-files > "$RUNNER_TEMP/detect-secrets.json"
+          python -c 'import json,sys; findings=json.load(sys.stdin)["results"]; raise SystemExit(any(findings.values()))' \
+            < "$RUNNER_TEMP/detect-secrets.json"

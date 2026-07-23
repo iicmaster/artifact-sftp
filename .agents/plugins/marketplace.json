@@ -1,0 +1,20 @@
+{
+  "name": "iicmaster-artifact-sftp",
+  "interface": {
+    "displayName": "Artifact SFTP"
+  },
+  "plugins": [
+    {
+      "name": "artifact-sftp",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

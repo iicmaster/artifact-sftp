@@ -27,35 +27,30 @@
 
 ## Install the plugin
 
-`artifact-sftp` is a private git submodule of the `agent-skills` install-manifest repo.
-Codex's Git marketplace checkout does not initialize submodules, so register an existing
-**local checkout** after initializing this exact plugin:
+Install the standalone public marketplace in Codex:
 
 ```bash
-CHECKOUT=/path/to/agent-skills
-git -C "$CHECKOUT" submodule update --init plugins/artifact-sftp
-codex plugin marketplace add "$CHECKOUT"
-codex plugin add artifact-sftp@ngs-agent-skills
+codex plugin marketplace add iicmaster/artifact-sftp
+codex plugin add artifact-sftp@iicmaster-artifact-sftp
 # Start a FRESH Codex process so the installed version and both skills are indexed.
 ```
 
-The private submodule requires GitHub credentials that can read
-`iicmaster/artifact-sftp`. Do not substitute another repository when authentication fails.
+For local development, replace `iicmaster/artifact-sftp` with the path to this checkout.
 In the fresh Codex session, start first-run setup with:
 
 ```text
 $artifact-sftp:artifact-sftp-setup
 ```
 
-OpenClaw can install the initialized plugin directory directly, then expose the bundled
-setup skill:
+OpenClaw can install a local checkout directly, then expose the bundled setup skill:
 
 ```bash
-openclaw plugins install "$CHECKOUT/plugins/artifact-sftp"
+git clone https://github.com/iicmaster/artifact-sftp.git
+openclaw plugins install ./artifact-sftp
 ```
 
-Invoke it with `/skill artifact-sftp-setup`. OpenClaw does not consume the parent
-`.agents/plugins/marketplace.json` as a Codex marketplace.
+Invoke it with `/skill artifact-sftp-setup`. OpenClaw does not consume the Codex
+`.agents/plugins/marketplace.json`.
 
 ## Client side (each machine): one-time config
 
@@ -69,7 +64,7 @@ Required client tools are `ssh-keyscan`, `ssh-keygen`, `curl`, and either `sha25
 `paramiko`. The command reports missing dependencies before writing configuration.
 
 ```bash
-PLUGIN_DIR="$CHECKOUT/plugins/artifact-sftp"
+PLUGIN_DIR=/path/to/artifact-sftp
 bash "$PLUGIN_DIR/skills/artifact-sftp-setup/scripts/setup-wizard.sh" --status
 ```
 

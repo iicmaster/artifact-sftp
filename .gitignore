@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local agent/BMAD projections are generated per workspace.
+.agents/skills/
+.claude/
+_bmad/
+_bmad-output/

@@ -85,7 +85,7 @@ expect 2 "bad --tool rejected"                    -- bash "$PUB" --slug ok --too
 
 # --- secret scan ---
 sec="$WORK/leak.html"
-printf '<pre>-----BEGIN RSA PRIVATE KEY-----</pre>\n' > "$sec"
+printf '<pre>-----BEGIN %s PRIVATE KEY-----</pre>\n' 'RSA' > "$sec"
 expect 4 "PEM private key blocked"                -- bash "$PUB" --slug ok "$sec"
 # fixture assembled at runtime so repo pre-commit secret scanners don't flag this file
 printf '<p>%s%s</p>\n' 'AKIA' 'ABCDEFGHIJKLMNOP' > "$sec"
