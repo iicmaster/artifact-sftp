@@ -10,9 +10,10 @@ private by default) on runtimes that lack it. Uploads one self-contained HTML fi
 artifact to an SFTP web host.
 
 Shipped as a **plugin** (`.codex-plugin/plugin.json` bundling this skill), installable into
-Codex/OpenClaw via their marketplace (`references/setup.md`). One-time client setup —
-pin the host key + write the config — is automated by `scripts/setup.sh`; never hand-edit
-credentials into a brief.
+Codex and OpenClaw as described in `references/setup.md`. Route first-time configuration to
+the dedicated setup command: Codex `$artifact-sftp:artifact-sftp-setup`, or OpenClaw
+`/skill artifact-sftp-setup`. Never ask for credentials in chat or hand-edit them into a
+brief.
 
 ## URL contract
 
@@ -91,7 +92,9 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 
 ## Failure modes
 
-- `exit 3` + "config not found / known_hosts missing" → one-time setup incomplete; run `scripts/setup.sh` (flag-driven; password via stdin) or walk the user through `references/setup.md`. Do not improvise credentials.
+- `exit 3` + "config not found / known_hosts missing" → one-time setup is incomplete. Invoke
+  `$artifact-sftp:artifact-sftp-setup` on Codex or `/skill artifact-sftp-setup` on OpenClaw.
+  Do not improvise credentials or ask the user to paste them into chat.
 - `exit 3` + "op read failed" → 1Password desktop app locked or item missing; ask the user to unlock, or configure `SSH_KEY` instead.
 - Host key mismatch → hard stop. NEVER add `-o StrictHostKeyChecking=no` or edit the pinned known_hosts to "fix" it; report to the user (possible MITM or server reinstall).
 - `exit 5` "already exists and is not in the local manifest" → another machine/agent owns that slug; pick a new slug or get the user's explicit OK for `--force`.
@@ -101,5 +104,6 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 
 ## Self-check
 
-`bash <skill-dir>/scripts/test_publish.sh` — offline, mocks sftp/curl, exercises slug
-validation, secret scan, atomic upload batch, URL contract, and exit codes.
+- `bash <skill-dir>/scripts/test_publish.sh` — offline publish regression tests.
+- `bash <skill-dir>/scripts/test_setup.sh` — offline setup, permission, backup, and symlink
+  regression tests.

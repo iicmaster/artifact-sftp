@@ -25,45 +25,95 @@
    uploaded HTML runs on this origin (stored-XSS blast radius).
 7. Add a 1Password item (e.g. `artifacts.ngs.bz - sftp`) holding the SSH private key.
 
-## Install the plugin (Codex / OpenClaw)
+## Install the plugin
 
-The skill ships inside a plugin at `plugins/artifact-sftp/`; the marketplace manifest is
-`.agents/plugins/marketplace.json` at the repo root. Register the repo as a **local**
-marketplace, then install — from a checkout of this repo:
+`artifact-sftp` is a private git submodule of the `agent-skills` install-manifest repo.
+Codex's Git marketplace checkout does not initialize submodules, so register an existing
+**local checkout** after initializing this exact plugin:
 
 ```bash
-codex plugin marketplace add "$PWD"                 # discovers .agents/plugins/marketplace.json
-codex plugin add artifact-sftp@ngs-agent-skills     # installs into ~/.codex
-# start a FRESH codex process so the new skill is indexed
+CHECKOUT=/path/to/agent-skills
+git -C "$CHECKOUT" submodule update --init plugins/artifact-sftp
+codex plugin marketplace add "$CHECKOUT"
+codex plugin add artifact-sftp@ngs-agent-skills
+# Start a FRESH Codex process so the installed version and both skills are indexed.
 ```
 
-OpenClaw consumes the same marketplace format under `~/.openclaw/plugins`; use its plugin
-CLI/UX to add the same local source. Git source works too once pushed:
-`codex plugin marketplace add ngs-th/agent-skills` (owner/repo form).
+The private submodule requires GitHub credentials that can read
+`iicmaster/artifact-sftp`. Do not substitute another repository when authentication fails.
+In the fresh Codex session, start first-run setup with:
+
+```text
+$artifact-sftp:artifact-sftp-setup
+```
+
+OpenClaw can install the initialized plugin directory directly, then expose the bundled
+setup skill:
+
+```bash
+openclaw plugins install "$CHECKOUT/plugins/artifact-sftp"
+```
+
+Invoke it with `/skill artifact-sftp-setup`. OpenClaw does not consume the parent
+`.agents/plugins/marketplace.json` as a Codex marketplace.
 
 ## Client side (each machine): one-time config
 
-`scripts/setup.sh` pins the host key and writes `~/.config/artifact-sftp/config` (0600). It is
-flag-driven; the password is read from **stdin**, never argv:
+The setup command launches an interactive terminal wizard, shows the SFTP host-key
+fingerprints for confirmation, and writes `~/.config/artifact-sftp/config` plus
+`known_hosts` at mode `0600`. It never publishes a smoke artifact. It also supports a
+read-only readiness check:
+
+Required client tools are `ssh-keyscan`, `ssh-keygen`, `curl`, and either `sha256sum` or
+`shasum`. SSH-key and 1Password modes also need `sftp`; password mode needs Python 3 with
+`paramiko`. The command reports missing dependencies before writing configuration.
+
+```bash
+PLUGIN_DIR="$CHECKOUT/plugins/artifact-sftp"
+bash "$PLUGIN_DIR/skills/artifact-sftp-setup/scripts/setup-wizard.sh" --status
+```
+
+For automation, the implementation remains flag-driven. Secrets are read from **stdin**,
+never argv. `PLUGIN_DIR` must point at the installed or initialized `artifact-sftp` plugin
+directory. Automation must also supply a host-key file whose fingerprints were verified
+with the server owner through an independent channel; `setup.sh` refuses unconfirmed TOFU:
+
+```bash
+KNOWN_HOSTS_FILE=/secure/path/artifact-sftp.known_hosts
+ssh-keyscan -p 22 sftp.artifacts.ngs.bz >"$KNOWN_HOSTS_FILE"
+ssh-keygen -lf "$KNOWN_HOSTS_FILE" -E sha256
+# Compare every fingerprint with the server owner before continuing.
+chmod 600 "$KNOWN_HOSTS_FILE"
+```
+
+Then configure one authentication mode:
 
 ```bash
 # password account (current deployment) — needs python3-paramiko.
 # secrets go through stdin (never argv/ps/history), one per line: SFTP pass, then basic-auth:
-printf '%s\n%s\n' "$SFTP_PASSWORD" "artifacts-private:$VIEWER_PASS" | bash scripts/setup.sh \
-  --host sftp.artifacts.ngs.bz --user artifacts --port 22 \
-  --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-  --pass - --basic-auth -
+printf '%s\n%s\n' "$SFTP_PASSWORD" "artifacts-private:$VIEWER_PASS" | \
+  bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
+    --host sftp.artifacts.ngs.bz --user artifacts --port 22 \
+    --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
+    --pass - --basic-auth - --known-hosts-file "$KNOWN_HOSTS_FILE"
 
 # OR a local SSH key (no paramiko needed):
-bash scripts/setup.sh --host sftp.artifacts.ngs.bz --user artifacts \
+bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
+  --host sftp.artifacts.ngs.bz --user artifacts \
   --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-  --ssh-key ~/.ssh/id_ed25519_artifacts
+  --ssh-key ~/.ssh/id_ed25519_artifacts --known-hosts-file "$KNOWN_HOSTS_FILE"
 
 # OR a key from 1Password (op / op.exe via WSL; desktop app unlocked):
-bash scripts/setup.sh --host sftp.artifacts.ngs.bz --user artifacts \
+bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
+  --host sftp.artifacts.ngs.bz --user artifacts \
   --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-  --op-ref 'op://Internal Shared/artifacts.ngs.bz - sftp/private key'
+  --op-ref 'op://vault-id/item-id/private-key' --known-hosts-file "$KNOWN_HOSTS_FILE"
 ```
+
+The script refuses to overwrite either file by default. An explicitly approved repair uses
+`--replace`; it first backs up both the config and pinned host keys. Replacement rewrites the
+entire config, so repeat every setting that must be retained, including `BASIC_AUTH`, the
+chosen SFTP auth mode, and any Cloudflare Access token.
 
 Config values must be shell-safe (the file is both `source`d by `publish.sh` and split by
 `sftp_helper.py`); `setup.sh` rejects a password with spaces/quotes/`$` and points you to
@@ -84,10 +134,12 @@ Access → Service Auth → create a service token; then add its identity to the
 `artifacts.ngs.bz`). Store it in the config:
 
 ```bash
-printf '%s' "$CF_ACCESS_CLIENT_SECRET" | bash scripts/setup.sh \
+printf '%s' "$CF_ACCESS_CLIENT_SECRET" | \
+  bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
   --host sftp.artifacts.ngs.bz --user artifacts --remote-dir /files \
   --url https://artifacts.ngs.bz --tool codex --ssh-key ~/.ssh/id_ed25519_artifacts \
-  --cf-access-id "$CF_ACCESS_CLIENT_ID" --cf-access-secret -
+  --cf-access-id "$CF_ACCESS_CLIENT_ID" --cf-access-secret - \
+  --known-hosts-file "$KNOWN_HOSTS_FILE" --replace
 ```
 
 `publish.sh` then sends `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers on the verify
@@ -102,6 +154,10 @@ DNS points straight at the origin (`sftp.artifacts.ngs.bz`). SFTP login lands in
 
 ```bash
 printf '<title>smoke</title><p>hello</p>' > /tmp/smoke.html
-bash scripts/publish.sh --slug smoke-test --tool codex /tmp/smoke.html   # private
-bash scripts/publish.sh --delete smoke-test --tool codex                 # clean up
+bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/publish.sh" \
+  --slug smoke-test --tool codex /tmp/smoke.html                         # private
+bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/publish.sh" \
+  --delete smoke-test --tool codex                                      # clean up
 ```
+
+Run the smoke test only as a separate, explicit publish action after setup succeeds.
