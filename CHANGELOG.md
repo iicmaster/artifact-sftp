@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.3.1] - 2026-07-28
+
+- Accept `claude` as a `--tool` value across publish/setup scripts and docs, so
+  artifacts published from Claude Code land under `/claude/` in the URL path.
+
 ## [0.3.0] - 2026-07-23
 
 - Add a standalone Codex marketplace manifest and public installation instructions.

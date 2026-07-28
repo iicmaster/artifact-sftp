@@ -12,7 +12,7 @@ upload directory.
 
 - Publishes a single self-contained HTML file to a stable URL.
 - Keeps immutable timestamped versions beside the current `index.html`.
-- Separates `codex` and `openclaw`, and `private` and `public`, in the URL path.
+- Separates runtimes (`codex`, `openclaw`, `claude`), and `private` and `public`, in the URL path.
 - Pins and verifies the SFTP host key.
 - Supports SSH keys, 1Password SSH-key references, or password authentication through
   Paramiko.

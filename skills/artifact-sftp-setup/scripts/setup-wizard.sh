@@ -142,8 +142,8 @@ prompt_default remote_dir "Remote base directory" "/files"
 prompt_default public_url "Public base URL" "https://artifacts.ngs.bz"
 
 while :; do
-  prompt_default default_tool "Default runtime (codex/openclaw)" "codex"
-  case "$default_tool" in codex|openclaw) break ;; *) err "Choose codex or openclaw." ;; esac
+  prompt_default default_tool "Default runtime (codex/openclaw/claude)" "codex"
+  case "$default_tool" in codex|openclaw|claude) break ;; *) err "Choose codex, openclaw or claude." ;; esac
 done
 
 while :; do

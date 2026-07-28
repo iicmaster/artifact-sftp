@@ -21,7 +21,7 @@ brief.
 https://<PUBLIC_BASE_URL host>/<tool>/<visibility>/<slug>/
 ```
 
-- `tool` = `openclaw` | `codex` (which runtime published it)
+- `tool` = `openclaw` | `codex` | `claude` (which runtime published it)
 - `visibility` = `private` (default; HTTP basic auth) | `public` (anyone with the URL)
 - `slug` = artifact identity, `^[a-z0-9][a-z0-9-]{0,62}$`. Same slug = same URL; republishing overwrites in place.
 - Every publish also keeps a versioned snapshot next to `index.html`, named
@@ -87,7 +87,7 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 |---|---|
 | OpenClaw | run `publish.sh` with `--tool openclaw` |
 | Codex | run `publish.sh` with `--tool codex` (needs network + exec approval in sandboxed sessions) |
-| Claude Code | prefer the native `Artifact` tool; use this skill only when the user explicitly wants their own SFTP host — then `--tool` matching who the artifact is for |
+| Claude Code | prefer the native `Artifact` tool; use this skill only when the user explicitly wants their own SFTP host — then `--tool claude` |
 | opencode / others | run `publish.sh` with the `--tool` the user designates |
 
 ## Failure modes
