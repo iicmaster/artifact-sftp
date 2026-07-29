@@ -74,7 +74,7 @@ unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
 SFTP_PORT=${SFTP_PORT:-22}
 KNOWN_HOSTS=${KNOWN_HOSTS:-$HOME/.config/artifact-sftp/known_hosts}
 TOOL=${TOOL:-${DEFAULT_TOOL:-}}
-case "$TOOL" in openclaw|codex) ;; *) die 2 "--tool must be openclaw or codex (got '${TOOL:-<empty>}')";; esac
+case "$TOOL" in openclaw|codex|claude) ;; *) die 2 "--tool must be openclaw, codex or claude (got '${TOOL:-<empty>}')";; esac
 [ -f "$KNOWN_HOSTS" ] || die 3 "pinned known_hosts missing: $KNOWN_HOSTS (seed with ssh-keyscan — see references/setup.md)"
 
 # Defense in depth: setup.sh's allowlist only guards values it WRITES, but this config is

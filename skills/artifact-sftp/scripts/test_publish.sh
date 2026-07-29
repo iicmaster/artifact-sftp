@@ -81,7 +81,7 @@ printf 'md' > "$WORK/nope.md"
 expect 2 "non-html extension rejected"            -- bash "$PUB" --slug ok "$WORK/nope.md"
 printf 'x' > "$WORK/real.html"; ln -s "$WORK/real.html" "$WORK/link.html"
 expect 2 "symlink rejected"                       -- bash "$PUB" --slug ok "$WORK/link.html"
-expect 2 "bad --tool rejected"                    -- bash "$PUB" --slug ok --tool claude "$good"
+expect 2 "bad --tool rejected"                    -- bash "$PUB" --slug ok --tool bogus "$good"
 
 # --- secret scan ---
 sec="$WORK/leak.html"

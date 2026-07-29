@@ -8,6 +8,7 @@
    ```
    openclaw/private/   openclaw/public/
    codex/private/      codex/public/
+   claude/private/     claude/public/
    ```
 4. Protect both `*/private/` dirs with HTTP basic auth (`.htaccess` + `.htpasswd`
    outside the docroot). Example `.htaccess`:
@@ -143,7 +144,7 @@ skip the HTTP verify (upload is still confirmed via SFTP).
 
 Notes for the current deployment: web is proxied by Cloudflare (`artifacts.ngs.bz`), SFTP
 DNS points straight at the origin (`sftp.artifacts.ngs.bz`). SFTP login lands in a chroot
-`/`; artifacts live under `/files/{openclaw,codex}/{private,public}`.
+`/`; artifacts live under `/files/{openclaw,codex,claude}/{private,public}`.
 
 ## Smoke test
 

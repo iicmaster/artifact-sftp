@@ -113,7 +113,7 @@ status() {
 
     tool=$(_config_value DEFAULT_TOOL)
     case "$tool" in
-      codex|openclaw) printf 'default tool: %s\n' "$tool" ;;
+      codex|openclaw|claude) printf 'default tool: %s\n' "$tool" ;;
       *) printf 'default tool: invalid\n'; issues=$((issues + 1)) ;;
     esac
 
@@ -220,7 +220,7 @@ done
 [ -n "$HOST" ] && [ -n "$SUSER" ] && [ -n "$REMOTE" ] && [ -n "$URL" ] \
   || die "required: --host --user --remote-dir --url"
 [ "$AUTH_CHOICES" -eq 1 ] || die "pick exactly one auth mode: --pass - | --ssh-key PATH | --op-ref op://..."
-case "$TOOL" in openclaw|codex) ;; *) die "--tool must be openclaw or codex (got '$TOOL')";; esac
+case "$TOOL" in openclaw|codex|claude) ;; *) die "--tool must be openclaw, codex or claude (got '$TOOL')";; esac
 case "$PORT" in ''|*[!0-9]*) die "--port must be an integer";; esac
 [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "--port must be between 1 and 65535"
 # Cloudflare Access service token (optional) — needs BOTH parts or neither.
