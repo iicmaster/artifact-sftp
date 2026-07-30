@@ -1,0 +1,31 @@
+{
+  "name": "artifact-sftp",
+  "owner": {
+    "name": "NGS"
+  },
+  "metadata": {
+    "description": "Publish self-contained HTML artifacts to your own SFTP web host with a stable URL and private-by-default visibility.",
+    "version": "0.4.0"
+  },
+  "plugins": [
+    {
+      "name": "artifact-sftp",
+      "description": "Publish one self-contained HTML file per artifact to an SFTP web host and get a stable, redeploy-in-place URL that is private (HTTP basic auth) by default. Includes an interactive setup skill that pins and verifies the SFTP host key.",
+      "version": "0.4.0",
+      "author": {
+        "name": "NGS"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/iicmaster/artifact-sftp",
+      "repository": "https://github.com/iicmaster/artifact-sftp",
+      "keywords": [
+        "artifact",
+        "sftp",
+        "publish",
+        "html",
+        "hosting"
+      ],
+      "source": "./"
+    }
+  ]
+}

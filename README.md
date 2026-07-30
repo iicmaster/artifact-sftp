@@ -48,6 +48,35 @@ Then run:
 /skill artifact-sftp-setup
 ```
 
+### Claude Code
+
+Claude Code has a native `Artifact` tool. Install this plugin when you want artifacts on
+**your own host** instead — to keep them behind your own auth, or to share a URL that is
+not tied to a chat session.
+
+```text
+/plugin marketplace add iicmaster/artifact-sftp
+/plugin install artifact-sftp@artifact-sftp
+```
+
+Then run:
+
+```text
+/artifact-sftp:artifact-sftp-setup
+```
+
+The skills also work linked into your personal skills directory, without the plugin
+system:
+
+```bash
+git clone https://github.com/iicmaster/artifact-sftp.git
+ln -s "$PWD/artifact-sftp/skills/artifact-sftp"       ~/.claude/skills/artifact-sftp
+ln -s "$PWD/artifact-sftp/skills/artifact-sftp-setup" ~/.claude/skills/artifact-sftp-setup
+```
+
+Then run `/artifact-sftp-setup`. Artifacts published from Claude Code land under
+`/claude/` in the URL path.
+
 The setup wizard scans the SFTP host key, displays every fingerprint for independent
 verification, and writes:
 
