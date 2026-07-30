@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.0] - 2026-07-30
+
+- Add Claude Code packaging: `.claude-plugin/plugin.json` and
+  `.claude-plugin/marketplace.json`, so the plugin installs with
+  `/plugin marketplace add iicmaster/artifact-sftp` and
+  `/plugin install artifact-sftp@artifact-sftp`.
+- Document Claude Code in the README install section, including the
+  personal-skills-directory alternative for setups that do not use the plugin
+  system, and note when to prefer it over the native Artifact tool.
+- Route Claude Code first-run configuration to the setup skill in `SKILL.md`.
+- Bring `.codex-plugin/plugin.json` up to the released version, which had stayed
+  at `0.3.0` through the `0.3.1` release.
+
 ## [0.3.1] - 2026-07-28
 
 - Accept `claude` as a `--tool` value across publish/setup scripts and docs, so

@@ -9,11 +9,13 @@ Mimics the *contract* of Claude Code's Artifact tool (stable URL, redeploy-in-pl
 private by default) on runtimes that lack it. Uploads one self-contained HTML file per
 artifact to an SFTP web host.
 
-Shipped as a **plugin** (`.codex-plugin/plugin.json` bundling this skill), installable into
-Codex and OpenClaw as described in `references/setup.md`. Route first-time configuration to
-the dedicated setup command: Codex `$artifact-sftp:artifact-sftp-setup`, or OpenClaw
-`/skill artifact-sftp-setup`. Never ask for credentials in chat or hand-edit them into a
-brief.
+Shipped as a **plugin** (`.codex-plugin/plugin.json` for Codex, `.claude-plugin/plugin.json`
+for Claude Code, both bundling this skill), installable into Codex, OpenClaw, and Claude Code
+as described in `references/setup.md`. Route first-time configuration to the dedicated setup
+command: Codex `$artifact-sftp:artifact-sftp-setup`, OpenClaw `/skill artifact-sftp-setup`, or
+Claude Code `/artifact-sftp:artifact-sftp-setup` (`/artifact-sftp-setup` when the skills are
+linked into `~/.claude/skills/` instead of installed as a plugin). Never ask for credentials in
+chat or hand-edit them into a brief.
 
 ## URL contract
 
