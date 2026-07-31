@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.1] - 2026-07-31
+
+- Stamp the page footer in Thai local time (`Asia/Bangkok`, labeled ICT) instead
+  of UTC. Snapshot filenames stay UTC for machine sorting.
+
 ## [0.4.0] - 2026-07-30
 
 - Add Claude Code packaging: `.claude-plugin/plugin.json` and

@@ -239,7 +239,7 @@ VFILE="${SLUG}--${VER}--${TS}.html"
 
 # Stamp creation time + version into the page itself so every viewer can see it.
 STAMPED=$(mktemp)
-TS_HUMAN=$(date -u '+%Y-%m-%d %H:%M UTC')
+TS_HUMAN=$(TZ=Asia/Bangkok date '+%Y-%m-%d %H:%M ICT')
 FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:12px/1.5 system-ui;color:#888\">artifact: ${SLUG} · v${VER} · created ${TS_HUMAN}</footer>"
 if grep -q '</body>' "$FILE"; then
   awk -v foot="$FOOT" '!done && index($0,"</body>") { sub(/<\/body>/, foot "</body>"); done=1 } { print }' "$FILE" > "$STAMPED"
