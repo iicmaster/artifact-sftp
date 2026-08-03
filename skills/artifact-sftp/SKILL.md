@@ -59,7 +59,12 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 ## Output contract (parse this, do not scrape prose)
 
 - Success: exit 0, **last stdout line = artifact URL**. All diagnostics go to stderr.
-- Exit codes: `2` usage/validation, `3` config or auth, `4` secret scan blocked, `5` upload failed, `6` served content mismatch.
+- Exit codes: `2` usage/validation, `3` config or auth, `4` secret scan blocked, `5` upload failed, `6` served content mismatch, `7` published private but the host serves it unauthenticated.
+- **Exit `7` means the content is live and world-readable right now.** The upload succeeded,
+  then the script re-fetched the URL carrying no credentials and got the artifact back — so
+  `private` was a label, not a protection. Delete it (`--delete <slug>`), tell the user that
+  path is unprotected, and do not republish there until the host requires auth. Never report
+  `7` as a cosmetic warning.
 - A private artifact behind **Cloudflare Access** uploads and exits `0` but prints
   `HTTP verify skipped (Cloudflare Access)` — the upload is confirmed, the sha256 re-fetch is
   not (basic auth can't pass Access). This is success, not failure. Add a CF Access service

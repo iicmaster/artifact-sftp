@@ -4,6 +4,7 @@
 # Contract (stable — agents parse this):
 #   - On success the LAST line of stdout is the artifact URL. Everything else -> stderr.
 #   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
+#                 | 7 published private but the host serves it to anyone (take it down)
 #
 # usage: publish.sh --slug SLUG [--tool NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
 #        publish.sh --list   [--tool NAME]
@@ -327,9 +328,26 @@ else
   err "note: private artifact uploaded; HTTP verify skipped (no CF_ACCESS_* or BASIC_AUTH in config)"
 fi
 
+# ---------- private means private: prove it, don't assert it ----------
+# Everything above proves the artifact is THERE. Nothing above proves a stranger cannot
+# read it — those are independent properties and only the first one was ever measured.
+# So probe the URL carrying no credentials at all: if the bytes come back, "private" is
+# a label on an open door, and the caller is one line away from handing that URL out.
+# Runs for every private publish, including the no-BASIC_AUTH/no-CF_ACCESS path where
+# nothing else was verified at all — which is exactly where the gap hides.
+if [ "$VIS" != public ]; then
+  if verify_url ''; then
+    err "EXPOSED: $URL serves this artifact to unauthenticated requests. It is NOT private."
+    err "The content is live and readable by anyone with the URL. Take it down now:"
+    err "  $0 --delete $SLUG --tool $TOOL"
+    err "Then make the host require auth on /$TOOL/private/ before republishing."
+    exit 7
+  fi
+fi
+
 if [ "$VIS" = public ]; then
   err "WARNING: PUBLIC artifact — anyone with the URL can read it"
 else
-  err "private artifact — readable only with the configured credentials (basic auth or Cloudflare Access)"
+  err "verified private: an unauthenticated request does not return the content"
 fi
 printf '%s\n' "$URL"
