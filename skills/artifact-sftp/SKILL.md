@@ -59,18 +59,24 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 ## Output contract (parse this, do not scrape prose)
 
 - Success: exit 0, **last stdout line = artifact URL**. All diagnostics go to stderr.
-- Exit codes: `2` usage/validation, `3` config or auth, `4` secret scan blocked, `5` upload failed, `6` served content mismatch, `7` published private but the host serves it unauthenticated.
+- Exit codes: `2` usage/validation, `3` config or auth, `4` secret scan blocked, `5` upload failed, `6` served content mismatch, `7` published private but the host serves it unauthenticated, `8` private protection could not be proven.
 - **Exit `7` means the content is live and world-readable right now.** The upload succeeded,
   then the script re-fetched the URL carrying no credentials and got the artifact back — so
   `private` was a label, not a protection. Delete it (`--delete <slug>`), tell the user that
   path is unprotected, and do not republish there until the host requires auth. Never report
-  `7` as a cosmetic warning.
+  `7` as a cosmetic warning. The failure output does not print the artifact URL.
+- **Exit `8` means the anonymous privacy probe was inconclusive** (for example, a timeout,
+  transport error, unexpected HTTP status, or content mismatch). The script withholds the URL;
+  do not treat `8` as proof of privacy or hand out the URL manually.
 - A private artifact behind **Cloudflare Access** uploads and exits `0` but prints
   `HTTP verify skipped (Cloudflare Access)` — the upload is confirmed, the sha256 re-fetch is
   not (basic auth can't pass Access). This is success, not failure. Add a CF Access service
   token (`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`, see `references/setup.md`) to enable
   the verify. `/public/` artifacts always verify.
 - `--dry-run` validates everything and prints the would-be URL without uploading.
+- Private publishes probe both `index.html` and the immutable versioned snapshot without
+  credentials before reporting success. An explicit `401`/`403` or a recognized Cloudflare
+  Access login redirect counts as protected; other anonymous results are inconclusive.
 
 ## Safety rules (non-negotiable)
 

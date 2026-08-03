@@ -5,12 +5,13 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 - Prove `private` instead of asserting it. After a private publish the script now
-  re-fetches the URL carrying no credentials; if the artifact comes back it exits
-  `7` with take-down instructions, instead of printing the URL and calling it
-  private. Found in the field: a `claude/private/` path served the full document to
-  anonymous requests while the script reported "readable only with the configured
-  credentials" — the authenticated verify had passed, and nothing had ever checked
-  the other half.
+  re-fetches both `index.html` and the immutable snapshot carrying no credentials;
+  if either artifact comes back it exits `7` with take-down instructions, without
+  printing the URL. Inconclusive anonymous probes fail closed with exit `8`, and
+  the probe disables ambient `curlrc` credentials. Found in the field: a
+  `claude/private/` path served the full document to anonymous requests while the
+  script reported "readable only with the configured credentials" — the authenticated
+  verify had passed, and nothing had ever checked the other half.
 
 ## [0.4.1] - 2026-07-31
 
