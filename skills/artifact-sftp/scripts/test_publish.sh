@@ -30,10 +30,39 @@ EOF
 cat > "$WORK/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 # mock curl for publish.sh verify: honours -o <body> -D <hdr> -w '%{http_code}'.
-out='' hdr='' prev=''
-for a in "$@"; do case "$prev" in -o) out=$a ;; -D) hdr=$a ;; esac; prev=$a; done
+out='' hdr='' prev='' url='' curl_q=0
+for a in "$@"; do
+  case "$prev" in -o) out=$a ;; -D) hdr=$a ;; esac
+  [ "$a" = "-q" ] && curl_q=1
+  prev=$a; url=$a
+done
 code="${MOCK_HTTP_CODE:-200}"
 src="${MOCK_CURL_BODY:-${MOCK_LAST_PUT:?}}"
+# publish.sh always pipes a -K config (possibly empty). An empty config on a /private/ URL is
+# the unauthenticated probe, so the mock must answer it the way a protected host would —
+# otherwise every private test would read as "exposed" and the exposure test could never fail
+# for a real reason. MOCK_ANON_EXPOSED=1 simulates a host that forgot to protect every path;
+# MOCK_ANON_EXPOSED_TARGET= index or snapshot limits the exposure to one uploaded URL.
+cfgin=''; [ -t 0 ] || cfgin=$(cat)
+case "$url" in
+  */private/*)
+    if [ -z "$cfgin" ]; then
+      exposed=0
+      # A curlrc with credentials is ambient auth unless curl is invoked with -q.
+      [ "${MOCK_CURLRC_AUTH:-0}" = 1 ] && [ "$curl_q" -eq 0 ] && exposed=1
+      case "${MOCK_ANON_EXPOSED_TARGET:-}" in
+        index) case "$url" in */index.html\?*) exposed=1 ;; esac ;;
+        snapshot) case "$url" in *--*.html\?*) exposed=1 ;; esac ;;
+      esac
+      [ "${MOCK_ANON_EXPOSED:-0}" = 1 ] && exposed=1
+      if [ "$exposed" -eq 0 ]; then
+        code="${MOCK_ANON_CODE:-403}"
+        [ -n "$hdr" ] && printf 'HTTP/2 %s \n' "$code" > "$hdr"
+        printf '%s' "$code"; exit 0
+      fi
+    fi
+    ;;
+esac
 [ -n "$hdr" ] && { printf 'HTTP/2 %s \n' "$code" > "$hdr"; [ -n "${MOCK_LOCATION:-}" ] && printf 'location: %s\n' "$MOCK_LOCATION" >> "$hdr"; }
 if [ -n "$out" ]; then cat "$src" > "$out"; else cat "$src"; fi
 printf '%s' "$code"   # -w '%{http_code}'
@@ -156,6 +185,66 @@ else
   echo "FAIL: CF Access gate — want exit 0 + skip note, got exit $cfrc"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 unset MOCK_HTTP_CODE MOCK_LOCATION
+
+# --- private that the host serves to anyone => exit 7, and never print a URL ---
+# The failure this guards against: the upload works, the authenticated verify passes, and the
+# script then announces "private" for a path that never required a credential.
+export MOCK_ANON_EXPOSED=1
+unset MOCK_CURL_BODY
+exprc=0; bash "$PUB" --slug exposed "$good" >"$WORK/out" 2>"$WORK/errout" || exprc=$?
+if [ "$exprc" -eq 7 ] && grep -q 'EXPOSED' "$WORK/errout" \
+    && ! grep -q 'https://' "$WORK/out" && ! grep -q 'https://' "$WORK/errout"; then
+  echo "PASS unprotected private path -> exit 7, no URL printed"
+else
+  echo "FAIL: unprotected private path — want exit 7 + EXPOSED on stderr + no URL on stdout, got exit $exprc"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+unset MOCK_ANON_EXPOSED
+
+# --- only the versioned snapshot is exposed => exit 7 ---
+export MOCK_ANON_EXPOSED_TARGET=snapshot
+snaprc=0; bash "$PUB" --slug exposed-snapshot "$good" >"$WORK/out" 2>"$WORK/errout" || snaprc=$?
+if [ "$snaprc" -eq 7 ] && grep -q 'versioned snapshot' "$WORK/errout" \
+    && ! grep -q 'https://' "$WORK/out" && ! grep -q 'https://' "$WORK/errout"; then
+  echo "PASS exposed versioned snapshot -> exit 7, no URL printed"
+else
+  echo "FAIL: exposed versioned snapshot — want exit 7 + no URL, got exit $snaprc"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+unset MOCK_ANON_EXPOSED_TARGET
+
+# --- an inconclusive anonymous probe => exit 8, and withhold the URL ---
+export MOCK_ANON_CODE=503
+unknownrc=0; bash "$PUB" --slug inconclusive "$good" >"$WORK/out" 2>"$WORK/errout" || unknownrc=$?
+if [ "$unknownrc" -eq 8 ] && grep -q 'inconclusive' "$WORK/errout" \
+    && ! grep -q 'https://' "$WORK/out"; then
+  echo "PASS inconclusive private probe -> exit 8, no URL printed"
+else
+  echo "FAIL: inconclusive private probe — want exit 8 + no URL, got exit $unknownrc"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+unset MOCK_ANON_CODE
+
+# --- ambient curlrc credentials must not affect the anonymous probe ---
+export MOCK_CURLRC_AUTH=1
+curlrcrc=0; out=$(bash "$PUB" --slug curlrc-protected "$good" 2>"$WORK/errout") || curlrcrc=$?
+if [ "$curlrcrc" -eq 0 ] && [ "$out" = "https://example.invalid/codex/private/curlrc-protected/" ] \
+    && ! grep -q 'EXPOSED' "$WORK/errout"; then
+  echo "PASS anonymous probe ignores ambient curlrc credentials"
+else
+  echo "FAIL: ambient curlrc credentials changed privacy result — got exit $curlrcrc '$out'"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+unset MOCK_CURLRC_AUTH
+
+# --- protected private path still succeeds (the guard must not cry wolf) ---
+protrc=0; out=$(bash "$PUB" --slug protok "$good" 2>"$WORK/errout") || protrc=$?
+if [ "$protrc" -eq 0 ] && [ "$out" = "https://example.invalid/codex/private/protok/" ]; then
+  echo "PASS protected private path still publishes (exit 0)"
+else
+  echo "FAIL: protected private path — want exit 0 + URL, got exit $protrc '$out'"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
 
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi

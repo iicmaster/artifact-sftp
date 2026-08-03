@@ -4,6 +4,7 @@
 # Contract (stable — agents parse this):
 #   - On success the LAST line of stdout is the artifact URL. Everything else -> stderr.
 #   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
+#                 | 7 private artifact exposed | 8 private protection inconclusive
 #
 # usage: publish.sh --slug SLUG [--tool NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
 #        publish.sh --list   [--tool NAME]
@@ -236,6 +237,7 @@ last=$(remote_versions | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" |
 VER=$((last + 1))
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 VFILE="${SLUG}--${VER}--${TS}.html"
+SNAPSHOT_URL="${URL}${VFILE}"
 
 # Stamp creation time + version into the page itself so every viewer can see it.
 STAMPED=$(mktemp)
@@ -274,20 +276,24 @@ mkdir -p "$(dirname "$MANIFEST")"
 grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null || printf '%s/%s/%s\n' "$TOOL" "$VIS" "$SLUG" >> "$MANIFEST"
 
 # ---------- verify (content hash, not just HTTP 200) ----------
-# Returns 0 = served bytes match; 1 = real mismatch/error; 2 = gated by Cloudflare Access
+# Returns 0 = served bytes match; 1 = transport/unexpected status/hash mismatch;
+# 2 = gated by Cloudflare Access; 3 = explicit HTTP auth denial (401/403).
 # (a 302 to the Access login — these credentials can't see the artifact, so we cannot verify,
 # but the upload itself is fine). No -f: we inspect the status code ourselves so a 302 gate is
 # distinguishable from a 4xx/5xx failure.
 # Auth goes to curl via a -K config on STDIN, never argv — a header/user on the command line
 # would expose BASIC_AUTH / the CF service secret to `ps` for the fetch's lifetime.
-verify_url() {  # $1 = curl config text (may be empty); 0=match 1=fail 2=Cloudflare-Access-gated
-  local body hdr code want got
+verify_url() {  # $1 = curl config; $2 = target URL; returns the codes above
+  local cfg=$1 target=$2 body hdr code want got
   body=$(mktemp); hdr=$(mktemp)
-  code=$(printf '%s' "$1" | _timeout 30 curl -sS -K - -o "$body" -D "$hdr" -w '%{http_code}' "${URL}index.html?cb=$$") \
+  code=$(printf '%s' "$cfg" | _timeout 30 curl -q -sS -K - -o "$body" -D "$hdr" -w '%{http_code}' "${target}?cb=$$") \
     || { rm -f "$body" "$hdr"; return 1; }
   if [ "$code" != 200 ]; then
     if [ "$code" = 302 ] && grep -qiE '^location:.*(cloudflareaccess\.com|/cdn-cgi/access/)' "$hdr"; then
       rm -f "$body" "$hdr"; return 2
+    fi
+    if [ "$code" = 401 ] || [ "$code" = 403 ]; then
+      rm -f "$body" "$hdr"; return 3
     fi
     rm -f "$body" "$hdr"; return 1
   fi
@@ -295,6 +301,35 @@ verify_url() {  # $1 = curl config text (may be empty); 0=match 1=fail 2=Cloudfl
   got=$(_sha256 < "$body" | cut -d' ' -f1)
   rm -f "$body" "$hdr"
   [ "$got" = "$want" ]
+}
+
+verify_pair() {  # $1 = curl config; both index.html and the versioned snapshot must verify
+  local cfg=$1 rc=0
+  verify_url "$cfg" "$URL" || rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  verify_url "$cfg" "$SNAPSHOT_URL" || rc=$?
+  return "$rc"
+}
+
+probe_private() {  # $1 = target URL; $2 = human-readable target name
+  local target=$1 label=$2 rc=0
+  verify_url '' "$target" || rc=$?
+  case "$rc" in
+    0)
+      err "EXPOSED: private $label is readable by unauthenticated requests. It is NOT private."
+      err "The content is live and readable by anyone with the URL. Take it down now:"
+      err "  $0 --delete $SLUG --tool $TOOL"
+      err "Then make the host require auth on /$TOOL/private/ before republishing."
+      return 7
+      ;;
+    2|3)
+      return 0
+      ;;
+    *)
+      err "ERROR: could not prove that private $label is protected (anonymous probe inconclusive); URL withheld."
+      return 8
+      ;;
+  esac
 }
 
 # Build the curl auth config (kept off argv): CF Access service token and/or basic auth, from
@@ -310,14 +345,14 @@ fi
 
 rc=0
 if [ "$VIS" = public ]; then
-  verify_url '' || rc=$?
+  verify_pair '' || rc=$?
   case $rc in
     0) err "verified: served content matches local sha256" ;;
     2) err "note: uploaded; public path unexpectedly behind Cloudflare Access — HTTP verify skipped" ;;
     *) die 6 "uploaded but $URL does not serve the expected content" ;;
   esac
 elif [ -n "$VERIFY_CFG" ]; then
-  verify_url "$VERIFY_CFG" || rc=$?
+  verify_pair "$VERIFY_CFG" || rc=$?
   case $rc in
     0) err "verified: served content matches local sha256 (authenticated)" ;;
     2) err "note: private artifact uploaded; it is gated by Cloudflare Access and these credentials do not satisfy it — HTTP verify skipped. Set CF_ACCESS_CLIENT_ID + CF_ACCESS_CLIENT_SECRET (a Zero Trust service token) in the config to enable verification." ;;
@@ -327,9 +362,24 @@ else
   err "note: private artifact uploaded; HTTP verify skipped (no CF_ACCESS_* or BASIC_AUTH in config)"
 fi
 
+# ---------- private means private: prove it, don't assert it ----------
+# Everything above proves the artifacts are THERE. Nothing above proves a stranger cannot
+# read them — those are independent properties and only the first one was ever measured.
+# Probe both uploaded URLs carrying no credentials at all. A matching response is exposure;
+# an explicit denial or known Access gate is protection; every other result is inconclusive.
+# Runs for every private publish, including the no-BASIC_AUTH/no-CF_ACCESS path where
+# nothing else was verified at all — which is exactly where the gap hides.
+if [ "$VIS" != public ]; then
+  private_rc=0
+  probe_private "$URL" "index.html" || private_rc=$?
+  [ "$private_rc" -eq 0 ] || exit "$private_rc"
+  probe_private "$SNAPSHOT_URL" "the versioned snapshot" || private_rc=$?
+  [ "$private_rc" -eq 0 ] || exit "$private_rc"
+fi
+
 if [ "$VIS" = public ]; then
   err "WARNING: PUBLIC artifact — anyone with the URL can read it"
 else
-  err "private artifact — readable only with the configured credentials (basic auth or Cloudflare Access)"
+  err "verified private: an unauthenticated request does not return the content"
 fi
 printf '%s\n' "$URL"
