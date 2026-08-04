@@ -72,6 +72,28 @@ Sharing = republish the same file with `--public` (the private copy stays until 
   the verify. `/public/` artifacts always verify.
 - `--dry-run` validates everything and prints the would-be URL without uploading.
 
+## Keeping a local copy (`ARCHIVE_DIR`)
+
+Set `ARCHIVE_DIR=/path/to/docs/artifacts` in the config and every publish also writes the
+bytes it just uploaded to `<ARCHIVE_DIR>/<slug>/`:
+
+```
+<slug>/versions/v<N>--<UTC>.html   the stamped file, byte-for-byte what the server serves
+<slug>/latest.html                 symlink to the newest version
+<slug>/versions.tsv                ver, ts_utc, file, sha256, url — appended, never rewritten
+<slug>/meta.yml                    created once, with title/summary/source left BLANK
+```
+
+Why this exists even though the server keeps every snapshot: behind Cloudflare Access a
+`/private/` artifact cannot be fetched back even with the owner's own basic auth. A copy you
+cannot read is not a copy.
+
+The blank fields in `meta.yml` are deliberate — **fill in `title`, `summary`, and `source`
+yourself after the first publish of a slug.** A generated summary would be a guess, and a
+confidently wrong one is worse than an empty one. Archiving never fails a publish: if the
+directory is unwritable it warns on stderr and the exit code stays whatever the publish
+earned. Unset (the default) = nothing is written locally.
+
 ## Safety rules (non-negotiable)
 
 - **Publishing is exfiltration if the content is sensitive.** Never publish secrets,

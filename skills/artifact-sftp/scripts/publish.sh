@@ -67,7 +67,7 @@ case "$perm" in 600|400) ;; *) die 3 "config $CONFIG must be mode 0600 (is $perm
 # would defeat host-key pinning / key selection via the ${VAR:-default} fallbacks below.
 unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
       DEFAULT_TOOL SSH_KEY BASIC_AUTH OP_KEY_REF SFTP_PASS \
-      CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET
+      CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET ARCHIVE_DIR
 # shellcheck disable=SC1090
 . "$CONFIG"
 : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
@@ -342,6 +342,46 @@ if [ "$VIS" != public ]; then
     err "  $0 --delete $SLUG --tool $TOOL"
     err "Then make the host require auth on /$TOOL/private/ before republishing."
     exit 7
+  fi
+fi
+
+# ---------- local archive (opt-in via ARCHIVE_DIR in config) ----------
+# A copy on the server is only a copy if you can read it back. Behind Cloudflare Access
+# even the owner's own basic auth cannot fetch a /private/ artifact, so "the server keeps
+# every version" does not substitute for having the bytes locally.
+# Archives the STAMPED file — the exact bytes served, footer included.
+# Editorial fields (title/summary/source) are left blank on purpose: a script cannot write
+# a useful summary, and a confidently wrong one is worse than an empty one.
+if [ -n "${ARCHIVE_DIR:-}" ]; then
+  adir="$ARCHIVE_DIR/$SLUG"
+  if mkdir -p "$adir/versions" 2>/dev/null; then
+    afile="v${VER}--${TS}.html"
+    if cp "$STAMPED" "$adir/versions/$afile" 2>/dev/null; then
+      ln -sfn "versions/$afile" "$adir/latest.html" 2>/dev/null || true
+      [ -f "$adir/versions.tsv" ] || printf 'ver\tts_utc\tfile\tsha256\turl\n' > "$adir/versions.tsv"
+      printf '%s\t%s\t%s\t%s\t%s\n' "$VER" "$TS" "versions/$afile" \
+        "$(_sha256 < "$STAMPED" | cut -d' ' -f1)" "$URL" >> "$adir/versions.tsv"
+      if [ ! -f "$adir/meta.yml" ]; then
+        cat > "$adir/meta.yml" <<META
+slug: $SLUG
+title: ""          # fill in — the name a reader recognises
+url: $URL
+tool: $TOOL
+visibility: $VIS
+summary: ""        # fill in — one paragraph: what question does this answer?
+source: ""         # fill in — where the source lives (repo/path)
+build: ""          # fill in — the script that produced it
+tags: []
+status: current    # current | stale | superseded-by:<slug>
+META
+        err "archive: created $adir/meta.yml — fill in title/summary/source"
+      fi
+      err "archive: local copy at $adir/versions/$afile"
+    else
+      err "archive: WARNING could not write $adir/versions/$afile — no local copy kept"
+    fi
+  else
+    err "archive: WARNING could not create $adir — no local copy kept"
   fi
 fi
 

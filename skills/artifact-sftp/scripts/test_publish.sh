@@ -194,5 +194,33 @@ else
   sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 
+# --- ARCHIVE_DIR: local copy written at publish time, not left to human memory ---
+arch="$WORK/archive"
+cp "$cfg" "$cfg.pre-arch"
+echo "ARCHIVE_DIR=$arch" >> "$cfg"
+archrc=0
+bash "$PUB" --slug archived "$good" >"$WORK/out" 2>"$WORK/errout" || archrc=$?
+# `|| true` ทั้งสองบรรทัด: ถ้าไม่มีไฟล์/symlink คำสั่งคืน non-zero แล้ว set -e จะฆ่า
+# สคริปต์ก่อนถึงบรรทัดตัดสิน — เทสต์จะตายเงียบแทนที่จะบอกว่าอะไรหาย
+f=$(ls "$arch/archived/versions/" 2>/dev/null | head -1 || true)
+link=$(readlink "$arch/archived/latest.html" 2>/dev/null || true)
+if [ "$archrc" -eq 0 ] && [ -n "$f" ] && [ "$link" = "versions/$f" ] \
+   && grep -q 'data-artifact-meta' "$arch/archived/versions/$f" \
+   && grep -q "^1$(printf '\t')" "$arch/archived/versions.tsv" \
+   && grep -q 'slug: archived' "$arch/archived/meta.yml"; then
+  echo "PASS ARCHIVE_DIR writes stamped copy + latest symlink + versions.tsv + meta.yml"
+else
+  echo "FAIL: ARCHIVE_DIR — exit=$archrc file='$f' link='$link'"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+mv "$cfg.pre-arch" "$cfg"
+
+# --- opt-in must stay opt-in: no ARCHIVE_DIR => no archive dir appears ---
+rm -rf "$arch"
+bash "$PUB" --slug noarch "$good" >/dev/null 2>&1
+[ ! -d "$arch" ] \
+  && echo "PASS no ARCHIVE_DIR -> nothing archived" \
+  || { echo "FAIL: archived even though ARCHIVE_DIR was unset"; fails=$((fails+1)); }
+
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi

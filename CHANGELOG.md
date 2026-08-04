@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- Optional `ARCHIVE_DIR` in the config: every publish also writes the uploaded bytes to
+  `<ARCHIVE_DIR>/<slug>/versions/v<N>--<UTC>.html`, updates a `latest.html` symlink,
+  appends to `versions.tsv`, and creates a `meta.yml` skeleton whose editorial fields are
+  left blank on purpose. Motivated by a real gap: behind Cloudflare Access a `/private/`
+  artifact cannot be fetched back even with the owner's own basic auth, so "the server
+  keeps every snapshot" did not mean the content was recoverable. Unset = unchanged
+  behaviour; an unwritable directory warns without failing the publish.
+
 - Prove `private` instead of asserting it. After a private publish the script now
   re-fetches the URL carrying no credentials; if the artifact comes back it exits
   `7` with take-down instructions, instead of printing the URL and calling it
