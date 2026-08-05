@@ -36,7 +36,7 @@ _config_shape_valid() {
     key=${line%%=*}
     value=${line#*=}
     case "$key" in
-      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|BASIC_AUTH|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET) ;;
+      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|BASIC_AUTH|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|ARCHIVE_DIR) ;;
       *) return 1 ;;
     esac
     [ -n "$value" ] && _shell_safe "$value" || return 1

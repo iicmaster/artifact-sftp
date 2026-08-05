@@ -116,7 +116,9 @@ Config values must be shell-safe (the file is both `source`d by `publish.sh` and
 `--ssh-key`. To hand-write the config instead, the keys are: `SFTP_HOST`, `SFTP_USER`,
 `SFTP_PORT`, `REMOTE_DIR`, `PUBLIC_BASE_URL`, `DEFAULT_TOOL`, one of
 `SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `BASIC_AUTH`,
-`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` — one `KEY=value` per line, `chmod 600`.
+`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `ARCHIVE_DIR` — one `KEY=value` per
+line, `chmod 600`. Any key outside that list makes `setup.sh --status` call the whole
+config invalid, so a new option has to be added there before it can be used here.
 
 ## Private verify behind Cloudflare Access
 

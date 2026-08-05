@@ -213,6 +213,74 @@ else
   echo "FAIL: ARCHIVE_DIR — exit=$archrc file='$f' link='$link'"
   sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
+# --- the bytes are live, so keep them even when the run ends in failure ---
+# exit 7 tells the caller to delete the remote copy. If the archive only ran after
+# verification, obeying that instruction would leave the artifact nowhere at all.
+export MOCK_ANON_EXPOSED=1
+exp2rc=0
+bash "$PUB" --slug exposedarch "$good" >"$WORK/out" 2>"$WORK/errout" || exp2rc=$?
+# Counts a file matching THIS run's version prefix, not just "something is in there" —
+# an unrelated leftover would otherwise make this pass while proving nothing.
+# `|| true`: under `pipefail` a missing directory makes `ls` exit 2, which `set -e` turns
+# into a silent death of the whole suite — the failing case would never print its verdict.
+f2=$(ls "$arch/exposedarch/versions/"v1--*.html 2>/dev/null | wc -l || true)
+if [ "$exp2rc" -eq 7 ] && [ "$f2" -eq 1 ]; then
+  echo "PASS exit 7 (exposed) still leaves a local copy"
+else
+  echo "FAIL: exposed publish kept no local copy — exit=$exp2rc file='$f2'"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+unset MOCK_ANON_EXPOSED
+
+# --- one slug under two tools shares one ledger: say so, don't interleave in silence ---
+# Version numbers are counted per remote path, so the same slug published elsewhere can
+# repeat a number here. This is the only check on that warning.
+bash "$PUB" --tool claude --slug archived "$good" >"$WORK/out" 2>"$WORK/errout" || true
+if grep -q 'also holds versions published to' "$WORK/errout"; then
+  echo "PASS same slug, second tool -> ledger-mixing warning"
+else
+  echo "FAIL: no warning when one slug spans two tools"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
+# --- different bytes must never overwrite an earlier version's file ---
+# Version numbers restart per remote path, so a third tool publishes v1 again. Whether or
+# not the timestamps land in the same second, both artifacts have to survive: the remote
+# copy sits behind Access and cannot be fetched back, so an overwrite here is data loss.
+printf '<html><body>a different artifact entirely</body></html>\n' > "$WORK/other.html"
+b4=$(ls "$arch/archived/versions/" 2>/dev/null | wc -l || true)
+bash "$PUB" --tool openclaw --slug archived "$WORK/other.html" >"$WORK/out" 2>"$WORK/errout" || true
+after=$(ls "$arch/archived/versions/" 2>/dev/null | wc -l || true)
+if [ "$after" -eq $((b4 + 1)) ]; then
+  echo "PASS a colliding version number does not overwrite earlier bytes"
+else
+  echo "FAIL: version collision lost a copy — before=$b4 after=$after"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
+# --- a ledger we cannot write is a warning, not a failed publish ---
+# `set -e` on an unguarded append would abort here, after the artifact is already live.
+# chmod does not constrain root, so this case can only prove anything as a normal user.
+if [ "$(id -u)" -eq 0 ]; then
+  echo "SKIP read-only versions.tsv (running as root — chmod 444 would not block a write)"
+else
+before=$(ls "$arch/archived/versions/" 2>/dev/null | wc -l || true)
+chmod 444 "$arch/archived/versions.tsv"
+rorc=0
+bash "$PUB" --slug archived "$good" >"$WORK/out" 2>"$WORK/errout" || rorc=$?
+f3=$(ls "$arch/archived/versions/" 2>/dev/null | wc -l || true)
+chmod 644 "$arch/archived/versions.tsv"
+# `-ge` not `-eq before+1`: republishing identical bytes reuses the same filename by
+# design, so this case can legitimately end with the same number of copies. What must hold
+# is that the publish survived the unwritable ledger and lost nothing.
+if [ "$rorc" -eq 0 ] && [ "$f3" -ge "$before" ] && grep -q 'could not append' "$WORK/errout"; then
+  echo "PASS read-only versions.tsv -> warning, publish still succeeds"
+else
+  echo "FAIL: read-only ledger — want exit 0 + >= $before copies + warning, got exit $rorc copies=$f3"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+fi
+
 mv "$cfg.pre-arch" "$cfg"
 
 # --- opt-in must stay opt-in: no ARCHIVE_DIR => no archive dir appears ---

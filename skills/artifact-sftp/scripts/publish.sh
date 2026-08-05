@@ -274,6 +274,92 @@ err "published v${VER} (snapshot: ${VFILE})"
 mkdir -p "$(dirname "$MANIFEST")"
 grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null || printf '%s/%s/%s\n' "$TOOL" "$VIS" "$SLUG" >> "$MANIFEST"
 
+# ---------- local archive (opt-in via ARCHIVE_DIR in config) ----------
+# A copy on the server is only a copy if you can read it back. Behind Cloudflare Access
+# even the owner's own basic auth cannot fetch a /private/ artifact, so "the server keeps
+# every version" does not substitute for having the bytes locally.
+# Placed HERE — after the upload lands, before verification — on purpose: the bytes are
+# already live, so a later `die 6` (served content mismatch) or `exit 7` (the "private"
+# artifact answers unauthenticated requests) must not cost us the copy. Exit 7 in
+# particular tells the caller to delete the remote, which would otherwise leave the bytes
+# nowhere at all.
+# Archives the STAMPED file — the exact bytes served, footer included.
+# Editorial fields (title/summary/source) are left blank on purpose: a script cannot write
+# a useful summary, and a confidently wrong one is worse than an empty one.
+if [ -n "${ARCHIVE_DIR:-}" ]; then
+  adir="$ARCHIVE_DIR/$SLUG"
+  if mkdir -p "$adir/versions" 2>/dev/null; then
+    afile="v${VER}--${TS}.html"
+    # Version numbers are counted per REMOTE path ($TOOL/$VIS/$SLUG), but this archive is
+    # keyed by slug alone — so the same slug published under another tool, or flipped to
+    # --public, lands in one ledger where a version number can repeat. Say so instead of
+    # interleaving silently.
+    # ponytail: warn, don't partition — one directory per slug is what keeps the archive
+    # readable by hand. Split to $ARCHIVE_DIR/$TOOL/$VIS/$SLUG if this warning ever fires.
+    # Scans every recorded URL, not just the last row: a tool-A → tool-B → tool-A sequence
+    # leaves the last row matching while the ledger is already mixed.
+    other_url=$(awk -F'\t' -v u="$URL" 'NR>1 && NF>=5 && $5 != u { print $5; exit }' \
+      "$adir/versions.tsv" 2>/dev/null || true)
+    if [ -n "$other_url" ]; then
+      err "archive: WARNING $adir also holds versions published to $other_url, not just $URL"
+      err "archive:   version numbers come from the remote path — they can repeat in this ledger"
+    fi
+    # Computed before the copy, not inside the printf below: a command substitution that
+    # fails yields an empty string, and printf would still succeed — writing a row with a
+    # blank hash into an append-only ledger nobody goes back to repair.
+    sha=$(_sha256 < "$STAMPED" 2>/dev/null | cut -d' ' -f1) || sha=''
+    [ -n "$sha" ] || err "archive: WARNING sha256 unavailable — the ledger row will carry an empty hash"
+    # $VER counts versions at the REMOTE path, so the same slug published under another tool
+    # restarts at v1: two unrelated artifacts can want this exact filename. A plain cp would
+    # overwrite bytes that cannot be fetched back from behind Cloudflare Access — which is
+    # the whole reason this archive exists. Republishing identical bytes is not a collision.
+    if [ -e "$adir/versions/$afile" ] \
+       && [ "$(_sha256 < "$adir/versions/$afile" 2>/dev/null | cut -d' ' -f1)" != "$sha" ]; then
+      afile="v${VER}--${TS}--${sha:0:8}.html"
+      err "archive: WARNING v${VER}--${TS}.html is already taken by different bytes — keeping this copy as $afile"
+    fi
+    if cp "$STAMPED" "$adir/versions/$afile" 2>/dev/null; then
+      # Not `|| true`: on a filesystem without symlinks (a Windows drive mounted under WSL,
+      # for one) this is the difference between "latest.html is stale" and "there is no
+      # latest.html and nobody said so".
+      ln -sfn "versions/$afile" "$adir/latest.html" 2>/dev/null \
+        || err "archive: WARNING could not update $adir/latest.html — the versioned copy is still there"
+      # Bookkeeping must never turn a completed publish into a failure: the artifact is
+      # already live and already copied, so a read-only versions.tsv is a warning, not an
+      # abort — which is what `set -e` would make of an unguarded redirection here.
+      if [ ! -f "$adir/versions.tsv" ]; then
+        printf 'ver\tts_utc\tfile\tsha256\turl\n' > "$adir/versions.tsv" 2>/dev/null \
+          || err "archive: WARNING could not create $adir/versions.tsv"
+      fi
+      printf '%s\t%s\t%s\t%s\t%s\n' "$VER" "$TS" "versions/$afile" \
+        "$sha" "$URL" >> "$adir/versions.tsv" 2>/dev/null \
+        || err "archive: WARNING could not append to $adir/versions.tsv — the copy is kept, the ledger is not updated"
+      if [ ! -f "$adir/meta.yml" ]; then
+        if cat > "$adir/meta.yml" 2>/dev/null <<META
+slug: $SLUG
+title: ""          # fill in — the name a reader recognises
+url: $URL
+tool: $TOOL
+visibility: $VIS
+summary: ""        # fill in — one paragraph: what question does this answer?
+source: ""         # fill in — where the source lives (repo/path)
+build: ""          # fill in — the script that produced it
+tags: []
+status: current    # current | stale | superseded-by:<slug>
+META
+        then err "archive: created $adir/meta.yml — fill in title/summary/source"
+        else err "archive: WARNING could not create $adir/meta.yml"
+        fi
+      fi
+      err "archive: local copy at $adir/versions/$afile"
+    else
+      err "archive: WARNING could not write $adir/versions/$afile — no local copy kept"
+    fi
+  else
+    err "archive: WARNING could not create $adir — no local copy kept"
+  fi
+fi
+
 # ---------- verify (content hash, not just HTTP 200) ----------
 # Returns 0 = served bytes match; 1 = real mismatch/error; 2 = gated by Cloudflare Access
 # (a 302 to the Access login — these credentials can't see the artifact, so we cannot verify,
@@ -342,46 +428,6 @@ if [ "$VIS" != public ]; then
     err "  $0 --delete $SLUG --tool $TOOL"
     err "Then make the host require auth on /$TOOL/private/ before republishing."
     exit 7
-  fi
-fi
-
-# ---------- local archive (opt-in via ARCHIVE_DIR in config) ----------
-# A copy on the server is only a copy if you can read it back. Behind Cloudflare Access
-# even the owner's own basic auth cannot fetch a /private/ artifact, so "the server keeps
-# every version" does not substitute for having the bytes locally.
-# Archives the STAMPED file — the exact bytes served, footer included.
-# Editorial fields (title/summary/source) are left blank on purpose: a script cannot write
-# a useful summary, and a confidently wrong one is worse than an empty one.
-if [ -n "${ARCHIVE_DIR:-}" ]; then
-  adir="$ARCHIVE_DIR/$SLUG"
-  if mkdir -p "$adir/versions" 2>/dev/null; then
-    afile="v${VER}--${TS}.html"
-    if cp "$STAMPED" "$adir/versions/$afile" 2>/dev/null; then
-      ln -sfn "versions/$afile" "$adir/latest.html" 2>/dev/null || true
-      [ -f "$adir/versions.tsv" ] || printf 'ver\tts_utc\tfile\tsha256\turl\n' > "$adir/versions.tsv"
-      printf '%s\t%s\t%s\t%s\t%s\n' "$VER" "$TS" "versions/$afile" \
-        "$(_sha256 < "$STAMPED" | cut -d' ' -f1)" "$URL" >> "$adir/versions.tsv"
-      if [ ! -f "$adir/meta.yml" ]; then
-        cat > "$adir/meta.yml" <<META
-slug: $SLUG
-title: ""          # fill in — the name a reader recognises
-url: $URL
-tool: $TOOL
-visibility: $VIS
-summary: ""        # fill in — one paragraph: what question does this answer?
-source: ""         # fill in — where the source lives (repo/path)
-build: ""          # fill in — the script that produced it
-tags: []
-status: current    # current | stale | superseded-by:<slug>
-META
-        err "archive: created $adir/meta.yml — fill in title/summary/source"
-      fi
-      err "archive: local copy at $adir/versions/$afile"
-    else
-      err "archive: WARNING could not write $adir/versions/$afile — no local copy kept"
-    fi
-  else
-    err "archive: WARNING could not create $adir — no local copy kept"
   fi
 fi
 
