@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-05
+
+- Require every real publish to create a stamped local copy under
+  `docs/artifacts/<tool>/<visibility>/<slug>/` before SFTP upload. The publisher exits
+  `9` and skips the upload when the local archive path cannot be created or is a symlink.
 - Prove `private` instead of asserting it. After a private publish the script now
   re-fetches both `index.html` and the immutable snapshot carrying no credentials;
   if either artifact comes back it exits `7` with take-down instructions, without
