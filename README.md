@@ -12,6 +12,8 @@ upload directory.
 
 - Publishes a single self-contained HTML file to a stable URL.
 - Keeps immutable timestamped versions beside the current `index.html`.
+- Keeps the stamped current file and snapshot in `docs/artifacts/<tool>/<visibility>/<slug>/`
+  before any SFTP upload.
 - Separates runtimes (`codex`, `openclaw`, `claude`), and `private` and `public`, in the URL path.
 - Pins and verifies the SFTP host key.
 - Supports SSH keys, 1Password SSH-key references, or password authentication through
@@ -101,7 +103,20 @@ bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
 ```
 
 The default is private. A public publish is readable by anyone who has the
-URL. The last line of successful stdout is always the artifact URL.
+URL. Run the command from the project working directory. The publisher refuses to upload
+unless it can first write the stamped bytes to `docs/artifacts/<tool>/<visibility>/<slug>/`;
+exit `9` means the local archive gate failed. The last line of successful stdout is always
+the artifact URL.
+
+The local layout mirrors the remote artifact identity:
+
+```text
+docs/artifacts/codex/private/my-report/index.html
+docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
+```
+
+The local archive remains after `--delete`; deleting a remote artifact does not erase local
+history. `--dry-run` reports the destination without creating files.
 
 Useful operations:
 
@@ -119,6 +134,7 @@ automation, authentication modes, and Cloudflare Access verification.
 ## Security model
 
 - Treat publishing as data exfiltration: inspect every artifact before upload.
+- Treat `docs/artifacts/` as a local custody copy, not as release or public-delivery proof.
 - Never put credentials, tokens, private keys, customer data, or unapproved
   file contents in an artifact.
 - Never disable strict host-key checking to work around a mismatch.

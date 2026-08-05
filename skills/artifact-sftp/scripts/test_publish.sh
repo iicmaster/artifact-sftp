@@ -10,7 +10,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 # Sandbox HOME + mock bins
 export HOME="$WORK/home"
-mkdir -p "$HOME/.config/artifact-sftp" "$WORK/bin"
+mkdir -p "$HOME/.config/artifact-sftp" "$WORK/bin" "$WORK/project"
 cat > "$WORK/bin/sftp" <<'EOF'
 #!/usr/bin/env bash
 batch='' prev=''
@@ -87,6 +87,9 @@ touch "$HOME/.config/artifact-sftp/known_hosts"
 good="$WORK/page.html"
 printf '<title>t</title><p>hello</p>\n' > "$good"
 
+# The publisher archives relative to the caller's project working directory.
+cd "$WORK/project"
+
 fails=0
 expect() { # expect <exit-code> <desc> -- cmd...
   local want=$1 desc=$2; shift 3
@@ -129,6 +132,9 @@ if [ "$out" = "https://example.invalid/codex/private/ok/" ]; then
 else
   echo "FAIL: dry-run URL contract — got '$out'"; fails=$((fails+1))
 fi
+[ ! -e "$WORK/project/docs/artifacts" ] \
+  && echo "PASS dry-run does not create local archive" \
+  || { echo "FAIL: dry-run created local archive"; fails=$((fails+1)); }
 
 # --- happy path (mock sftp ok; private => HTTP verify skipped) ---
 : > "$MOCK_LOG"
@@ -146,10 +152,25 @@ grep -q 'data-artifact-meta' "$MOCK_LAST_PUT" && grep -q 'created' "$MOCK_LAST_P
   && echo "PASS timestamp footer stamped into artifact" \
   || { echo "FAIL: timestamp footer not stamped"; fails=$((fails+1)); }
 
+# --- mandatory local archive ---
+LOCAL_OK="$WORK/project/docs/artifacts/codex/private/ok"
+[ -f "$LOCAL_OK/index.html" ] && echo "PASS local current copy in docs/artifacts" \
+  || { echo "FAIL: local current copy missing"; fails=$((fails+1)); }
+local_snapshot=$(find "$LOCAL_OK" -maxdepth 1 -type f -name 'ok--1--*.html' -print -quit)
+[ -n "$local_snapshot" ] && cmp -s "$local_snapshot" "$MOCK_LAST_PUT" \
+  && echo "PASS local versioned snapshot matches uploaded bytes" \
+  || { echo "FAIL: local snapshot missing or mismatched"; fails=$((fails+1)); }
+grep -q 'local copy: .*docs/artifacts/codex/private/ok/index.html' "$WORK/errout" \
+  && echo "PASS local archive path reported on stderr" \
+  || { echo "FAIL: local archive path not reported"; fails=$((fails+1)); }
+
 # --- public verify: hash match via mock curl (serves the stamped upload back) ---
 unset MOCK_CURL_BODY
 out=$(bash "$PUB" --slug ok2 --public "$good" 2>/dev/null)
 [ "$out" = "https://example.invalid/codex/public/ok2/" ] && echo "PASS public verify (hash match)" || { echo "FAIL: public verify"; fails=$((fails+1)); }
+[ -f "$WORK/project/docs/artifacts/codex/public/ok2/index.html" ] \
+  && echo "PASS public publish also archives locally" \
+  || { echo "FAIL: public local archive missing"; fails=$((fails+1)); }
 
 # --- public verify: hash mismatch => exit 6 ---
 printf 'tampered' > "$WORK/other.html"; export MOCK_CURL_BODY="$WORK/other.html"
@@ -243,6 +264,21 @@ if [ "$protrc" -eq 0 ] && [ "$out" = "https://example.invalid/codex/private/prot
   echo "PASS protected private path still publishes (exit 0)"
 else
   echo "FAIL: protected private path — want exit 0 + URL, got exit $protrc '$out'"
+  sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
+# --- local archive is a hard gate and happens before upload ---
+mkdir -p "$WORK/failing-project/docs/artifacts/codex/private"
+ln -s "$WORK" "$WORK/failing-project/docs/artifacts/codex/private/blocked"
+puts_before=$(grep -c '^put ' "$MOCK_LOG" || true)
+archive_rc=0
+(cd "$WORK/failing-project" && bash "$PUB" --slug blocked "$good" >"$WORK/out" 2>"$WORK/errout") || archive_rc=$?
+puts_after=$(grep -c '^put ' "$MOCK_LOG" || true)
+if [ "$archive_rc" -eq 9 ] && grep -q 'must not be a symlink' "$WORK/errout" \
+    && [ "$puts_after" -eq "$puts_before" ]; then
+  echo "PASS local archive failure blocks SFTP upload (exit 9)"
+else
+  echo "FAIL: local archive gate — want exit 9 with no upload, got exit $archive_rc"
   sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 

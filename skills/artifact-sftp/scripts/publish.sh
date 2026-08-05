@@ -4,7 +4,7 @@
 # Contract (stable — agents parse this):
 #   - On success the LAST line of stdout is the artifact URL. Everything else -> stderr.
 #   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
-#                 | 7 private artifact exposed | 8 private protection inconclusive
+#                 | 7 private artifact exposed | 8 private protection inconclusive | 9 local archive failed
 #
 # usage: publish.sh --slug SLUG [--tool NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
 #        publish.sh --list   [--tool NAME]
@@ -105,12 +105,16 @@ fi
 CLEANUP_KEY=''
 BATCH=''
 STAMPED=''
+LOCAL_INDEX_TMP=''
+LOCAL_SNAPSHOT_TMP=''
 cleanup() {
   # if-statements, not &&-lists: a false condition in an EXIT trap under set -e
   # would otherwise override the script's real exit code with 1.
   if [ -n "$CLEANUP_KEY" ]; then rm -f "$CLEANUP_KEY"; fi
   if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
   if [ -n "$STAMPED" ]; then rm -f "$STAMPED"; fi
+  if [ -n "$LOCAL_INDEX_TMP" ]; then rm -f "$LOCAL_INDEX_TMP"; fi
+  if [ -n "$LOCAL_SNAPSHOT_TMP" ]; then rm -f "$LOCAL_SNAPSHOT_TMP"; fi
 }
 trap cleanup EXIT
 if [ "$USE_PY" = 1 ]; then
@@ -209,8 +213,34 @@ fi
 
 URL="$PUBLIC_BASE_URL/$TOOL/$VIS/$SLUG/"
 
+# Every real publish must leave a local copy in the project working directory.
+# Keep the root fixed at docs/artifacts so the archive cannot be redirected by an
+# environment variable or an untrusted publish instruction.
+LOCAL_DOCS_DIR="$PWD/docs"
+LOCAL_ARTIFACT_ROOT="$LOCAL_DOCS_DIR/artifacts"
+LOCAL_ARTIFACT_DIR="$LOCAL_ARTIFACT_ROOT/$TOOL/$VIS/$SLUG"
+LOCAL_INDEX_PATH="$LOCAL_ARTIFACT_DIR/index.html"
+
+validate_local_archive_path() {
+  local path
+  for path in \
+    "$LOCAL_DOCS_DIR" \
+    "$LOCAL_ARTIFACT_ROOT" \
+    "$LOCAL_ARTIFACT_ROOT/$TOOL" \
+    "$LOCAL_ARTIFACT_ROOT/$TOOL/$VIS" \
+    "$LOCAL_ARTIFACT_DIR"; do
+    [ -L "$path" ] && die 9 "local archive path must not be a symlink: $path"
+    if [ -e "$path" ] && [ ! -d "$path" ]; then
+      die 9 "local archive path is not a directory: $path"
+    fi
+  done
+}
+
+validate_local_archive_path
+
 if [ "$DRY" -eq 1 ]; then
   err "dry-run: would upload $FILE -> $DEST:$RPATH/index.html"
+  err "dry-run: would also save local copy -> $LOCAL_INDEX_PATH"
   printf '%s\n' "$URL"
   exit 0
 fi
@@ -249,6 +279,32 @@ else
   cat "$FILE" > "$STAMPED"
   printf '%s\n' "$FOOT" >> "$STAMPED"
 fi
+
+LOCAL_SNAPSHOT_PATH="$LOCAL_ARTIFACT_DIR/$VFILE"
+
+# Archive before the network operation. If local custody cannot be established,
+# refuse to upload so every successful remote artifact has a matching local copy.
+validate_local_archive_path
+mkdir -p "$LOCAL_ARTIFACT_DIR" \
+  || die 9 "could not create local archive directory: $LOCAL_ARTIFACT_DIR"
+validate_local_archive_path
+
+LOCAL_INDEX_TMP=$(mktemp "$LOCAL_ARTIFACT_DIR/.index.html.XXXXXX") \
+  || die 9 "could not stage local index copy: $LOCAL_INDEX_PATH"
+LOCAL_SNAPSHOT_TMP=$(mktemp "$LOCAL_ARTIFACT_DIR/.$VFILE.XXXXXX") \
+  || die 9 "could not stage local snapshot copy: $LOCAL_SNAPSHOT_PATH"
+cp "$STAMPED" "$LOCAL_INDEX_TMP" \
+  || die 9 "could not write local index copy: $LOCAL_INDEX_PATH"
+cp "$STAMPED" "$LOCAL_SNAPSHOT_TMP" \
+  || die 9 "could not write local snapshot copy: $LOCAL_SNAPSHOT_PATH"
+mv -f "$LOCAL_INDEX_TMP" "$LOCAL_INDEX_PATH" \
+  || die 9 "could not install local index copy: $LOCAL_INDEX_PATH"
+LOCAL_INDEX_TMP=''
+mv -f "$LOCAL_SNAPSHOT_TMP" "$LOCAL_SNAPSHOT_PATH" \
+  || die 9 "could not install local snapshot copy: $LOCAL_SNAPSHOT_PATH"
+LOCAL_SNAPSHOT_TMP=''
+err "local copy: $LOCAL_INDEX_PATH"
+err "local snapshot: $LOCAL_SNAPSHOT_PATH"
 
 # ---------- upload (atomic: put tmp, then rename; plus versioned snapshot) ----------
 if [ "$USE_PY" = 1 ]; then
