@@ -3,6 +3,9 @@
 #
 # Contract (stable — agents parse this):
 #   - On success the LAST line of stdout is the artifact URL. Everything else -> stderr.
+#   - stderr always carries a parseable `read-back: <path>` line naming the local copy of the
+#     upload (the same stamped bytes the server serves). Private artifacts cannot be fetched
+#     over HTTP, so read them back from that path (or from SFTP, see SKILL.md).
 #   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
 #                 | 7 private artifact exposed | 8 private protection inconclusive | 9 local archive failed
 #
@@ -303,8 +306,8 @@ LOCAL_INDEX_TMP=''
 mv -f "$LOCAL_SNAPSHOT_TMP" "$LOCAL_SNAPSHOT_PATH" \
   || die 9 "could not install local snapshot copy: $LOCAL_SNAPSHOT_PATH"
 LOCAL_SNAPSHOT_TMP=''
-err "local copy: $LOCAL_INDEX_PATH"
-err "local snapshot: $LOCAL_SNAPSHOT_PATH"
+err "read-back: $LOCAL_INDEX_PATH"
+err "snapshot: $LOCAL_SNAPSHOT_PATH"
 
 # ---------- upload (atomic: put tmp, then rename; plus versioned snapshot) ----------
 if [ "$USE_PY" = 1 ]; then

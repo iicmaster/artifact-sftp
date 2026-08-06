@@ -160,9 +160,9 @@ local_snapshot=$(find "$LOCAL_OK" -maxdepth 1 -type f -name 'ok--1--*.html' -pri
 [ -n "$local_snapshot" ] && cmp -s "$local_snapshot" "$MOCK_LAST_PUT" \
   && echo "PASS local versioned snapshot matches uploaded bytes" \
   || { echo "FAIL: local snapshot missing or mismatched"; fails=$((fails+1)); }
-grep -q 'local copy: .*docs/artifacts/codex/private/ok/index.html' "$WORK/errout" \
-  && echo "PASS local archive path reported on stderr" \
-  || { echo "FAIL: local archive path not reported"; fails=$((fails+1)); }
+grep -q 'read-back: .*docs/artifacts/codex/private/ok/index.html' "$WORK/errout" \
+  && echo "PASS read-back path reported on stderr" \
+  || { echo "FAIL: read-back path not reported"; fails=$((fails+1)); }
 
 # --- public verify: hash match via mock curl (serves the stamped upload back) ---
 unset MOCK_CURL_BODY

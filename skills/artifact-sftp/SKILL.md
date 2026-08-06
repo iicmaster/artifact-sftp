@@ -95,6 +95,23 @@ Sharing = republish the same file with `--public` (the private copy stays until 
   credentials before reporting success. An explicit `401`/`403` or a recognized Cloudflare
   Access login redirect counts as protected; other anonymous results are inconclusive.
 
+## Reading artifacts back
+
+A private artifact's URL is a *viewer* link, not a fetchable resource — basic auth plus the
+Cloudflare Access gate block even the publishing account from reading it over HTTP. To read
+an artifact you published, use the local archive, not the URL:
+
+- Current bytes: `docs/artifacts/<tool>/<visibility>/<slug>/index.html` in the project
+  working directory (byte-identical to what the server serves).
+- Immutable snapshot: `docs/artifacts/<tool>/<visibility>/<slug>/<slug>--<version>--<timestamp>.html`.
+- Durable fallback: SFTP to the host in your config, remote path
+  `<remote-base>/<tool>/<visibility>/<slug>/index.html`.
+
+Do not WebFetch the artifact URL to read it back. The URL path encodes the archive path:
+`https://.../<tool>/<visibility>/<slug>/` maps to `docs/artifacts/<tool>/<visibility>/<slug>/`.
+The publish output also prints a parseable `read-back: <path>` line on stderr naming the
+local copy of that exact upload.
+
 ## Safety rules (non-negotiable)
 
 - **Publishing is exfiltration if the content is sensitive.** Never publish secrets,

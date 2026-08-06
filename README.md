@@ -118,6 +118,11 @@ docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
 The local archive remains after `--delete`; deleting a remote artifact does not erase local
 history. `--dry-run` reports the destination without creating files.
 
+Read a private artifact back from that local copy — its URL cannot be fetched over HTTP
+(basic auth + Cloudflare Access gate even the publishing account). The publish output names
+the path on stderr as a parseable `read-back:` line, and SKILL.md documents the full
+read-back protocol (local archive + SFTP fallback).
+
 Useful operations:
 
 ```bash
