@@ -9,6 +9,23 @@ docs/artifacts/<tool>/<visibility>/<slug>/<slug>--<version>--<timestamp>.html
 ```
 
 The current file is replaced on republish; timestamped snapshots remain as local history.
+
+## Read back from here
+
+This is how an agent reads its own private artifact. A private artifact's URL cannot be
+fetched over HTTP — basic auth plus the Cloudflare Access gate block even the publishing
+account. To read one back:
+
+- Open `docs/artifacts/<tool>/<visibility>/<slug>/index.html` (current bytes, identical
+  to what the server serves) or a `<slug>--<version>--<timestamp>.html` snapshot.
+- The URL path maps to this layout: `https://.../<tool>/<visibility>/<slug>/` →
+  `docs/artifacts/<tool>/<visibility>/<slug>/`.
+- If this archive is out of reach (fresh session, another machine), fall back to SFTP:
+  `<remote-base>/<tool>/<visibility>/<slug>/index.html` on the host in
+  `~/.config/artifact-sftp/config`.
+
+Do not WebFetch the artifact URL to read it back.
+
 This archive is local custody evidence only. It does not prove SFTP delivery, HTTP byte
 identity, privacy, public availability, runtime behavior, or release approval.
 

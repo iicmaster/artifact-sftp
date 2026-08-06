@@ -14,6 +14,8 @@ upload directory.
 - Keeps immutable timestamped versions beside the current `index.html`.
 - Keeps the stamped current file and snapshot in `docs/artifacts/<tool>/<visibility>/<slug>/`
   before any SFTP upload.
+- Documents how to read a private artifact back from that local copy (its URL cannot be
+  fetched over HTTP).
 - Separates runtimes (`codex`, `openclaw`, `claude`), and `private` and `public`, in the URL path.
 - Pins and verifies the SFTP host key.
 - Supports SSH keys, 1Password SSH-key references, or password authentication through
@@ -118,11 +120,6 @@ docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
 The local archive remains after `--delete`; deleting a remote artifact does not erase local
 history. `--dry-run` reports the destination without creating files.
 
-Read a private artifact back from that local copy — its URL cannot be fetched over HTTP
-(basic auth + Cloudflare Access gate even the publishing account). The publish output names
-the path on stderr as a parseable `read-back:` line, and SKILL.md documents the full
-read-back protocol (local archive + SFTP fallback).
-
 Useful operations:
 
 ```bash
@@ -132,6 +129,24 @@ bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
 bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
   --delete my-report --tool codex
 ```
+
+## Reading artifacts back
+
+A private artifact's URL is a *viewer* link, not a fetchable resource: basic auth plus
+the Cloudflare Access gate block even the publishing account from reading it over HTTP.
+Read an artifact you published from the local archive instead:
+
+```text
+docs/artifacts/<tool>/<visibility>/<slug>/index.html
+docs/artifacts/<tool>/<visibility>/<slug>/<slug>--<version>--<timestamp>.html
+```
+
+The URL path encodes the archive path: `https://.../<tool>/<visibility>/<slug>/` maps to
+`docs/artifacts/<tool>/<visibility>/<slug>/`. The publish output prints the exact path on
+stderr as a parseable `read-back:` line. If the local archive is out of reach (a fresh
+session or another machine), use the SFTP path from your config:
+`<remote-base>/<tool>/<visibility>/<slug>/index.html`. Never WebFetch the artifact URL to
+read it back — it is not fetchable over HTTP.
 
 See [the setup guide](skills/artifact-sftp/references/setup.md) for server layout,
 automation, authentication modes, and Cloudflare Access verification.
