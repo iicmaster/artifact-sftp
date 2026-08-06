@@ -13,7 +13,7 @@ The current file is replaced on republish; timestamped snapshots remain as local
 ## Read back from here
 
 This is how an agent reads its own private artifact. A private artifact's URL cannot be
-fetched over HTTP — basic auth plus the Cloudflare Access gate block even the publishing
+fetched over HTTP — the Cloudflare Zero Trust gate blocks even the publishing
 account. To read one back:
 
 - Open `docs/artifacts/<tool>/<visibility>/<slug>/index.html` (current bytes, identical

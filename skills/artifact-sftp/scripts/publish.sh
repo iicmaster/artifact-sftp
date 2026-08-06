@@ -69,7 +69,7 @@ case "$perm" in 600|400) ;; *) die 3 "config $CONFIG must be mode 0600 (is $perm
 # Config values must come from the file alone — a pre-exported KNOWN_HOSTS or SSH_KEY
 # would defeat host-key pinning / key selection via the ${VAR:-default} fallbacks below.
 unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
-      DEFAULT_TOOL SSH_KEY BASIC_AUTH OP_KEY_REF SFTP_PASS \
+      DEFAULT_TOOL SSH_KEY OP_KEY_REF SFTP_PASS \
       CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET
 # shellcheck disable=SC1090
 . "$CONFIG"
@@ -87,8 +87,8 @@ case "$TOOL" in openclaw|codex|claude) ;; *) die 2 "--tool must be openclaw, cod
 # value with an embedded quote+newline (legal via bash $'...' quoting) would otherwise inject a
 # rogue directive (e.g. url=) into -K and exfiltrate the credentials on the next private publish.
 _cfg_safe() { case "$1" in *[!A-Za-z0-9_.:/@%+-]*) return 1;; *) return 0;; esac; }
-for _v in "${BASIC_AUTH:-}" "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}"; do
-  [ -z "$_v" ] || _cfg_safe "$_v" || die 3 "a verify-auth config value has characters unsafe for the curl -K config (allowed: A-Za-z0-9 _.:/@%+-) — fix BASIC_AUTH/CF_ACCESS_* in $CONFIG"
+for _v in "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}"; do
+  [ -z "$_v" ] || _cfg_safe "$_v" || die 3 "a verify-auth config value has characters unsafe for the curl -K config (allowed: A-Za-z0-9 _.:/@%+-) — fix CF_ACCESS_* in $CONFIG"
 done
 
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10
@@ -340,8 +340,8 @@ grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null || printf '%s/%s/%s\n' "$TO
 # (a 302 to the Access login — these credentials can't see the artifact, so we cannot verify,
 # but the upload itself is fine). No -f: we inspect the status code ourselves so a 302 gate is
 # distinguishable from a 4xx/5xx failure.
-# Auth goes to curl via a -K config on STDIN, never argv — a header/user on the command line
-# would expose BASIC_AUTH / the CF service secret to `ps` for the fetch's lifetime.
+# Auth goes to curl via a -K config on STDIN, never argv — a header on the command line
+# would expose the CF service secret to `ps` for the fetch's lifetime.
 verify_url() {  # $1 = curl config; $2 = target URL; returns the codes above
   local cfg=$1 target=$2 body hdr code want got
   body=$(mktemp); hdr=$(mktemp)
@@ -391,7 +391,7 @@ probe_private() {  # $1 = target URL; $2 = human-readable target name
   esac
 }
 
-# Build the curl auth config (kept off argv): CF Access service token and/or basic auth, from
+# Build the curl auth config (kept off argv): a Cloudflare Zero Trust service token, from
 # config only. Values are shell-safe per setup.sh's allowlist, so no quote can escape the config.
 VERIFY_CFG=''
 if [ -n "${CF_ACCESS_CLIENT_ID:-}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
@@ -399,8 +399,6 @@ if [ -n "${CF_ACCESS_CLIENT_ID:-}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; t
 header = \"CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}\"
 "
 fi
-[ -n "${BASIC_AUTH:-}" ] && VERIFY_CFG="${VERIFY_CFG}user = \"${BASIC_AUTH}\"
-"
 
 rc=0
 if [ "$VIS" = public ]; then
@@ -418,7 +416,7 @@ elif [ -n "$VERIFY_CFG" ]; then
     *) die 6 "uploaded but $URL does not serve the expected content (authenticated)" ;;
   esac
 else
-  err "note: private artifact uploaded; HTTP verify skipped (no CF_ACCESS_* or BASIC_AUTH in config)"
+  err "note: private artifact uploaded; HTTP verify skipped (no Cloudflare Zero Trust service token in config)"
 fi
 
 # ---------- private means private: prove it, don't assert it ----------
@@ -426,8 +424,8 @@ fi
 # read them — those are independent properties and only the first one was ever measured.
 # Probe both uploaded URLs carrying no credentials at all. A matching response is exposure;
 # an explicit denial or known Access gate is protection; every other result is inconclusive.
-# Runs for every private publish, including the no-BASIC_AUTH/no-CF_ACCESS path where
-# nothing else was verified at all — which is exactly where the gap hides.
+# Runs for every private publish, including the no-CF_ACCESS path where nothing else was
+# verified at all — which is exactly where the gap hides.
 if [ "$VIS" != public ]; then
   private_rc=0
   probe_private "$URL" "index.html" || private_rc=$?

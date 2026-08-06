@@ -24,7 +24,7 @@ https://<PUBLIC_BASE_URL host>/<tool>/<visibility>/<slug>/
 ```
 
 - `tool` = `openclaw` | `codex` | `claude` (which runtime published it)
-- `visibility` = `private` (default; HTTP basic auth) | `public` (anyone with the URL)
+- `visibility` = `private` (default; protected by Cloudflare Zero Trust) | `public` (anyone with the URL)
 - `slug` = artifact identity, `^[a-z0-9][a-z0-9-]{0,62}$`. Same slug = same URL; republishing overwrites in place.
 - Every publish also keeps a versioned snapshot next to `index.html`, named
   `{slug}--{version}--{timestamp}.html` (version = max on server + 1; timestamp UTC
@@ -65,8 +65,8 @@ bash <skill-dir>/scripts/publish.sh --list --tool codex                         
 bash <skill-dir>/scripts/publish.sh --delete my-report --tool codex                  # unpublish (removes ALL versions)
 ```
 
-4. Report the URL (last stdout line) to the user. For private artifacts the user also
-   needs the basic-auth credentials (they hold them; never print credentials yourself).
+4. Report the URL (last stdout line) to the user. For private artifacts the user manages
+   Cloudflare Zero Trust access themselves; never print or request credentials.
 
 Sharing = republish the same file with `--public` (the private copy stays until you
 `--delete` it). Concurrency is last-writer-wins; there is no version-conflict detection.
@@ -85,8 +85,9 @@ Sharing = republish the same file with `--public` (the private copy stays until 
   do not treat `8` as proof of privacy or hand out the URL manually.
 - A private artifact behind **Cloudflare Access** uploads and exits `0` but prints
   `HTTP verify skipped (Cloudflare Access)` — the upload is confirmed, the sha256 re-fetch is
-  not (basic auth can't pass Access). This is success, not failure. Add a CF Access service
-  token (`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`, see `references/setup.md`) to enable
+  not (Access requires a Zero Trust service token, which is optional). This is success, not
+  failure. Add a CF Access service token
+  (`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`, see `references/setup.md`) to enable
   the verify. `/public/` artifacts always verify.
 - `--dry-run` validates everything and prints the would-be URL without uploading.
 - A successful publish has a local archive under `docs/artifacts/`; inspect that path when
@@ -97,8 +98,8 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 
 ## Reading artifacts back
 
-A private artifact's URL is a *viewer* link, not a fetchable resource — basic auth plus the
-Cloudflare Access gate block even the publishing account from reading it over HTTP. To read
+A private artifact's URL is a *viewer* link, not a fetchable resource — the Cloudflare
+Zero Trust gate blocks even the publishing account from reading it over HTTP. To read
 an artifact you published, use the local archive, not the URL:
 
 - Current bytes: `docs/artifacts/<tool>/<visibility>/<slug>/index.html` in the project

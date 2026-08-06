@@ -126,11 +126,11 @@ prompt_safe_secret() {
 
 host='' sftp_user='' port='' remote_dir='' public_url='' default_tool=''
 auth_choice='' auth_mode='' ssh_key='' op_ref=''
-sftp_pass='' basic_auth='' cf_access_id='' cf_access_secret=''
-use_basic=0 use_cf=0 host_keys=''
+sftp_pass='' cf_access_id='' cf_access_secret=''
+use_cf=0 host_keys=''
 cleanup() {
   if [ -n "$host_keys" ]; then rm -f "$host_keys"; fi
-  unset sftp_pass basic_auth cf_access_secret
+  unset sftp_pass cf_access_secret
 }
 trap cleanup EXIT
 
@@ -176,12 +176,7 @@ while :; do
   esac
 done
 
-if confirm "Configure optional HTTP basic-auth viewer credentials?"; then
-  use_basic=1
-  prompt_safe_secret basic_auth "Basic auth as user:password (hidden)"
-fi
-
-if confirm "Configure an optional Cloudflare Access service token?"; then
+if confirm "Configure a Cloudflare Zero Trust service token? (lets the publisher verify private artifacts)"; then
   use_cf=1
   prompt_required cf_access_id "Cloudflare Access client ID"
   prompt_safe_secret cf_access_secret "Cloudflare Access client secret (hidden)"
@@ -215,7 +210,6 @@ Redacted setup summary
   Public URL: $public_url
   Runtime:    $default_tool
   Auth mode:  $auth_mode
-  Basic auth: $(if [ "$use_basic" -eq 1 ]; then printf configured; else printf omitted; fi)
   CF Access:  $(if [ "$use_cf" -eq 1 ]; then printf configured; else printf omitted; fi)
 EOF
 
@@ -237,7 +231,6 @@ case "$auth_mode" in
   ssh-key) setup_args+=(--ssh-key "$ssh_key") ;;
   1password) setup_args+=(--op-ref "$op_ref") ;;
 esac
-[ "$use_basic" -eq 0 ] || setup_args+=(--basic-auth -)
 if [ "$use_cf" -eq 1 ]; then
   setup_args+=(--cf-access-id "$cf_access_id" --cf-access-secret -)
 fi
@@ -246,11 +239,10 @@ setup_args+=(--known-hosts-file "$host_keys")
 
 forward_secrets() {
   [ "$auth_mode" != password ] || printf '%s\n' "$sftp_pass"
-  [ "$use_basic" -eq 0 ] || printf '%s\n' "$basic_auth"
   [ "$use_cf" -eq 0 ] || printf '%s\n' "$cf_access_secret"
 }
 
 forward_secrets | bash "$SETUP_SH" "${setup_args[@]}"
-unset sftp_pass basic_auth cf_access_secret
+unset sftp_pass cf_access_secret
 bash "$SETUP_SH" --status
 printf 'Setup complete. No artifact was published.\n'

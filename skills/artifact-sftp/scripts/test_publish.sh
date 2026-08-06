@@ -190,13 +190,14 @@ chmod 600 "$cfg"
 #     config (embedded quote via bash $'...') must be rejected at read time, before any upload ---
 cp "$cfg" "$cfg.pre-inj"
 cat >> "$cfg" <<'INJ'
-BASIC_AUTH=$'a:b"c'
+CF_ACCESS_CLIENT_SECRET=$'a:b"c'
 INJ
-expect 3 "unsafe BASIC_AUTH (quote via \$'') rejected"  -- bash "$PUB" --slug injtest "$good"
+expect 3 "unsafe CF_ACCESS_CLIENT_SECRET (quote via \$'') rejected"  -- bash "$PUB" --slug injtest "$good"
 mv "$cfg.pre-inj" "$cfg"
 
-# --- Cloudflare Access gate: private + basic-auth, server 302s to Access login -> graceful skip (exit 0, NOT 6) ---
-echo 'BASIC_AUTH=viewer:secret' >> "$cfg"
+# --- Cloudflare Access gate: private + service token, server 302s to Access login -> graceful skip (exit 0, NOT 6) ---
+echo 'CF_ACCESS_CLIENT_ID=zzz' >> "$cfg"
+echo 'CF_ACCESS_CLIENT_SECRET=yyy' >> "$cfg"
 export MOCK_HTTP_CODE=302 MOCK_LOCATION='https://team.cloudflareaccess.com/cdn-cgi/access/login/host'
 unset MOCK_CURL_BODY
 cfrc=0; out=$(bash "$PUB" --slug cfgate "$good" 2>"$WORK/errout") || cfrc=$?

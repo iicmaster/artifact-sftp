@@ -145,9 +145,10 @@ assert_contains "$UNCONFIRMED_OUT" '--known-hosts-file is required' \
 [ ! -e "$UNCONFIRMED_HOME/.config/artifact-sftp/config" ] \
   || fail "unconfirmed host setup wrote a config"
 
-BASIC_SECRET='fixture-user:fixture-password-redact-me'  # pragma: allowlist secret
+CF_ID='fixture-cf-client-id'
+CF_SECRET='fixture-cf-secret-redact-me'  # pragma: allowlist secret
 SECRET_INPUT="$TMP_ROOT/setup.stdin"
-printf '%s\n' "$BASIC_SECRET" >"$SECRET_INPUT"
+printf '%s\n' "$CF_SECRET" >"$SECRET_INPUT"
 FIRST_OUT="$TMP_ROOT/first-setup.out"
 run_from_dir_capture "$FIRST_OUT" "$UNRELATED_CWD" \
   env HOME="$CONFIG_HOME" PATH="$TEST_PATH" bash "$SETUP" \
@@ -157,12 +158,13 @@ run_from_dir_capture "$FIRST_OUT" "$UNRELATED_CWD" \
     --remote-dir /files \
     --url https://artifacts.test.invalid \
     --tool codex \
-    --basic-auth - \
+    --cf-access-id "$CF_ID" \
+    --cf-access-secret - \
     --ssh-key "$KEY_FILE" \
     --known-hosts-file "$FIRST_KNOWN_SOURCE" \
     <"$SECRET_INPUT"
 assert_rc 0 "first key-auth setup should succeed"
-assert_not_contains "$FIRST_OUT" "$BASIC_SECRET" "setup output leaked a stdin secret"
+assert_not_contains "$FIRST_OUT" "$CF_SECRET" "setup output leaked a stdin secret"
 
 CFG_DIR="$CONFIG_HOME/.config/artifact-sftp"
 CONFIG="$CFG_DIR/config"
@@ -174,7 +176,8 @@ KNOWN="$CFG_DIR/known_hosts"
 [ "$(file_mode "$KNOWN")" = 600 ] || fail "known_hosts mode is not 0600"
 grep -Fqx "SSH_KEY=$KEY_FILE" "$CONFIG" || fail "SSH key authentication was not recorded"
 grep -Fqx 'DEFAULT_TOOL=codex' "$CONFIG" || fail "default tool was not recorded"
-grep -Fqx "BASIC_AUTH=$BASIC_SECRET" "$CONFIG" || fail "stdin secret was not written to config"
+grep -Fqx "CF_ACCESS_CLIENT_ID=$CF_ID" "$CONFIG" || fail "cf-access-id was not recorded"
+grep -Fqx "CF_ACCESS_CLIENT_SECRET=$CF_SECRET" "$CONFIG" || fail "stdin secret was not written to config"
 assert_contains "$KNOWN" '[sftp.test.invalid]:2222 ssh-ed25519' "mocked host key was not pinned"
 
 READY_OUT="$TMP_ROOT/status-ready.out"
@@ -182,7 +185,7 @@ run_capture "$READY_OUT" env HOME="$CONFIG_HOME" PATH="$TEST_PATH" bash "$SETUP"
 assert_rc 0 "status should accept the new key-auth configuration"
 assert_contains "$READY_OUT" 'auth: ssh-key' "status did not report key authentication"
 assert_contains "$READY_OUT" 'READY' "ready summary was not reported"
-assert_not_contains "$READY_OUT" "$BASIC_SECRET" "status output leaked a stored secret"
+assert_not_contains "$READY_OUT" "$CF_SECRET" "status output leaked a stored secret"
 
 # READY must include semantic checks, not only key-name presence.
 KEY_HOLD="$TMP_ROOT/test_key.hold"
@@ -221,7 +224,7 @@ run_from_dir_capture "$WIZARD_STATUS_OUT" "$UNRELATED_CWD" \
   env HOME="$CONFIG_HOME" PATH="$TEST_PATH" bash "$WIZARD_SOURCE" --status
 assert_rc 0 "setup wizard --status should resolve the bundled implementation"
 assert_contains "$WIZARD_STATUS_OUT" 'READY' "setup wizard did not return readiness"
-assert_not_contains "$WIZARD_STATUS_OUT" "$BASIC_SECRET" "setup wizard status leaked a stored secret"
+assert_not_contains "$WIZARD_STATUS_OUT" "$CF_SECRET" "setup wizard status leaked a stored secret"
 
 # Password auth must read its secret from stdin, never argv/output, and remain
 # discoverable as the selected auth mode in redacted status.

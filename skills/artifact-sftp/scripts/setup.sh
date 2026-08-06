@@ -6,13 +6,12 @@
 # usage:
 #   setup.sh --status
 #   setup.sh --host H --user U [--port 22] --remote-dir /files --url https://host [--tool codex]
-#            [--basic-auth -] [--cf-access-id ID --cf-access-secret -]
+#            [--cf-access-id ID --cf-access-secret -]
 #            --known-hosts-file FILE [--replace]
 #            ( --pass - | --ssh-key PATH | --op-ref op://... )
 #   Secrets are read from stdin, ONE PER LINE, in this fixed order (only the ones you
-#   requested with -): SFTP password, basic-auth, cf-access-secret. Example:
-#   printf '%s\n%s\n' "$SFTP_PASSWORD" "$BASIC_USER:$BASIC_PASS" | setup.sh ... --pass - --basic-auth -
-#   Cloudflare Access service token verifies private artifacts (Zero Trust):
+#   requested with -): SFTP password, cf-access-secret. Example:
+#   Cloudflare Zero Trust service token verifies private artifacts:
 #   printf '%s' "$CF_SECRET" | setup.sh ... --ssh-key K --cf-access-id "$CF_ID" --cf-access-secret -
 set -euo pipefail
 set +x
@@ -36,7 +35,7 @@ _config_shape_valid() {
     key=${line%%=*}
     value=${line#*=}
     case "$key" in
-      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|BASIC_AUTH|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET) ;;
+      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET) ;;
       *) return 1 ;;
     esac
     [ -n "$value" ] && _shell_safe "$value" || return 1
@@ -193,7 +192,7 @@ if [ "${1:-}" = --status ]; then
   exit $?
 fi
 
-HOST='' SUSER='' PORT=22 REMOTE='' URL='' TOOL=codex BASIC='' AUTH_MODE='' SSH_KEY='' OP_REF='' READ_PASS=0 READ_BASIC=0 REPLACE=0 AUTH_CHOICES=0
+HOST='' SUSER='' PORT=22 REMOTE='' URL='' TOOL=codex AUTH_MODE='' SSH_KEY='' OP_REF='' READ_PASS=0 REPLACE=0 AUTH_CHOICES=0
 KNOWN_SOURCE=''
 CF_ID='' CF_SECRET='' READ_CFSEC=0
 while [ $# -gt 0 ]; do
@@ -204,7 +203,6 @@ while [ $# -gt 0 ]; do
     --remote-dir)  [ $# -ge 2 ] || die "--remote-dir needs a value"; REMOTE=$2; shift 2 ;;
     --url)         [ $# -ge 2 ] || die "--url needs a value"; URL=$2; shift 2 ;;
     --tool)        [ $# -ge 2 ] || die "--tool needs a value"; TOOL=$2; shift 2 ;;
-    --basic-auth)  [ "${2:-}" = - ] || die "--basic-auth only accepts '-' (credentials are read from stdin)"; READ_BASIC=1; shift 2 ;;
     --pass)        [ "${2:-}" = - ] || die "--pass only accepts '-' (password is read from stdin)"; AUTH_MODE=pass; READ_PASS=1; AUTH_CHOICES=$((AUTH_CHOICES + 1)); shift 2 ;;
     --ssh-key)     [ $# -ge 2 ] || die "--ssh-key needs a value"; AUTH_MODE=key; SSH_KEY=$2; AUTH_CHOICES=$((AUTH_CHOICES + 1)); shift 2 ;;
     --op-ref)      [ $# -ge 2 ] || die "--op-ref needs a value"; AUTH_MODE=op; OP_REF=$2; AUTH_CHOICES=$((AUTH_CHOICES + 1)); shift 2 ;;
@@ -233,7 +231,7 @@ fi
 # satisfy both readers. Keys/urls are unlikely to contain these; a password might.
 # Allowlist (robust): only chars that are safe both as an unquoted `KEY=value` bash source
 # AND as a raw split value in sftp_helper.py. Anything else is rejected. '-' is last = literal.
-for v in "$HOST" "$SUSER" "$PORT" "$REMOTE" "$URL" "$TOOL" "$BASIC" "$SSH_KEY" "$OP_REF" "$CF_ID"; do
+for v in "$HOST" "$SUSER" "$PORT" "$REMOTE" "$URL" "$TOOL" "$SSH_KEY" "$OP_REF" "$CF_ID"; do
   [ -z "$v" ] || _shell_safe "$v" || die "value contains characters that break config sourcing: '$v'"
 done
 
@@ -275,18 +273,13 @@ command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 \
   || die "sha256sum or shasum is required"
 
 # Secrets come from stdin, never argv (argv leaks via ps/history). Fixed line order for the
-# ones requested with -: SFTP password, basic-auth, cf-access-secret. Validated before any
-# side effect so a bad secret fails fast.
+# ones requested with -: SFTP password, cf-access-secret. Validated before any side effect
+# so a bad secret fails fast.
 PASS=''
 if [ "$READ_PASS" = 1 ]; then
   IFS= read -r PASS || true
   [ -n "$PASS" ] || die "--pass - was given but stdin was empty"
   _shell_safe "$PASS" || die "password contains characters this config format cannot store (space, quote, \$, backtick, backslash, or leading #) — use --ssh-key instead"
-fi
-if [ "$READ_BASIC" = 1 ]; then
-  IFS= read -r BASIC || true
-  [ -n "$BASIC" ] || die "--basic-auth - was given but stdin had no (further) line"
-  _shell_safe "$BASIC" || die "basic-auth value has characters this config format cannot store — check user:pass"
 fi
 if [ "$READ_CFSEC" = 1 ]; then
   IFS= read -r CF_SECRET || true
@@ -317,7 +310,6 @@ tmpcfg=$(mktemp "$CFG_DIR/config.XXXXXX")
   printf 'REMOTE_DIR=%s\n' "$REMOTE"
   printf 'PUBLIC_BASE_URL=%s\n' "$URL"
   [ -n "$TOOL" ]  && printf 'DEFAULT_TOOL=%s\n' "$TOOL"
-  [ -n "$BASIC" ] && printf 'BASIC_AUTH=%s\n' "$BASIC"
   [ -n "$CF_ID" ] && printf 'CF_ACCESS_CLIENT_ID=%s\n' "$CF_ID"
   [ -n "$CF_SECRET" ] && printf 'CF_ACCESS_CLIENT_SECRET=%s\n' "$CF_SECRET"
   case "$AUTH_MODE" in

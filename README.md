@@ -132,8 +132,8 @@ bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
 
 ## Reading artifacts back
 
-A private artifact's URL is a *viewer* link, not a fetchable resource: basic auth plus
-the Cloudflare Access gate block even the publishing account from reading it over HTTP.
+A private artifact's URL is a *viewer* link, not a fetchable resource: the Cloudflare
+Zero Trust gate blocks even the publishing account from reading it over HTTP.
 Read an artifact you published from the local archive instead:
 
 ```text

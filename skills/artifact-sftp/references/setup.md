@@ -10,14 +10,10 @@
    codex/private/      codex/public/
    claude/private/     claude/public/
    ```
-4. Protect both `*/private/` dirs with HTTP basic auth (`.htaccess` + `.htpasswd`
-   outside the docroot). Example `.htaccess`:
-   ```apache
-   AuthType Basic
-   AuthName "private artifacts"
-   AuthUserFile /home/artifacts/.htpasswd
-   Require valid-user
-   ```
+4. Protect both `*/private/` dirs with **Cloudflare Zero Trust**: the deployment serves
+   through Cloudflare, so the policy is enforced at the edge. Create an Access application
+   for `https://artifacts.ngs.bz/` and add a policy that requires authentication for paths
+   under `*/private/` (public paths stay open to everyone).
 5. Auth: install an SSH public key for the account when possible. If the hosting only
    allows password auth (current deployment does — chroot forbids `~/.ssh`), the script
    falls back to the paramiko helper via `SFTP_PASS` in the client config; that requires
@@ -86,12 +82,13 @@ Then configure one authentication mode:
 
 ```bash
 # password account (current deployment) — needs python3-paramiko.
-# secrets go through stdin (never argv/ps/history), one per line: SFTP pass, then basic-auth:
-printf '%s\n%s\n' "$SFTP_PASSWORD" "artifacts-private:$VIEWER_PASS" | \
+# secrets go through stdin (never argv/ps/history), one per line: SFTP pass, then cf-access-secret:
+printf '%s\n%s\n' "$SFTP_PASSWORD" "$CF_ACCESS_CLIENT_SECRET" | \
   bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
     --host sftp.artifacts.ngs.bz --user artifacts --port 22 \
     --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-    --pass - --basic-auth - --known-hosts-file "$KNOWN_HOSTS_FILE"
+    --pass - --cf-access-id "$CF_ACCESS_CLIENT_ID" --cf-access-secret - \
+    --known-hosts-file "$KNOWN_HOSTS_FILE"
 
 # OR a local SSH key (no paramiko needed):
 bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
@@ -108,20 +105,20 @@ bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
 
 The script refuses to overwrite either file by default. An explicitly approved repair uses
 `--replace`; it first backs up both the config and pinned host keys. Replacement rewrites the
-entire config, so repeat every setting that must be retained, including `BASIC_AUTH`, the
-chosen SFTP auth mode, and any Cloudflare Access token.
+entire config, so repeat every setting that must be retained: the chosen SFTP auth mode and
+any Cloudflare Access service token.
 
 Config values must be shell-safe (the file is both `source`d by `publish.sh` and split by
 `sftp_helper.py`); `setup.sh` rejects a password with spaces/quotes/`$` and points you to
 `--ssh-key`. To hand-write the config instead, the keys are: `SFTP_HOST`, `SFTP_USER`,
 `SFTP_PORT`, `REMOTE_DIR`, `PUBLIC_BASE_URL`, `DEFAULT_TOOL`, one of
-`SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `BASIC_AUTH`,
-`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` — one `KEY=value` per line, `chmod 600`.
+`SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `CF_ACCESS_CLIENT_ID`,
+`CF_ACCESS_CLIENT_SECRET` — one `KEY=value` per line, `chmod 600`.
 
 ## Private verify behind Cloudflare Access
 
-The current deployment gates `*/private/` with **Cloudflare Access (Zero Trust SSO)**, not
-`.htpasswd` — so `BASIC_AUTH` cannot satisfy it. A private publish still uploads fine and
+The current deployment gates `*/private/` with **Cloudflare Access (Zero Trust SSO)**. A
+private publish still uploads fine and
 `publish.sh` exits 0, but it prints `HTTP verify skipped (Cloudflare Access)` because it
 cannot fetch the artifact back to hash-check it. `/public/` is open and verifies normally.
 
