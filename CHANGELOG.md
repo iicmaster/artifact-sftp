@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-06
+
+- Replace HTTP basic auth with **Cloudflare Zero Trust** as private-artifact protection.
+  Removed the `BASIC_AUTH` config key, the `--basic-auth` setup flag, the wizard prompt,
+  and the basic-auth curl verify path — private reads and verification now rely solely on
+  a Cloudflare Access service token (`CF_ACCESS_CLIENT_ID`/`CF_ACCESS_CLIENT_SECRET`).
+  Migration: remove `BASIC_AUTH` from existing configs (a config that still carries it is
+  rejected by `setup.sh --status`) and add the service token to enable HTTP verification.
+- Update all docs and marketplace descriptions (SKILL, README, setup guide, archive README)
+  to state that private artifacts are protected by Cloudflare Zero Trust.
+
 ## [0.6.0] - 2026-08-05
 
 - Document the read-back protocol in SKILL.md: a private artifact's URL cannot be
