@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-05
+
+- Document the read-back protocol in SKILL.md: a private artifact's URL cannot be
+  fetched over HTTP — basic auth plus the Cloudflare Access gate block even the
+  publishing account — so read it back from `docs/artifacts/<tool>/<visibility>/<slug>/`
+  or the SFTP path in the config. Proven empirically with A/B tests using real agents:
+  with no archive in reach and no documented protocol, agents give up ("cannot read")
+  and may even try the wrong SFTP host; with the protocol documented, they identify the
+  correct read path immediately.
+- Publish output now prints a parseable `read-back: <path>` line on stderr (renamed
+  from `local copy:`), so the agent that just published gets the exact local path of
+  the upload in hand. The last stdout line remains the artifact URL.
+
 ## [0.5.0] - 2026-08-05
 
 - Require every real publish to create a stamped local copy under

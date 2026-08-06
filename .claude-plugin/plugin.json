@@ -1,6 +1,6 @@
 {
   "name": "artifact-sftp",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Publish self-contained HTML artifacts to your own SFTP web host with a stable URL and private-by-default visibility — a stand-in for the native Artifact tool on runtimes that lack it, and an own-host alternative where one exists.",
   "author": {
     "name": "NGS"
