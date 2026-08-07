@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-08
+
+- Guarantee the stamped page declares UTF-8 (`<meta charset="utf-8">`) and sets
+  `<html lang="...">` when the source HTML lacks them, so non-ASCII text (Thai etc.)
+  renders correctly instead of mojibake.
+- Enlarge the artifact footer from 12px to 14px and darken it for readability.
+- Add `DEFAULT_LANG` (default `th`) and `DEFAULT_TIMEZONE` (default `Asia/Bangkok`) config
+  keys: the stamped page language and footer time now follow these instead of a hardcoded
+  zone. Set them at setup time with `--lang`/`--timezone` (the wizard prompts for both) or
+  by editing the config directly. The footer label now uses the system zone abbreviation
+  (`Asia/Bangkok` → `+07`/`ICT` depending on tzdata) via `date '%Z'`.
+
 ## [0.7.0] - 2026-08-06
 
 - Replace HTTP basic auth with **Cloudflare Zero Trust** as private-artifact protection.
