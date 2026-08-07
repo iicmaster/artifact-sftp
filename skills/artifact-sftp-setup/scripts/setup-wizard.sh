@@ -125,6 +125,7 @@ prompt_safe_secret() {
 }
 
 host='' sftp_user='' port='' remote_dir='' public_url='' default_tool=''
+lang='th' timezone='Asia/Bangkok'
 auth_choice='' auth_mode='' ssh_key='' op_ref=''
 sftp_pass='' cf_access_id='' cf_access_secret=''
 use_cf=0 host_keys=''
@@ -140,6 +141,8 @@ prompt_default sftp_user "SFTP user" "artifacts"
 prompt_default port "SFTP port" "22"
 prompt_default remote_dir "Remote base directory" "/files"
 prompt_default public_url "Public base URL" "https://artifacts.ngs.bz"
+prompt_default lang "Default page language (html lang)" "th"
+prompt_default timezone "Footer timezone" "Asia/Bangkok"
 
 while :; do
   prompt_default default_tool "Default runtime (codex/openclaw/claude)" "codex"
@@ -184,7 +187,7 @@ fi
 
 case "$port" in ''|*[!0-9]*) die "SFTP port must be an integer" ;; esac
 [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || die "SFTP port must be between 1 and 65535"
-for field in "$host" "$sftp_user" "$remote_dir" "$public_url" "$default_tool" "$ssh_key" "$op_ref" "$cf_access_id"; do
+for field in "$host" "$sftp_user" "$remote_dir" "$public_url" "$default_tool" "$lang" "$timezone" "$ssh_key" "$op_ref" "$cf_access_id"; do
   [ -z "$field" ] || config_safe "$field" \
     || die "a non-secret setting contains unsupported characters (allowed: A-Z a-z 0-9 _ . : / @ % + -)"
 done
@@ -225,6 +228,8 @@ setup_args=(
   --remote-dir "$remote_dir"
   --url "$public_url"
   --tool "$default_tool"
+  --lang "$lang"
+  --timezone "$timezone"
 )
 case "$auth_mode" in
   password) setup_args+=(--pass -) ;;

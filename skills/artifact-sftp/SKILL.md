@@ -29,8 +29,11 @@ https://<PUBLIC_BASE_URL host>/<tool>/<visibility>/<slug>/
 - Every publish also keeps a versioned snapshot next to `index.html`, named
   `{slug}--{version}--{timestamp}.html` (version = max on server + 1; timestamp UTC
   `YYYYMMDDThhmmssZ`) — reachable at `.../<slug>/<that filename>` for history.
-- The script always stamps `artifact: slug · vN · created <UTC time>` as a footer into
-  the page, so viewers can see when it was created. Do not add your own duplicate stamp.
+- The script always stamps `artifact: slug · vN · created <time in DEFAULT_TIMEZONE>` as a
+  footer into the page, so viewers can see when it was created (default `Asia/Bangkok`).
+  Do not add your own duplicate stamp.
+- The stamped page declares UTF-8 (`<meta charset="utf-8">`) and `<html lang="...">`
+  (default `th`) when the source HTML lacks them, so non-ASCII text renders correctly.
 - Current deployment: `https://artifacts.ngs.bz/...` (SFTP at `sftp.artifacts.ngs.bz:22`, account `artifacts`, remote base `/files`; server setup in `references/setup.md`).
 
 ## Local archive contract
@@ -130,7 +133,9 @@ local copy of that exact upload.
 - Never publish pages that impersonate real people/organizations, collect credentials,
   or present fabricated records as genuine (same policy as the native Artifact tool).
 - Config lives only in `~/.config/artifact-sftp/config` (mode 0600). Never override the
-  host/URL via environment or CLI — if the config is wrong, tell the user.
+  host/URL via environment or CLI — if the config is wrong, tell the user. Optional keys:
+  `DEFAULT_LANG` (`th`) and `DEFAULT_TIMEZONE` (`Asia/Bangkok`) control the stamped page
+  language and footer time.
 
 ## Runtime Adapter
 

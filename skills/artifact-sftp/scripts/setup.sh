@@ -6,7 +6,7 @@
 # usage:
 #   setup.sh --status
 #   setup.sh --host H --user U [--port 22] --remote-dir /files --url https://host [--tool codex]
-#            [--cf-access-id ID --cf-access-secret -]
+#            [--cf-access-id ID --cf-access-secret -] [--lang th] [--timezone Asia/Bangkok]
 #            --known-hosts-file FILE [--replace]
 #            ( --pass - | --ssh-key PATH | --op-ref op://... )
 #   Secrets are read from stdin, ONE PER LINE, in this fixed order (only the ones you
@@ -35,7 +35,7 @@ _config_shape_valid() {
     key=${line%%=*}
     value=${line#*=}
     case "$key" in
-      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET) ;;
+      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE) ;;
       *) return 1 ;;
     esac
     [ -n "$value" ] && _shell_safe "$value" || return 1
@@ -192,7 +192,7 @@ if [ "${1:-}" = --status ]; then
   exit $?
 fi
 
-HOST='' SUSER='' PORT=22 REMOTE='' URL='' TOOL=codex AUTH_MODE='' SSH_KEY='' OP_REF='' READ_PASS=0 REPLACE=0 AUTH_CHOICES=0
+HOST='' SUSER='' PORT=22 REMOTE='' URL='' TOOL=codex AUTH_MODE='' SSH_KEY='' OP_REF='' READ_PASS=0 REPLACE=0 AUTH_CHOICES=0 LANG_VAL='' TZ_VAL=''
 KNOWN_SOURCE=''
 CF_ID='' CF_SECRET='' READ_CFSEC=0
 while [ $# -gt 0 ]; do
@@ -208,6 +208,8 @@ while [ $# -gt 0 ]; do
     --op-ref)      [ $# -ge 2 ] || die "--op-ref needs a value"; AUTH_MODE=op; OP_REF=$2; AUTH_CHOICES=$((AUTH_CHOICES + 1)); shift 2 ;;
     --cf-access-id)     [ $# -ge 2 ] || die "--cf-access-id needs a value"; CF_ID=$2; shift 2 ;;
     --cf-access-secret) [ "${2:-}" = - ] || die "--cf-access-secret only accepts '-' (read from stdin)"; READ_CFSEC=1; shift 2 ;;
+    --lang)        [ $# -ge 2 ] || die "--lang needs a value"; LANG_VAL=$2; shift 2 ;;
+    --timezone)    [ $# -ge 2 ] || die "--timezone needs a value"; TZ_VAL=$2; shift 2 ;;
     --known-hosts-file) [ $# -ge 2 ] || die "--known-hosts-file needs a value"; KNOWN_SOURCE=$2; shift 2 ;;
     --replace)      REPLACE=1; shift ;;
     -h|--help)     sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 0 ;;
@@ -231,7 +233,7 @@ fi
 # satisfy both readers. Keys/urls are unlikely to contain these; a password might.
 # Allowlist (robust): only chars that are safe both as an unquoted `KEY=value` bash source
 # AND as a raw split value in sftp_helper.py. Anything else is rejected. '-' is last = literal.
-for v in "$HOST" "$SUSER" "$PORT" "$REMOTE" "$URL" "$TOOL" "$SSH_KEY" "$OP_REF" "$CF_ID"; do
+for v in "$HOST" "$SUSER" "$PORT" "$REMOTE" "$URL" "$TOOL" "$SSH_KEY" "$OP_REF" "$CF_ID" "$LANG_VAL" "$TZ_VAL"; do
   [ -z "$v" ] || _shell_safe "$v" || die "value contains characters that break config sourcing: '$v'"
 done
 
@@ -310,6 +312,8 @@ tmpcfg=$(mktemp "$CFG_DIR/config.XXXXXX")
   printf 'REMOTE_DIR=%s\n' "$REMOTE"
   printf 'PUBLIC_BASE_URL=%s\n' "$URL"
   [ -n "$TOOL" ]  && printf 'DEFAULT_TOOL=%s\n' "$TOOL"
+  [ -n "$LANG_VAL" ] && printf 'DEFAULT_LANG=%s\n' "$LANG_VAL"
+  [ -n "$TZ_VAL" ] && printf 'DEFAULT_TIMEZONE=%s\n' "$TZ_VAL"
   [ -n "$CF_ID" ] && printf 'CF_ACCESS_CLIENT_ID=%s\n' "$CF_ID"
   [ -n "$CF_SECRET" ] && printf 'CF_ACCESS_CLIENT_SECRET=%s\n' "$CF_SECRET"
   case "$AUTH_MODE" in

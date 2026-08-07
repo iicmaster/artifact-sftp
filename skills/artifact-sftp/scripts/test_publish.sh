@@ -151,6 +151,13 @@ grep -qE 'ok--1--[0-9]{8}T[0-9]{6}Z\.html' "$MOCK_LOG" \
 grep -q 'data-artifact-meta' "$MOCK_LAST_PUT" && grep -q 'created' "$MOCK_LAST_PUT" \
   && echo "PASS timestamp footer stamped into artifact" \
   || { echo "FAIL: timestamp footer not stamped"; fails=$((fails+1)); }
+# The source (no head/html) must still get a UTF-8 declaration and a readable footer.
+grep -q '<head><meta charset="utf-8"></head>' "$MOCK_LAST_PUT" \
+  && echo "PASS UTF-8 charset declared when source has no head" \
+  || { echo "FAIL: UTF-8 charset not injected"; fails=$((fails+1)); }
+grep -qE 'created [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} +(ICT|UTC|\+[0-9]{2})' "$MOCK_LAST_PUT" \
+  && echo "PASS footer time in configured timezone" \
+  || { echo "FAIL: footer timezone missing"; fails=$((fails+1)); }
 
 # --- mandatory local archive ---
 LOCAL_OK="$WORK/project/docs/artifacts/codex/private/ok"
@@ -207,6 +214,22 @@ else
   echo "FAIL: CF Access gate — want exit 0 + skip note, got exit $cfrc"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 unset MOCK_HTTP_CODE MOCK_LOCATION
+
+# --- encoding/language stamping on a full document; DEFAULT_LANG / DEFAULT_TIMEZONE ---
+printf '<!DOCTYPE html>\n<html><head><title>t</title></head><body><p>hello</p></body></html>\n' > "$WORK/stamp.html"
+cp "$cfg" "$cfg.pre-stamp"
+printf 'DEFAULT_LANG=en\nDEFAULT_TIMEZONE=UTC\n' >> "$cfg"
+stamprc=0; bash "$PUB" --slug stamp "$WORK/stamp.html" >"$WORK/out" 2>"$WORK/errout" || stamprc=$?
+STAMPED_COPY="$WORK/project/docs/artifacts/codex/private/stamp/index.html"
+if [ "$stamprc" -eq 0 ] && grep -q '<html lang="en"' "$STAMPED_COPY" \
+    && grep -q '<meta charset="utf-8">' "$STAMPED_COPY" \
+    && grep -qE 'created [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC' "$STAMPED_COPY"; then
+  echo "PASS lang + charset + timezone follow DEFAULT_LANG / DEFAULT_TIMEZONE"
+else
+  echo "FAIL: stamping config — want lang=en + charset + UTC footer, got exit $stamprc"
+  sed 's/^/  | /' "$STAMPED_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+mv "$cfg.pre-stamp" "$cfg"
 
 # --- private that the host serves to anyone => exit 7, and never print a URL ---
 # The failure this guards against: the upload works, the authenticated verify passes, and the

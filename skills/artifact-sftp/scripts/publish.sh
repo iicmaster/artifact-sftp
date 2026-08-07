@@ -70,7 +70,7 @@ case "$perm" in 600|400) ;; *) die 3 "config $CONFIG must be mode 0600 (is $perm
 # would defeat host-key pinning / key selection via the ${VAR:-default} fallbacks below.
 unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
       DEFAULT_TOOL SSH_KEY OP_KEY_REF SFTP_PASS \
-      CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET
+      CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET DEFAULT_LANG DEFAULT_TIMEZONE
 # shellcheck disable=SC1090
 . "$CONFIG"
 : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
@@ -90,6 +90,11 @@ _cfg_safe() { case "$1" in *[!A-Za-z0-9_.:/@%+-]*) return 1;; *) return 0;; esac
 for _v in "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}"; do
   [ -z "$_v" ] || _cfg_safe "$_v" || die 3 "a verify-auth config value has characters unsafe for the curl -K config (allowed: A-Za-z0-9 _.:/@%+-) — fix CF_ACCESS_* in $CONFIG"
 done
+# DEFAULT_LANG / DEFAULT_TIMEZONE are interpolated into the stamped HTML and a `TZ=...`
+# date call, so they get the same shell/HTML-safe character gate.
+for _v in "${DEFAULT_LANG:-}" "${DEFAULT_TIMEZONE:-}"; do
+  [ -z "$_v" ] || _cfg_safe "$_v" || die 3 "DEFAULT_LANG/DEFAULT_TIMEZONE has characters unsafe for HTML/shell interpolation (allowed: A-Za-z0-9 _.:/@%+-)"
+done
 
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10
           -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$KNOWN_HOSTS"
@@ -108,6 +113,7 @@ fi
 CLEANUP_KEY=''
 BATCH=''
 STAMPED=''
+PREINJECT=''
 LOCAL_INDEX_TMP=''
 LOCAL_SNAPSHOT_TMP=''
 cleanup() {
@@ -116,6 +122,7 @@ cleanup() {
   if [ -n "$CLEANUP_KEY" ]; then rm -f "$CLEANUP_KEY"; fi
   if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
   if [ -n "$STAMPED" ]; then rm -f "$STAMPED"; fi
+  if [ -n "$PREINJECT" ]; then rm -f "$PREINJECT"; fi
   if [ -n "$LOCAL_INDEX_TMP" ]; then rm -f "$LOCAL_INDEX_TMP"; fi
   if [ -n "$LOCAL_SNAPSHOT_TMP" ]; then rm -f "$LOCAL_SNAPSHOT_TMP"; fi
 }
@@ -273,15 +280,47 @@ VFILE="${SLUG}--${VER}--${TS}.html"
 SNAPSHOT_URL="${URL}${VFILE}"
 
 # Stamp creation time + version into the page itself so every viewer can see it.
+# The stamped page must also declare UTF-8 and the configured default language, so
+# non-ASCII text (Thai, etc.) renders correctly instead of as mojibake.
+LANG_ATTR=${DEFAULT_LANG:-th}
+TZ_NAME=${DEFAULT_TIMEZONE:-Asia/Bangkok}
+
+# Encoding + language injection: add <meta charset="utf-8"> (into <head>, or open a
+# <head> when the source has none) and <html lang="..."> when either is missing.
+PREINJECT=$(mktemp)
+grep -qiE '<meta[^>]*charset' "$FILE" && HAS_CHARSET=1 || HAS_CHARSET=0
+grep -qi '</head>'            "$FILE" && HAS_CLOSE_HEAD=1 || HAS_CLOSE_HEAD=0
+grep -qi '<head'              "$FILE" && HAS_OPEN_HEAD=1 || HAS_OPEN_HEAD=0
+grep -qiE '<html[^>]*lang='   "$FILE" && HAS_LANG=1 || HAS_LANG=0
+grep -qi '<!doctype'          "$FILE" && HAS_DOCTYPE=1 || HAS_DOCTYPE=0
+awk -v lang="$LANG_ATTR" \
+    -v has_charset="$HAS_CHARSET" -v has_close_head="$HAS_CLOSE_HEAD" \
+    -v has_open_head="$HAS_OPEN_HEAD" -v has_lang="$HAS_LANG" \
+    -v has_doctype="$HAS_DOCTYPE" '
+BEGIN { cdone = has_charset; ldone = has_lang; nohead = !has_close_head && !has_open_head }
+{
+  if (!ldone && $0 ~ /<html/) { sub(/<html/, "<html lang=\"" lang "\""); ldone = 1 }
+  if (!cdone) {
+    if (has_close_head && $0 ~ /<\/head/)   { sub(/<\/head/, "<meta charset=\"utf-8\">\n</head"); cdone = 1 }
+    else if (has_open_head && $0 ~ /<head/) { sub(/<head[^>]*>/, "&<meta charset=\"utf-8\">"); cdone = 1 }
+    else if (nohead) {
+      if (has_doctype && $0 ~ /<!doctype/) { print "<head><meta charset=\"utf-8\"></head>"; cdone = 1 }
+      else if (!has_doctype)               { print "<head><meta charset=\"utf-8\"></head>"; cdone = 1 }
+    }
+  }
+  print
+}' "$FILE" > "$PREINJECT"
+
 STAMPED=$(mktemp)
-TS_HUMAN=$(TZ=Asia/Bangkok date '+%Y-%m-%d %H:%M ICT')
-FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:12px/1.5 system-ui;color:#888\">artifact: ${SLUG} · v${VER} · created ${TS_HUMAN}</footer>"
-if grep -q '</body>' "$FILE"; then
-  awk -v foot="$FOOT" '!done && index($0,"</body>") { sub(/<\/body>/, foot "</body>"); done=1 } { print }' "$FILE" > "$STAMPED"
+TS_HUMAN=$(TZ="$TZ_NAME" date '+%Y-%m-%d %H:%M %Z' 2>/dev/null) || TS_HUMAN=$(date -u '+%Y-%m-%d %H:%M UTC')
+FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666\">artifact: ${SLUG} · v${VER} · created ${TS_HUMAN}</footer>"
+if grep -q '</body>' "$PREINJECT"; then
+  awk -v foot="$FOOT" '!done && index($0,"</body>") { sub(/<\/body>/, foot "</body>"); done=1 } { print }' "$PREINJECT" > "$STAMPED"
 else
-  cat "$FILE" > "$STAMPED"
+  cat "$PREINJECT" > "$STAMPED"
   printf '%s\n' "$FOOT" >> "$STAMPED"
 fi
+rm -f "$PREINJECT"; PREINJECT=''
 
 LOCAL_SNAPSHOT_PATH="$LOCAL_ARTIFACT_DIR/$VFILE"
 

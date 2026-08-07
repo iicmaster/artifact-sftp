@@ -120,6 +120,11 @@ docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
 The local archive remains after `--delete`; deleting a remote artifact does not erase local
 history. `--dry-run` reports the destination without creating files.
 
+Every published page is stamped with a creation-time footer and gets a UTF-8 declaration
+plus `<html lang="...">` when the source HTML lacks them, so non-ASCII text renders
+correctly. Optional config keys `DEFAULT_LANG` (default `th`) and `DEFAULT_TIMEZONE`
+(default `Asia/Bangkok`) control the page language and the footer time.
+
 Useful operations:
 
 ```bash

@@ -160,6 +160,8 @@ run_from_dir_capture "$FIRST_OUT" "$UNRELATED_CWD" \
     --tool codex \
     --cf-access-id "$CF_ID" \
     --cf-access-secret - \
+    --lang th \
+    --timezone Asia/Bangkok \
     --ssh-key "$KEY_FILE" \
     --known-hosts-file "$FIRST_KNOWN_SOURCE" \
     <"$SECRET_INPUT"
@@ -178,6 +180,8 @@ grep -Fqx "SSH_KEY=$KEY_FILE" "$CONFIG" || fail "SSH key authentication was not 
 grep -Fqx 'DEFAULT_TOOL=codex' "$CONFIG" || fail "default tool was not recorded"
 grep -Fqx "CF_ACCESS_CLIENT_ID=$CF_ID" "$CONFIG" || fail "cf-access-id was not recorded"
 grep -Fqx "CF_ACCESS_CLIENT_SECRET=$CF_SECRET" "$CONFIG" || fail "stdin secret was not written to config"
+grep -Fqx 'DEFAULT_LANG=th' "$CONFIG" || fail "default lang was not recorded"
+grep -Fqx 'DEFAULT_TIMEZONE=Asia/Bangkok' "$CONFIG" || fail "default timezone was not recorded"
 assert_contains "$KNOWN" '[sftp.test.invalid]:2222 ssh-ed25519' "mocked host key was not pinned"
 
 READY_OUT="$TMP_ROOT/status-ready.out"

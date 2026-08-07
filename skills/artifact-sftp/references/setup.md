@@ -113,7 +113,9 @@ Config values must be shell-safe (the file is both `source`d by `publish.sh` and
 `--ssh-key`. To hand-write the config instead, the keys are: `SFTP_HOST`, `SFTP_USER`,
 `SFTP_PORT`, `REMOTE_DIR`, `PUBLIC_BASE_URL`, `DEFAULT_TOOL`, one of
 `SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `CF_ACCESS_CLIENT_ID`,
-`CF_ACCESS_CLIENT_SECRET` — one `KEY=value` per line, `chmod 600`.
+`CF_ACCESS_CLIENT_SECRET`, `DEFAULT_LANG` (stamped page language, default `th`),
+`DEFAULT_TIMEZONE` (footer timezone, default `Asia/Bangkok`) — one `KEY=value` per line,
+`chmod 600`. `setup.sh --lang th --timezone Asia/Bangkok` writes them at setup time.
 
 ## Private verify behind Cloudflare Access
 
