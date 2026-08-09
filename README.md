@@ -89,6 +89,54 @@ ln -s "$PWD/artifact-sftp/skills/artifact-sftp-read"  ~/.claude/skills/artifact-
 Then run `/artifact-sftp-setup`. Artifacts published from Claude Code land under
 `/claude/` in the URL path.
 
+## MCP (local stdio)
+
+`artifact-sftp-mcp` is a **local stdio** MCP server. It wraps the existing publisher,
+local read resolver, and setup-status contract; it does not expose an HTTP endpoint or
+reimplement SFTP. The server keeps stdout exclusively for MCP frames.
+
+Run it from a trusted checkout (Python 3.11+ and `uv` are required):
+
+```bash
+export ARTIFACT_SFTP_PLUGIN_ROOT=/absolute/path/to/artifact-sftp
+uv run --directory "$ARTIFACT_SFTP_PLUGIN_ROOT" artifact-sftp-mcp
+```
+
+Register that exact launch command with an MCP host, including the absolute
+`ARTIFACT_SFTP_PLUGIN_ROOT` environment value. Tool calls must pass an absolute
+`project_path`; this is the project where `docs/artifacts/` will be kept.
+
+For Codex CLI, the equivalent one-time local registration is:
+
+```bash
+codex mcp add artifact-sftp \
+  --env ARTIFACT_SFTP_PLUGIN_ROOT=/absolute/path/to/artifact-sftp \
+  -- uv run --directory /absolute/path/to/artifact-sftp artifact-sftp-mcp
+```
+
+This registers a local stdio process only; it does not put SFTP or Cloudflare
+credentials in Codex configuration. Run `codex mcp get artifact-sftp` to review
+the registration, or `codex mcp remove artifact-sftp` to remove it.
+
+The v1 tool surface is deliberately small:
+
+- `artifact_sftp.setup_status` checks readiness without writing configuration.
+- `artifact_sftp.setup` returns a local-terminal wizard command. It never collects a
+  password, Cloudflare token, or private key in MCP arguments.
+- `artifact_sftp.publish` accepts a regular project-local `.html`/`.htm` file. It is
+  private by default and requires `confirm=true`; public publishing also requires
+  `confirm_public=true`. It deliberately has no `--force` or `--allow-sensitive` escape
+  hatch.
+- `artifact_sftp.read` resolves a canonical URL, `read-back:` line, or local archive path
+  and returns a bounded local excerpt. It never WebFetches a private viewer URL; returned
+  HTML is marked untrusted and is not a rendering verdict.
+
+For a first local protocol check, run the MCP test suite from the checkout:
+
+```bash
+uv run python -m unittest discover -s tests -p 'test_mcp*.py' -v
+```
+
 The setup wizard scans the SFTP host key, displays every fingerprint for independent
 verification, and writes:
 
@@ -197,6 +245,7 @@ mocks and never read the real local configuration.
 
 ```bash
 python3 tests/test_agent_plugins.py
+uv run python -m unittest discover -s tests -p 'test_mcp*.py'
 bash skills/artifact-sftp/scripts/test_publish.sh
 bash skills/artifact-sftp/scripts/test_setup.sh
 bash skills/artifact-sftp-read/scripts/test_read_artifact.sh

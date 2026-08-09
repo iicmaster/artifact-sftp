@@ -1,0 +1,685 @@
+"""Safe, local wrappers around Artifact SFTP's existing script contracts.
+
+The shell scripts remain the single source of truth for configuration, host-key
+pinning, archive-before-upload, SFTP delivery, and privacy probes.  This module
+only validates MCP input, invokes a fixed argv array, and translates the stable
+script contract into structured results.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import re
+import shlex
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol, Sequence
+from urllib.parse import urlsplit
+
+from .models import ErrorDetail, ToolOutput
+
+
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+SNAPSHOT_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$")
+PUBLISHED_RE = re.compile(r"^published v([1-9][0-9]*) \(snapshot: ([^)]+)\)$")
+READ_BACK_RE = re.compile(r"^read-back: (/.+)$")
+SNAPSHOT_PATH_RE = re.compile(r"^snapshot: (/.+)$")
+AUTH_RE = re.compile(r"^auth: (password|ssh-key|1password)$")
+DEFAULT_TOOL_RE = re.compile(r"^default tool: (codex|openclaw|claude)$")
+TOOLS = frozenset({"codex", "openclaw", "claude"})
+VISIBILITIES = frozenset({"private", "public"})
+MAX_READ_BYTES = 65_536
+DEFAULT_READ_BYTES = 16_384
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    """A subprocess result that never needs to expose its command output to MCP."""
+
+    args: tuple[str, ...]
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool = False
+    spawn_error: bool = False
+
+
+class Runner(Protocol):
+    def run(self, args: Sequence[str], *, cwd: Path, timeout: float) -> CommandResult:
+        """Run a fixed argv vector without a shell."""
+
+
+class SubprocessRunner:
+    """Run scripts with a minimal, inherited local environment."""
+
+    _ENV_KEYS = frozenset(
+        {
+            "HOME",
+            "PATH",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "TERM",
+            "USER",
+            "USERPROFILE",
+            "SystemRoot",
+            "SYSTEMROOT",
+            "COMSPEC",
+            "SSH_AUTH_SOCK",
+            "SSH_AGENT_PID",
+            "XDG_CONFIG_HOME",
+            "XDG_RUNTIME_DIR",
+        }
+    )
+
+    def run(self, args: Sequence[str], *, cwd: Path, timeout: float) -> CommandResult:
+        argv = tuple(str(arg) for arg in args)
+        environment = {
+            key: value for key, value in os.environ.items() if key in self._ENV_KEYS
+        }
+        environment.setdefault("HOME", str(Path.home()))
+        environment.setdefault("PATH", os.defpath)
+        try:
+            completed = subprocess.run(
+                argv,
+                cwd=str(cwd),
+                env=environment,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+                check=False,
+                shell=False,
+            )
+        except subprocess.TimeoutExpired:
+            return CommandResult(
+                args=argv,
+                returncode=124,
+                stdout="",
+                stderr="",
+                timed_out=True,
+            )
+        except OSError:
+            return CommandResult(
+                args=argv,
+                returncode=127,
+                stdout="",
+                stderr="",
+                spawn_error=True,
+            )
+        return CommandResult(
+            args=argv,
+            returncode=completed.returncode,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+        )
+
+
+@dataclass(frozen=True)
+class ServiceResponse:
+    output: ToolOutput
+    is_error: bool = False
+
+
+class ArtifactSftpService:
+    """MCP-facing operations, intentionally constrained to Artifact SFTP v1."""
+
+    def __init__(
+        self,
+        *,
+        plugin_root: Path | None = None,
+        runner: Runner | None = None,
+        start_cwd: Path | None = None,
+    ) -> None:
+        self.start_cwd = (start_cwd or Path.cwd()).resolve()
+        self.plugin_root = self._resolve_plugin_root(plugin_root)
+        self.runner = runner or SubprocessRunner()
+
+    def setup_status(self) -> ServiceResponse:
+        """Inspect local readiness without modifying configuration or using SFTP."""
+
+        script = self._script("skills/artifact-sftp/scripts/setup.sh")
+        if isinstance(script, ServiceResponse):
+            return script
+        command = self.runner.run(("bash", str(script), "--status"), cwd=self.start_cwd, timeout=20)
+        if command.timed_out or command.spawn_error:
+            return self._server_failure("setup_status", command)
+        if command.returncode not in (0, 3):
+            return self._error(
+                "setup_status",
+                command.returncode,
+                "setup_status_failed",
+                "Could not inspect Artifact SFTP readiness.",
+                "Run the setup status command in a local terminal for diagnostics.",
+            )
+
+        lines = self._safe_lines(command.stdout)
+        ready = command.returncode == 0 and any(line == "READY" for line in lines)
+        auth_mode = self._first_match(lines, AUTH_RE)
+        default_tool = self._first_match(lines, DEFAULT_TOOL_RE)
+        wizard = self._wizard_command(reconfigure=False)
+        result = {
+            "ready": ready,
+            "auth_mode": auth_mode,
+            "default_tool": default_tool,
+            "diagnostics": lines,
+            "terminal_required": not ready,
+            "next_action": None if ready else wizard,
+        }
+        return ServiceResponse(
+            ToolOutput(ok=True, operation="setup_status", exit_code=command.returncode, result=result)
+        )
+
+    def setup_instructions(self, *, reconfigure: bool = False) -> ServiceResponse:
+        """Return the safe TTY-owned setup handoff; never collect credentials in MCP."""
+
+        status = self.setup_status()
+        if status.is_error:
+            return status
+        ready = bool(status.output.result["ready"])
+        if ready and not reconfigure:
+            result = {
+                "mode": "already_ready",
+                "terminal_required": False,
+                "command": None,
+                "setup_status": status.output.result,
+            }
+        else:
+            result = {
+                "mode": "reconfigure" if reconfigure else "initial_setup",
+                "terminal_required": True,
+                "command": self._wizard_command(reconfigure=reconfigure),
+                "setup_status": status.output.result,
+                "credential_boundary": "Enter passwords and Cloudflare secrets only in the local terminal wizard.",
+            }
+        return ServiceResponse(ToolOutput(ok=True, operation="setup", exit_code=0, result=result))
+
+    def publish(
+        self,
+        *,
+        project_path: str,
+        source_path: str,
+        slug: str,
+        tool: str,
+        visibility: str = "private",
+        dry_run: bool = False,
+        confirm: bool = False,
+        confirm_public: bool = False,
+    ) -> ServiceResponse:
+        """Publish one project-local HTML file through the hardened publisher."""
+
+        project = self._project(project_path, "publish")
+        if isinstance(project, ServiceResponse):
+            return project
+        source = self._source_file(source_path, project)
+        if isinstance(source, ServiceResponse):
+            return source
+        if not SLUG_RE.fullmatch(slug):
+            return self._error(
+                "publish", 2, "invalid_slug", "Slug must match the Artifact SFTP slug format.",
+                "Use 1–63 lowercase letters, digits, and single hyphens.",
+            )
+        if tool not in TOOLS:
+            return self._error(
+                "publish", 2, "invalid_tool", "Tool must be codex, openclaw, or claude.",
+                "Choose one supported runtime namespace.",
+            )
+        if visibility not in VISIBILITIES:
+            return self._error(
+                "publish", 2, "invalid_visibility", "Visibility must be private or public.",
+                "Use private unless public sharing is intentional.",
+            )
+        if not dry_run and not confirm:
+            return self._error(
+                "publish", None, "confirmation_required",
+                "Publishing sends the local HTML to the configured SFTP host.",
+                "Show the target to the user and call again with confirm=true after approval.",
+            )
+        if visibility == "public" and not dry_run and not confirm_public:
+            return self._error(
+                "publish", None, "public_confirmation_required",
+                "Public publishing makes the artifact readable to anyone with the URL.",
+                "Obtain explicit public-sharing approval and call again with confirm_public=true.",
+            )
+
+        script = self._script("skills/artifact-sftp/scripts/publish.sh")
+        if isinstance(script, ServiceResponse):
+            return script
+        argv = ["bash", str(script), "--slug", slug, "--tool", tool]
+        if visibility == "public":
+            argv.append("--public")
+        if dry_run:
+            argv.append("--dry-run")
+        argv.append(str(source))
+        command = self.runner.run(argv, cwd=project, timeout=120)
+        if command.timed_out or command.spawn_error:
+            return self._server_failure("publish", command)
+        if command.returncode != 0:
+            return self._publish_failure(command.returncode)
+
+        url = self._published_url(command.stdout, tool, visibility, slug)
+        if url is None:
+            return self._error(
+                "publish", 0, "publish_contract_error",
+                "Publisher succeeded without a valid final artifact URL.",
+                "Do not assume delivery; inspect the local publisher contract before retrying.",
+            )
+        if dry_run:
+            return ServiceResponse(
+                ToolOutput(
+                    ok=True,
+                    operation="publish",
+                    exit_code=0,
+                    result={
+                        "status": "dry_run",
+                        "dry_run": True,
+                        "url": url,
+                        "slug": slug,
+                        "tool": tool,
+                        "visibility": visibility,
+                        "local_archive_created": False,
+                    },
+                )
+            )
+
+        markers = self._publish_markers(command.stderr)
+        read_back = markers.get("read_back")
+        snapshot = markers.get("snapshot")
+        if read_back is None or snapshot is None:
+            return self._error(
+                "publish", 0, "publish_contract_error",
+                "Publisher succeeded without the required local archive markers.",
+                "Do not treat the remote URL as readable evidence; inspect the local archive gate.",
+            )
+        current = self._archive_details(read_back, project, "publish")
+        snapshot_details = self._archive_details(snapshot, project, "publish")
+        if isinstance(current, ServiceResponse):
+            return current
+        if isinstance(snapshot_details, ServiceResponse):
+            return snapshot_details
+        if current["kind"] != "current" or snapshot_details["kind"] != "snapshot":
+            return self._error(
+                "publish", 0, "publish_contract_error",
+                "Publisher returned archive paths with unexpected identities.",
+                "Do not retry blindly; inspect the archive path contract.",
+            )
+        if current["tool"] != tool or current["visibility"] != visibility or current["slug"] != slug:
+            return self._error(
+                "publish", 0, "publish_contract_error",
+                "Publisher archive identity does not match the requested target.",
+                "Stop and inspect the local project before publishing again.",
+            )
+        version = markers.get("version")
+        result = {
+            "status": "published",
+            "dry_run": False,
+            "url": url,
+            "slug": slug,
+            "tool": tool,
+            "visibility": visibility,
+            "version": version,
+            "read_back_path": current["path"],
+            "snapshot_path": snapshot_details["path"],
+            "snapshot_filename": snapshot_details["filename"],
+            "archive_sha256": current["sha256"],
+            "verification": {
+                "local_archive": "written",
+                "privacy": "protected" if visibility == "private" else "not_applicable",
+                "content": "public_hash_match" if visibility == "public" else "not_independently_byte_verified",
+            },
+        }
+        return ServiceResponse(ToolOutput(ok=True, operation="publish", exit_code=0, result=result))
+
+    def read(
+        self,
+        *,
+        project_path: str,
+        reference: str,
+        max_bytes: int = DEFAULT_READ_BYTES,
+        cursor: int = 0,
+    ) -> ServiceResponse:
+        """Resolve and return a bounded local archive excerpt, never a viewer fetch."""
+
+        project = self._project(project_path, "read")
+        if isinstance(project, ServiceResponse):
+            return project
+        if not reference.strip():
+            return self._error(
+                "read", 2, "invalid_reference", "Artifact reference must not be empty.",
+                "Provide a canonical URL, read-back line, or local archive path.",
+            )
+        if type(max_bytes) is not int or not 1 <= max_bytes <= MAX_READ_BYTES:
+            return self._error(
+                "read", 2, "invalid_max_bytes",
+                f"max_bytes must be between 1 and {MAX_READ_BYTES}.",
+                "Request a bounded chunk and continue with next_cursor when needed.",
+            )
+        if type(cursor) is not int or cursor < 0:
+            return self._error(
+                "read", 2, "invalid_cursor", "cursor must be a non-negative byte offset.",
+                "Start at cursor=0 or use the prior next_cursor value.",
+            )
+
+        script = self._script("skills/artifact-sftp-read/scripts/read-artifact.sh")
+        if isinstance(script, ServiceResponse):
+            return script
+        command = self.runner.run(
+            ("bash", str(script), "--project", str(project), reference),
+            cwd=project,
+            timeout=20,
+        )
+        if command.timed_out or command.spawn_error:
+            return self._server_failure("read", command)
+        if command.returncode != 0:
+            code = "invalid_reference" if command.returncode == 2 else "archive_unavailable"
+            recovery = (
+                "Provide a canonical Artifact SFTP reference inside this project's docs/artifacts tree."
+                if command.returncode == 2
+                else "Run from the publishing project or pass the correct absolute project_path."
+            )
+            return self._error(
+                "read", command.returncode, code,
+                "The requested local artifact archive is not available for safe reading.", recovery,
+            )
+        paths = [line.strip() for line in command.stdout.splitlines() if line.strip()]
+        if len(paths) != 1 or not Path(paths[0]).is_absolute():
+            return self._error(
+                "read", 0, "read_contract_error",
+                "Resolver succeeded without exactly one absolute local archive path.",
+                "Do not fetch the viewer URL; inspect the local resolver contract.",
+            )
+        details = self._archive_details(paths[0], project, "read")
+        if isinstance(details, ServiceResponse):
+            return details
+        try:
+            raw = Path(details["path"]).read_bytes()
+        except OSError:
+            return self._error(
+                "read", 3, "archive_unavailable",
+                "The local archive disappeared before it could be read safely.",
+                "Retry only after confirming the publishing project's docs/artifacts archive is intact.",
+            )
+        end = min(cursor + max_bytes, len(raw))
+        chunk = raw[cursor:end]
+        result = {
+            "archive_path": details["path"],
+            "relative_archive_path": details["relative_path"],
+            "artifact": {
+                "tool": details["tool"],
+                "visibility": details["visibility"],
+                "slug": details["slug"],
+                "kind": details["kind"],
+                "version": details["version"],
+            },
+            "byte_length": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "cursor": cursor,
+            "max_bytes": max_bytes,
+            "content": chunk.decode("utf-8", errors="replace"),
+            "truncated": end < len(raw),
+            "next_cursor": end if end < len(raw) else None,
+            "network_accessed": False,
+            "content_is_untrusted": True,
+            "rendering_checked": False,
+        }
+        return ServiceResponse(ToolOutput(ok=True, operation="read", exit_code=0, result=result))
+
+    def _resolve_plugin_root(self, configured: Path | None) -> Path | None:
+        candidates: list[Path] = []
+        if configured is not None:
+            candidates.append(configured)
+        env_root = os.environ.get("ARTIFACT_SFTP_PLUGIN_ROOT")
+        if env_root:
+            candidates.append(Path(env_root))
+        for base in (self.start_cwd, Path(__file__).resolve()):
+            candidates.append(base)
+            candidates.extend(base.parents)
+        seen: set[Path] = set()
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve(strict=True)
+            except OSError:
+                continue
+            if resolved in seen or not resolved.is_dir():
+                continue
+            seen.add(resolved)
+            if (resolved / "plugin.json").is_file() and (
+                resolved / "skills/artifact-sftp/scripts/publish.sh"
+            ).is_file():
+                return resolved
+        return None
+
+    def _script(self, relative: str) -> Path | ServiceResponse:
+        if self.plugin_root is None:
+            return self._error(
+                "server", None, "plugin_root_not_found",
+                "Artifact SFTP plugin root could not be located.",
+                "Set ARTIFACT_SFTP_PLUGIN_ROOT to the absolute plugin checkout path.",
+            )
+        path = self.plugin_root / relative
+        if path.is_symlink() or not path.is_file():
+            return self._error(
+                "server", None, "plugin_script_unavailable",
+                "A required Artifact SFTP script is unavailable or unsafe.",
+                "Reinstall the plugin from a trusted checkout and set ARTIFACT_SFTP_PLUGIN_ROOT.",
+            )
+        return path
+
+    def _project(self, value: str, operation: str) -> Path | ServiceResponse:
+        if not value:
+            return self._error(
+                operation, 2, "project_path_required",
+                "project_path must be an absolute project directory.",
+                "Pass the project that owns docs/artifacts and the HTML source.",
+            )
+        path = Path(value)
+        if not path.is_absolute() or path.is_symlink() or not path.is_dir():
+            return self._error(
+                operation, 2, "invalid_project_path",
+                "project_path must be an existing, non-symlink absolute directory.",
+                "Pass the canonical absolute publishing-project path.",
+            )
+        return path.resolve()
+
+    def _source_file(self, value: str, project: Path) -> Path | ServiceResponse:
+        candidate = Path(value)
+        if not candidate.is_absolute():
+            candidate = project / candidate
+        if candidate.is_symlink() or not candidate.is_file():
+            return self._error(
+                "publish", 2, "invalid_source_path",
+                "source_path must name a regular local HTML file.",
+                "Write the artifact into the selected project and pass its path.",
+            )
+        try:
+            source = candidate.resolve(strict=True)
+            source.relative_to(project)
+        except (OSError, ValueError):
+            return self._error(
+                "publish", 2, "source_outside_project",
+                "source_path must resolve inside project_path.",
+                "Stage the HTML inside the selected project before publishing.",
+            )
+        if source.suffix.lower() not in {".html", ".htm"}:
+            return self._error(
+                "publish", 2, "invalid_source_extension",
+                "Artifact SFTP only publishes .html or .htm files.",
+                "Convert the artifact to a self-contained HTML file first.",
+            )
+        return source
+
+    def _archive_details(self, value: str, project: Path, operation: str) -> dict[str, object] | ServiceResponse:
+        candidate = Path(value)
+        if not candidate.is_absolute() or candidate.is_symlink() or not candidate.is_file():
+            return self._error(
+                operation, 3, "unsafe_archive_path",
+                "Local archive path is missing, unsafe, or not a regular file.",
+                "Use the publishing project's verified docs/artifacts archive.",
+            )
+        try:
+            resolved = candidate.resolve(strict=True)
+            archive_root = (project / "docs/artifacts").resolve(strict=True)
+            relative = resolved.relative_to(archive_root)
+        except (OSError, ValueError):
+            return self._error(
+                operation, 2, "archive_outside_project",
+                "Resolved artifact archive is outside this project's docs/artifacts tree.",
+                "Do not use an arbitrary local path as an Artifact SFTP read-back archive.",
+            )
+        parts = relative.parts
+        if len(parts) != 4 or parts[0] not in TOOLS or parts[1] not in VISIBILITIES or not SLUG_RE.fullmatch(parts[2]):
+            return self._error(
+                operation, 2, "invalid_archive_identity",
+                "Archive path does not match the Artifact SFTP layout.",
+                "Use the read-back path returned by the publisher or a canonical artifact URL.",
+            )
+        filename = parts[3]
+        kind = "current" if filename == "index.html" else "snapshot"
+        version: int | None = None
+        if kind == "snapshot":
+            match = SNAPSHOT_RE.fullmatch(filename)
+            if match is None or match.group(1) != parts[2]:
+                return self._error(
+                    operation, 2, "invalid_archive_identity",
+                    "Snapshot filename does not match the artifact slug/version contract.",
+                    "Use an immutable snapshot produced by Artifact SFTP.",
+                )
+            version = int(match.group(2))
+        try:
+            archive_sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        except OSError:
+            return self._error(
+                operation, 3, "unsafe_archive_path",
+                "Local archive path could not be read safely.",
+                "Use the publishing project's verified docs/artifacts archive.",
+            )
+        return {
+            "path": str(resolved),
+            "relative_path": str(relative),
+            "tool": parts[0],
+            "visibility": parts[1],
+            "slug": parts[2],
+            "filename": filename,
+            "kind": kind,
+            "version": version,
+            "sha256": archive_sha256,
+        }
+
+    def _published_url(self, stdout: str, tool: str, visibility: str, slug: str) -> str | None:
+        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+        if not lines:
+            return None
+        value = lines[-1]
+        parsed = urlsplit(value)
+        expected = f"/{tool}/{visibility}/{slug}/"
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return None
+        if parsed.query or parsed.fragment or parsed.path.rstrip("/") + "/" != expected:
+            return None
+        return value
+
+    def _publish_markers(self, stderr: str) -> dict[str, object]:
+        markers: dict[str, object] = {}
+        for line in stderr.splitlines():
+            if match := READ_BACK_RE.fullmatch(line):
+                markers["read_back"] = match.group(1)
+            elif match := SNAPSHOT_PATH_RE.fullmatch(line):
+                markers["snapshot"] = match.group(1)
+            elif match := PUBLISHED_RE.fullmatch(line):
+                markers["version"] = int(match.group(1))
+        return markers
+
+    def _publish_failure(self, exit_code: int) -> ServiceResponse:
+        mapping = {
+            2: ("invalid_input", "Publisher rejected the requested input.", "Correct the tool arguments and retry."),
+            3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.setup_status, then complete the local terminal setup if needed."),
+            4: ("secret_scan_blocked", "Publisher detected a possible secret and blocked upload.", "Remove the secret; the MCP server deliberately does not expose the unsafe override."),
+            5: ("remote_operation_failed", "SFTP upload or remote-state operation failed.", "Check the pinned host, account access, and whether the slug already exists."),
+            6: ("served_content_mismatch", "Published content did not pass its verification check.", "Do not share the URL; inspect the host and retry only after resolving the mismatch."),
+            7: ("private_exposed", "The requested private artifact was publicly reachable.", "URL withheld. Fix the access policy before publishing another private artifact."),
+            8: ("privacy_inconclusive", "Private protection could not be verified conclusively.", "URL withheld. Investigate the access gate rather than assuming privacy."),
+            9: ("local_archive_failed", "The required local archive could not be written safely.", "Fix the project docs/artifacts path before retrying upload."),
+        }
+        code, message, recovery = mapping.get(
+            exit_code,
+            ("publish_failed", "Publisher failed without a recognized exit code.", "Inspect the local publisher in a terminal before retrying."),
+        )
+        return self._error(
+            "publish", exit_code, code, message, recovery,
+            url_withheld=exit_code in {6, 7, 8}, retryable=exit_code == 5,
+        )
+
+    def _server_failure(self, operation: str, command: CommandResult) -> ServiceResponse:
+        if command.timed_out:
+            message = "Artifact SFTP command timed out without a usable result."
+            recovery = "Check local connectivity and the SFTP host, then retry once the cause is known."
+            code = "command_timed_out"
+        else:
+            message = "Artifact SFTP command could not be started."
+            recovery = "Verify the local shell and the trusted plugin checkout."
+            code = "command_unavailable"
+        return self._error(operation, command.returncode, code, message, recovery, retryable=True)
+
+    def _error(
+        self,
+        operation: str,
+        exit_code: int | None,
+        code: str,
+        message: str,
+        recovery: str,
+        *,
+        url_withheld: bool = False,
+        retryable: bool = False,
+    ) -> ServiceResponse:
+        return ServiceResponse(
+            ToolOutput(
+                ok=False,
+                operation=operation,
+                exit_code=exit_code,
+                error=ErrorDetail(
+                    code=code,
+                    message=message,
+                    retryable=retryable,
+                    recovery=recovery,
+                    url_withheld=url_withheld,
+                ),
+            ),
+            is_error=True,
+        )
+
+    def _wizard_command(self, *, reconfigure: bool) -> str:
+        script = self._script("skills/artifact-sftp-setup/scripts/setup-wizard.sh")
+        if isinstance(script, ServiceResponse):
+            return "Artifact SFTP setup wizard is unavailable; reinstall the trusted plugin checkout."
+        suffix = " --reconfigure" if reconfigure else ""
+        return f"bash {shlex.quote(str(script))}{suffix}"
+
+    @staticmethod
+    def _safe_lines(value: str) -> list[str]:
+        lines: list[str] = []
+        for raw in value.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            line = re.sub(
+                r"(?i)([A-Z0-9_]*(?:PASSWORD|SECRET|TOKEN|AUTHORIZATION)[A-Z0-9_]*)\s*[=:]\s*\S+",
+                r"\1=<redacted>",
+                line,
+            )
+            line = re.sub(r"op://\S+", "op://<redacted>", line)
+            line = re.sub(r"https?://\S+", "<url-redacted>", line)
+            lines.append(line[:300])
+        return lines[:30]
+
+    @staticmethod
+    def _first_match(lines: Sequence[str], pattern: re.Pattern[str]) -> str | None:
+        for line in lines:
+            if match := pattern.fullmatch(line):
+                return match.group(1)
+        return None

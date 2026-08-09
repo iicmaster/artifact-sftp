@@ -2,7 +2,12 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.10.0] - 2026-08-10
+
+- Add a local stdio MCP server (`artifact-sftp-mcp`) with typed `setup_status`, safe
+  terminal-only setup instructions, confirmation-gated publishing, and bounded local
+  artifact read-back. It delegates to the existing hardened scripts rather than
+  reimplementing SFTP, and adds in-memory plus real-child-process stdio tests.
 
 ## [0.9.0] - 2026-08-10
 

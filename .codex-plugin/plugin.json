@@ -1,7 +1,7 @@
 {
   "name": "artifact-sftp",
-  "version": "0.9.0",
-  "description": "Publish self-contained HTML artifacts to your own SFTP web host with a stable URL and private-by-default visibility, then read the locally archived bytes for artifacts just published.",
+  "version": "0.10.0",
+  "description": "Publish, locally read, and safely set up self-contained HTML artifacts on your SFTP web host, including a local stdio MCP adapter.",
   "author": {
     "name": "NGS"
   },
@@ -12,13 +12,14 @@
     "publish",
     "read",
     "html",
-    "hosting"
+    "hosting",
+    "mcp"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Artifact SFTP",
     "shortDescription": "Publish and read HTML artifacts on your SFTP host",
-    "longDescription": "Uploads one self-contained HTML file per artifact to an SFTP web host, returns a stable private-by-default URL, and provides a local archive that agents can read back without fetching a Cloudflare Access-protected viewer link.",
+    "longDescription": "Uploads one self-contained HTML file per artifact to an SFTP web host, returns a stable private-by-default URL, provides a local archive that agents can read back without fetching a Cloudflare Access-protected viewer link, and includes a local stdio MCP adapter for setup status, publishing, and read-back.",
     "developerName": "NGS",
     "category": "Developer Tools",
     "capabilities": [
