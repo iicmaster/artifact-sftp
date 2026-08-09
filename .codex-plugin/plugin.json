@@ -1,7 +1,7 @@
 {
   "name": "artifact-sftp",
-  "version": "0.8.0",
-  "description": "Publish self-contained HTML artifacts to your own SFTP web host with a stable URL and private-by-default visibility — a stand-in for the native Artifact tool on runtimes that lack it (Codex, OpenClaw).",
+  "version": "0.9.0",
+  "description": "Publish self-contained HTML artifacts to your own SFTP web host with a stable URL and private-by-default visibility, then read the locally archived bytes for artifacts just published.",
   "author": {
     "name": "NGS"
   },
@@ -10,14 +10,15 @@
     "artifact",
     "sftp",
     "publish",
+    "read",
     "html",
     "hosting"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Artifact SFTP",
-    "shortDescription": "Publish HTML artifacts to your own SFTP web host",
-    "longDescription": "Uploads one self-contained HTML file per artifact to an SFTP web host and returns a stable, redeploy-in-place URL that is private (Cloudflare Zero Trust) by default. Mimics the contract of the native Artifact tool for Codex and OpenClaw, which have no built-in artifact publishing.",
+    "shortDescription": "Publish and read HTML artifacts on your SFTP host",
+    "longDescription": "Uploads one self-contained HTML file per artifact to an SFTP web host, returns a stable private-by-default URL, and provides a local archive that agents can read back without fetching a Cloudflare Access-protected viewer link.",
     "developerName": "NGS",
     "category": "Developer Tools",
     "capabilities": [
@@ -27,6 +28,7 @@
     "defaultPrompt": [
       "Publish this report as an artifact",
       "Update my published artifact in place",
+      "Read the artifact I just published",
       "Set up artifact-sftp on this machine"
     ],
     "brandColor": "#3B82F6",

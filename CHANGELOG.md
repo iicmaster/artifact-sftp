@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-10
+
+- Add the dedicated `artifact-sftp-read` skill and an offline resolver that maps a canonical
+  or versioned artifact URL (or the publisher's `read-back:` line) to the local archived bytes.
+  Agents can now inspect an artifact they just published without WebFetching a private
+  Cloudflare Access viewer URL.
+- Add a portable root `plugin.json` targeting Agent Plugins 1.0.0, make all bundled skill
+  frontmatter conform to Agent Skills, and validate the portable manifest/skills in CI. The
+  existing Codex and Claude packaging files remain compatibility metadata for their installers.
+- Fix footer stamping to target the final `</body>` rather than a matching string inside an
+  inline script, with a regression test covering a single-line bundled document.
+
 ## [0.8.0] - 2026-08-08
 
 - Guarantee the stamped page declares UTF-8 (`<meta charset="utf-8">`) and sets

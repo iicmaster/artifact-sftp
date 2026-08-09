@@ -1,7 +1,6 @@
 ---
 name: artifact-sftp-setup
 description: First-run setup or repair for artifact-sftp. Pins the SFTP host key, creates the private client config, and checks local readiness. Use when installing, configuring, or setting up artifact-sftp on a machine. ใช้เมื่อติดตั้งหรือตั้งค่า artifact-sftp ครั้งแรกบนเครื่อง
-user-invocable: true
 ---
 
 # Set up artifact-sftp

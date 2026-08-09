@@ -314,8 +314,23 @@ BEGIN { cdone = has_charset; ldone = has_lang; nohead = !has_close_head && !has_
 STAMPED=$(mktemp)
 TS_HUMAN=$(TZ="$TZ_NAME" date '+%Y-%m-%d %H:%M %Z' 2>/dev/null) || TS_HUMAN=$(date -u '+%Y-%m-%d %H:%M UTC')
 FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666\">artifact: ${SLUG} · v${VER} · created ${TS_HUMAN}</footer>"
-if grep -q '</body>' "$PREINJECT"; then
-  awk -v foot="$FOOT" '!done && index($0,"</body>") { sub(/<\/body>/, foot "</body>"); done=1 } { print }' "$PREINJECT" > "$STAMPED"
+# Target the final literal closing body tag, not an earlier occurrence inside an
+# inlined script string. Keep this in awk so key-auth publishes do not gain a
+# Python runtime dependency.
+LAST_BODY_LINE=$(awk 'index($0, "</body>") { last = NR } END { if (last) print last }' "$PREINJECT")
+if [ -n "$LAST_BODY_LINE" ]; then
+  awk -v target="$LAST_BODY_LINE" -v foot="$FOOT" '
+function stamp_last(line,    start, pos, last) {
+  start = 1
+  while ((pos = index(substr(line, start), "</body>")) != 0) {
+    last = start + pos - 1
+    start = last + 7
+  }
+  return substr(line, 1, last - 1) foot "</body>" substr(line, last + 7)
+}
+NR == target { print stamp_last($0); next }
+{ print }
+' "$PREINJECT" > "$STAMPED"
 else
   cat "$PREINJECT" > "$STAMPED"
   printf '%s\n' "$FOOT" >> "$STAMPED"

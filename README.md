@@ -14,8 +14,8 @@ upload directory.
 - Keeps immutable timestamped versions beside the current `index.html`.
 - Keeps the stamped current file and snapshot in `docs/artifacts/<tool>/<visibility>/<slug>/`
   before any SFTP upload.
-- Documents how to read a private artifact back from that local copy (its URL cannot be
-  fetched over HTTP).
+- Includes a dedicated skill that reads a just-published artifact from that local copy (its
+  private viewer URL cannot be fetched over HTTP).
 - Separates runtimes (`codex`, `openclaw`, `claude`), and `private` and `public`, in the URL path.
 - Pins and verifies the SFTP host key.
 - Supports SSH keys, 1Password SSH-key references, or password authentication through
@@ -23,6 +23,13 @@ upload directory.
 - Blocks common secret patterns before upload and verifies public content by SHA-256.
 - Provides an interactive first-run setup skill without placing secrets in
   chat or process arguments.
+
+## Agent Plugins compatibility
+
+The portable package root is [plugin.json](plugin.json), which targets the Agent Plugins
+1.0.0 schema and exposes its immediate `skills/` children as Agent Skills. The existing
+`.codex-plugin/` and `.claude-plugin/` files are compatibility metadata for their current
+installers; the root manifest is the portable source of plugin identity and metadata.
 
 ## Install
 
@@ -76,6 +83,7 @@ system:
 git clone https://github.com/iicmaster/artifact-sftp.git
 ln -s "$PWD/artifact-sftp/skills/artifact-sftp"       ~/.claude/skills/artifact-sftp
 ln -s "$PWD/artifact-sftp/skills/artifact-sftp-setup" ~/.claude/skills/artifact-sftp-setup
+ln -s "$PWD/artifact-sftp/skills/artifact-sftp-read"  ~/.claude/skills/artifact-sftp-read
 ```
 
 Then run `/artifact-sftp-setup`. Artifacts published from Claude Code land under
@@ -139,7 +147,10 @@ bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
 
 A private artifact's URL is a *viewer* link, not a fetchable resource: the Cloudflare
 Zero Trust gate blocks even the publishing account from reading it over HTTP.
-Read an artifact you published from the local archive instead:
+Use the `artifact-sftp-read` skill whenever an agent is asked to open, inspect, verify, or
+summarize an artifact URL. It resolves the local archive before reading it, so an agent that
+just published the file must not stop at an HTTP access error. Read an artifact you published
+from the local archive instead:
 
 ```text
 docs/artifacts/<tool>/<visibility>/<slug>/index.html
@@ -152,6 +163,14 @@ stderr as a parseable `read-back:` line. If the local archive is out of reach (a
 session or another machine), use the SFTP path from your config:
 `<remote-base>/<tool>/<visibility>/<slug>/index.html`. Never WebFetch the artifact URL to
 read it back — it is not fetchable over HTTP.
+
+From the publishing project, the bundled resolver maps either the URL or the `read-back:`
+line to an absolute local file path without making a network request:
+
+```bash
+path=$(bash <plugin-dir>/skills/artifact-sftp-read/scripts/read-artifact.sh \
+  'https://artifacts.example/codex/private/my-report/')
+```
 
 See [the setup guide](skills/artifact-sftp/references/setup.md) for server layout,
 automation, authentication modes, and Cloudflare Access verification.
@@ -177,11 +196,14 @@ The test suites are offline: they replace SFTP and HTTP clients with throwaway
 mocks and never read the real local configuration.
 
 ```bash
+python3 tests/test_agent_plugins.py
 bash skills/artifact-sftp/scripts/test_publish.sh
 bash skills/artifact-sftp/scripts/test_setup.sh
+bash skills/artifact-sftp-read/scripts/test_read_artifact.sh
 
 for script in skills/artifact-sftp/scripts/*.sh \
-  skills/artifact-sftp-setup/scripts/*.sh; do
+  skills/artifact-sftp-setup/scripts/*.sh \
+  skills/artifact-sftp-read/scripts/*.sh; do
   bash -n "$script"
 done
 python3 -m py_compile skills/artifact-sftp/scripts/sftp_helper.py

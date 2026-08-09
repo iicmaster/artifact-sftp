@@ -14,7 +14,8 @@ The current file is replaced on republish; timestamped snapshots remain as local
 
 This is how an agent reads its own private artifact. A private artifact's URL cannot be
 fetched over HTTP — the Cloudflare Zero Trust gate blocks even the publishing
-account. To read one back:
+account. Invoke the `artifact-sftp-read` skill when the agent is given an artifact URL; it
+resolves the matching local archive before reading it. To read one back:
 
 - Open `docs/artifacts/<tool>/<visibility>/<slug>/index.html` (current bytes, identical
   to what the server serves) or a `<slug>--<version>--<timestamp>.html` snapshot.

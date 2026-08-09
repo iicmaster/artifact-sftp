@@ -231,6 +231,20 @@ else
 fi
 mv "$cfg.pre-stamp" "$cfg"
 
+# --- footer must target the final </body>, not an inlined JavaScript string ---
+printf '%s\n' '<!DOCTYPE html><html><head><title>t</title></head><body><script>const fragment = "<body>x</body></html>";</script></body></html>' > "$WORK/inline-body.html"
+inlinebodyrc=0; bash "$PUB" --slug inline-body "$WORK/inline-body.html" >"$WORK/out" 2>"$WORK/errout" || inlinebodyrc=$?
+INLINE_BODY_COPY="$WORK/project/docs/artifacts/codex/private/inline-body/index.html"
+if [ "$inlinebodyrc" -eq 0 ] \
+    && grep -Fq '<script>const fragment = "<body>x</body></html>";</script>' "$INLINE_BODY_COPY" \
+    && grep -Fq '</script><footer data-artifact-meta' "$INLINE_BODY_COPY" \
+    && grep -Fq '</footer></body></html>' "$INLINE_BODY_COPY"; then
+  echo "PASS footer stamps the final body tag, outside inline JavaScript"
+else
+  echo "FAIL: footer must stamp the final body tag without changing inline JavaScript"
+  sed 's/^/  | /' "$INLINE_BODY_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
 # --- private that the host serves to anyone => exit 7, and never print a URL ---
 # The failure this guards against: the upload works, the authenticated verify passes, and the
 # script then announces "private" for a path that never required a credential.

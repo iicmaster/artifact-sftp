@@ -28,6 +28,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Validate portable Agent Plugins core
+        run: python tests/test_agent_plugins.py
+
       - name: Check syntax
         shell: bash
         run: |
@@ -46,6 +49,7 @@ jobs:
         run: |
           bash skills/artifact-sftp/scripts/test_publish.sh
           bash skills/artifact-sftp/scripts/test_setup.sh
+          bash skills/artifact-sftp-read/scripts/test_read_artifact.sh
 
       - name: Scan the release tree for secrets
         shell: bash

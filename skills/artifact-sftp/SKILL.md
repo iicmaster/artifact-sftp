@@ -103,7 +103,10 @@ Sharing = republish the same file with `--public` (the private copy stays until 
 
 A private artifact's URL is a *viewer* link, not a fetchable resource — the Cloudflare
 Zero Trust gate blocks even the publishing account from reading it over HTTP. To read
-an artifact you published, use the local archive, not the URL:
+an artifact you published, route the request to the dedicated `artifact-sftp-read` skill.
+It accepts the just-emitted `read-back:` path or an artifact URL and resolves the local
+archive before reading it; do not answer that the artifact is unreadable merely because a
+private viewer URL cannot be fetched. The underlying local archive is:
 
 - Current bytes: `docs/artifacts/<tool>/<visibility>/<slug>/index.html` in the project
   working directory (byte-identical to what the server serves).
