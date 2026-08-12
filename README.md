@@ -43,6 +43,10 @@ plugin-relative launcher in [mcp.json](mcp.json), supplies `PLUGIN_ROOT` and a w
 `PLUGIN_DATA` directory, and starts the server. The launcher uses the lockfile with `uv` and
 does not store credentials in package metadata or MCP arguments.
 
+The environment owner must pre-provision a compatible `uv` executable on `PATH` (CI verifies
+the packaged launcher with `uv 0.12.3`). If it is absent, the launcher fails closed with exit
+78; an AI agent must report that boundary rather than installing a runtime or using a fallback.
+
 Tool calls must pass an absolute `project_path`; this is the project where
 `docs/artifacts/` will be kept. If the MCP server is not available or reports a configuration
 boundary, the agent must stop rather than execute a bundled script, direct SFTP, or HTTP

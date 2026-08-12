@@ -249,6 +249,20 @@ else
 fi
 mv "$cfg.pre-stamp" "$cfg"
 
+# --- HTML tag names are case-insensitive: uppercase tags still receive every stamp ---
+printf '%s\n' '<!DOCTYPE html><HTML><HEAD><TITLE>t</TITLE></HEAD><BODY><p>uppercase</p></BODY></HTML>' > "$WORK/uppercase-tags.html"
+uppercaserc=0; bash "$PUB" --slug uppercase-tags "$WORK/uppercase-tags.html" >"$WORK/out" 2>"$WORK/errout" || uppercaserc=$?
+UPPERCASE_COPY="$WORK/project/docs/artifacts/codex/private/uppercase-tags/index.html"
+if [ "$uppercaserc" -eq 0 ] \
+    && grep -Fq '<HTML lang="th"' "$UPPERCASE_COPY" \
+    && grep -Fq '<meta charset="utf-8">' "$UPPERCASE_COPY" \
+    && grep -Fq 'data-artifact-sftp-font="sarabun"' "$UPPERCASE_COPY" \
+    && grep -Fq '</footer></BODY>' "$UPPERCASE_COPY"; then
+  echo "PASS uppercase HTML tags receive lang, charset, Sarabun, and footer stamps"
+else
+  echo "FAIL: uppercase HTML tags were not fully stamped (exit $uppercaserc)"; sed 's/^/  | /' "$UPPERCASE_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
 # --- a source that already declares the publisher marker must not receive a duplicate font link ---
 printf '%s\n' '<!DOCTYPE html><html><head><style data-artifact-sftp-font="sarabun">html{font-family:"Sarabun"}</style></head><body><p>once</p></body></html>' > "$WORK/sarabun-once.html"
 sarabunrc=0; bash "$PUB" --slug sarabun-once "$WORK/sarabun-once.html" >"$WORK/out" 2>"$WORK/errout" || sarabunrc=$?

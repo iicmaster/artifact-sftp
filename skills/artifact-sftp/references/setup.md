@@ -18,7 +18,9 @@ Before an agent can publish, the MCP owner provisions and verifies the following
   project workspace, and artifact HTML must never contain credentials, private keys, passwords,
   or Cloudflare secrets.
 - A compatible Agent Plugins host that reads the root `mcp.json`, passes `PLUGIN_ROOT` and a
-  writable `PLUGIN_DATA` directory, and starts the packaged launcher.
+  writable `PLUGIN_DATA` directory, starts the packaged launcher, and has a compatible `uv`
+  executable on `PATH`. The launcher fails closed when `uv` is missing; an AI agent may not
+  install it or substitute another runtime.
 
 ## Agent-visible contract
 

@@ -20,7 +20,7 @@ if [ -z "${PLUGIN_DATA:-}" ]; then
 fi
 
 if ! command -v uv >/dev/null 2>&1; then
-  printf '%s\n' 'artifact-sftp-mcp: uv is required to start the packaged MCP server' >&2
+  printf '%s\n' 'artifact-sftp-mcp: MCP owner must pre-provision uv on PATH' >&2
   exit 78
 fi
 

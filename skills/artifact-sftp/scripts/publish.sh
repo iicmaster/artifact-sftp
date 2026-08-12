@@ -307,15 +307,35 @@ awk -v lang="$LANG_ATTR" \
     -v has_charset="$HAS_CHARSET" -v has_close_head="$HAS_CLOSE_HEAD" \
     -v has_open_head="$HAS_OPEN_HEAD" -v has_lang="$HAS_LANG" \
     -v has_doctype="$HAS_DOCTYPE" '
+function add_html_lang(line,    lower, start) {
+  lower = tolower(line)
+  start = index(lower, "<html")
+  return substr(line, 1, start + 4) " lang=\"" lang "\"" substr(line, start + 5)
+}
+function add_after_open_head(line, markup,    lower, start, end_at) {
+  lower = tolower(line)
+  start = index(lower, "<head")
+  end_at = index(substr(line, start), ">")
+  if (start == 0 || end_at == 0) return line
+  end_at = start + end_at - 1
+  return substr(line, 1, end_at) markup substr(line, end_at + 1)
+}
+function add_before_close_head(line, markup,    lower, start) {
+  lower = tolower(line)
+  start = index(lower, "</head")
+  if (start == 0) return line
+  return substr(line, 1, start - 1) markup substr(line, start)
+}
 BEGIN { cdone = has_charset; ldone = has_lang; nohead = !has_close_head && !has_open_head }
 {
-  if (!ldone && $0 ~ /<html/) { sub(/<html/, "<html lang=\"" lang "\""); ldone = 1 }
+  lower = tolower($0)
+  if (!ldone && index(lower, "<html")) { $0 = add_html_lang($0); ldone = 1; lower = tolower($0) }
   if (!cdone) {
-    if (has_close_head && $0 ~ /<\/head/)   { sub(/<\/head/, "<meta charset=\"utf-8\">\n</head"); cdone = 1 }
-    else if (has_open_head && $0 ~ /<head/) { sub(/<head[^>]*>/, "&<meta charset=\"utf-8\">"); cdone = 1 }
+    if (has_close_head && index(lower, "</head"))   { $0 = add_before_close_head($0, "<meta charset=\"utf-8\">\n"); cdone = 1 }
+    else if (has_open_head && index(lower, "<head")) { $0 = add_after_open_head($0, "<meta charset=\"utf-8\">"); cdone = 1 }
     else if (nohead) {
-      if (has_doctype && $0 ~ /<!doctype/) { print "<head><meta charset=\"utf-8\"></head>"; cdone = 1 }
-      else if (!has_doctype)               { print "<head><meta charset=\"utf-8\"></head>"; cdone = 1 }
+      if (has_doctype && lower ~ /<!doctype/) { print "<head><meta charset=\"utf-8\"></head>"; cdone = 1 }
+      else if (!has_doctype)                  { print "<head><meta charset=\"utf-8\"></head>"; cdone = 1 }
     }
   }
   print
@@ -371,16 +391,17 @@ FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;pa
 # Target the final literal closing body tag, not an earlier occurrence inside an
 # inlined script string. Keep this in awk so key-auth publishes do not gain a
 # Python runtime dependency.
-LAST_BODY_LINE=$(awk 'index($0, "</body>") { last = NR } END { if (last) print last }' "$PREINJECT")
+LAST_BODY_LINE=$(awk 'index(tolower($0), "</body>") { last = NR } END { if (last) print last }' "$PREINJECT")
 if [ -n "$LAST_BODY_LINE" ]; then
   awk -v target="$LAST_BODY_LINE" -v foot="$FOOT" '
-function stamp_last(line,    start, pos, last) {
+function stamp_last(line,    lower, start, pos, last) {
+  lower = tolower(line)
   start = 1
-  while ((pos = index(substr(line, start), "</body>")) != 0) {
+  while ((pos = index(substr(lower, start), "</body>")) != 0) {
     last = start + pos - 1
     start = last + 7
   }
-  return substr(line, 1, last - 1) foot "</body>" substr(line, last + 7)
+  return substr(line, 1, last - 1) foot substr(line, last)
 }
 NR == target { print stamp_last($0); next }
 { print }

@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.1] - 2026-08-12
+
+- Fix HTML stamping for case-insensitive HTML tag names, including uppercase `HTML`, `HEAD`,
+  and `BODY` documents.
+
 ## [0.11.0] - 2026-08-12
 
 - Add portable root `mcp.json` discovery and a plugin-relative stdio launcher. AI-agent skills
