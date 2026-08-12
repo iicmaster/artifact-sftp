@@ -28,6 +28,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Install the packaged MCP launcher runtime
+        run: |
+          python -m pip install --disable-pip-version-check uv==0.12.3
+          uv --version
+
       - name: Validate portable Agent Plugins core
         run: python tests/test_agent_plugins.py
 
@@ -37,6 +42,7 @@ jobs:
           while IFS= read -r -d '' script; do
             bash -n "$script"
           done < <(find skills -type f -name '*.sh' -print0)
+          bash -n bin/artifact-sftp-mcp
           python -m py_compile skills/artifact-sftp/scripts/sftp_helper.py
           while IFS= read -r -d '' source; do
             python -m py_compile "$source"

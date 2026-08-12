@@ -1,7 +1,7 @@
 {
   "name": "artifact-sftp",
-  "version": "0.10.0",
-  "description": "Publish, locally read, and safely set up self-contained HTML artifacts on your SFTP web host, including a local stdio MCP adapter.",
+  "version": "0.11.0",
+  "description": "MCP-only AI-agent publishing and local read-back for HTML artifacts on your SFTP web host, with Sarabun as the Thai font default.",
   "author": {
     "name": "NGS"
   },
@@ -18,8 +18,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Artifact SFTP",
-    "shortDescription": "Publish and read HTML artifacts on your SFTP host",
-    "longDescription": "Uploads one self-contained HTML file per artifact to an SFTP web host, returns a stable private-by-default URL, provides a local archive that agents can read back without fetching a Cloudflare Access-protected viewer link, and includes a local stdio MCP adapter for setup status, publishing, and read-back.",
+    "shortDescription": "MCP-only publish and read of HTML artifacts",
+    "longDescription": "Routes AI agents through a local stdio MCP server to publish and locally read back HTML artifacts on an SFTP web host. Publishing is private by default, archives source bytes locally, avoids private viewer fetches, and applies Sarabun as the default Thai font.",
     "developerName": "NGS",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,7 +30,7 @@
       "Publish this report as an artifact",
       "Update my published artifact in place",
       "Read the artifact I just published",
-      "Set up artifact-sftp on this machine"
+      "Check whether artifact-sftp is ready"
     ],
     "brandColor": "#3B82F6",
     "screenshots": []

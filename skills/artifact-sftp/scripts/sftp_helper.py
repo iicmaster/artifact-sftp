@@ -11,9 +11,18 @@ Exit: 0 ok | 1 not-found/failed (messages on stderr)
 import os
 import sys
 
-import paramiko
-
 CONFIG = os.path.expanduser("~/.config/artifact-sftp/config")
+
+
+def require_mcp_call():
+    """Keep this transport internal to the Artifact SFTP MCP adapter."""
+
+    if os.environ.get("ARTIFACT_SFTP_MCP_CALL") != "1":
+        print(
+            "sftp_helper.py is internal to Artifact SFTP MCP; AI agents must use artifact_sftp.* tools.",
+            file=sys.stderr,
+        )
+        raise SystemExit(10)
 
 
 def read_cfg():
@@ -29,6 +38,8 @@ def read_cfg():
 
 
 def connect(cfg):
+    import paramiko
+
     host = cfg["SFTP_HOST"]
     port = int(cfg.get("SFTP_PORT", "22"))
     kh_path = os.path.expanduser(
@@ -56,6 +67,7 @@ def mkdirs(sftp, path):
 
 
 def main():
+    require_mcp_call()
     if len(sys.argv) < 3:
         sys.exit("usage: sftp_helper.py exists|upload|delete|list ARGS")
     op = sys.argv[1]

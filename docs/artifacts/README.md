@@ -1,7 +1,7 @@
 # Local artifact archive
 
-`skills/artifact-sftp/scripts/publish.sh` keeps a local copy of every non-dry-run publish
-before it contacts SFTP.
+Every successful non-dry-run `artifact_sftp.publish` call writes a stamped local copy before
+it contacts SFTP:
 
 ```text
 docs/artifacts/<tool>/<visibility>/<slug>/index.html
@@ -10,25 +10,21 @@ docs/artifacts/<tool>/<visibility>/<slug>/<slug>--<version>--<timestamp>.html
 
 The current file is replaced on republish; timestamped snapshots remain as local history.
 
-## Read back from here
+## MCP read-back only
 
-This is how an agent reads its own private artifact. A private artifact's URL cannot be
-fetched over HTTP — the Cloudflare Zero Trust gate blocks even the publishing
-account. Invoke the `artifact-sftp-read` skill when the agent is given an artifact URL; it
-resolves the matching local archive before reading it. To read one back:
+Use `artifact_sftp.read` to inspect a current or versioned local archive. A private artifact's
+URL is a viewer link behind the access gate, not a read source. Do not WebFetch it, use direct
+SFTP, or invoke an implementation script as a fallback.
 
-- Open `docs/artifacts/<tool>/<visibility>/<slug>/index.html` (current bytes, identical
-  to what the server serves) or a `<slug>--<version>--<timestamp>.html` snapshot.
-- The URL path maps to this layout: `https://.../<tool>/<visibility>/<slug>/` →
-  `docs/artifacts/<tool>/<visibility>/<slug>/`.
-- If this archive is out of reach (fresh session, another machine), fall back to SFTP:
-  `<remote-base>/<tool>/<visibility>/<slug>/index.html` on the host in
-  `~/.config/artifact-sftp/config`.
+The URL path maps to this layout:
 
-Do not WebFetch the artifact URL to read it back.
+```text
+https://.../<tool>/<visibility>/<slug>/
+docs/artifacts/<tool>/<visibility>/<slug>/
+```
 
-This archive is local custody evidence only. It does not prove SFTP delivery, HTTP byte
-identity, privacy, public availability, runtime behavior, or release approval.
+This archive is local custody evidence only. It does not independently prove SFTP delivery,
+HTTP byte identity, privacy, public availability, runtime behavior, or release approval.
 
-Do not put credentials or other sensitive content here. The publisher scans before copying,
-but `--allow-sensitive` is an explicit override and can write sensitive bytes locally.
+Do not put credentials or other sensitive content here. The agent-facing MCP publisher has no
+sensitive-content override.

@@ -35,12 +35,14 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     adapter = service or ArtifactSftpService()
     server = MCPServer(
         "Artifact SFTP",
-        version="0.10.0",
-        description="Publish and locally read self-contained HTML artifacts through an existing pinned SFTP configuration.",
+        version="0.11.0",
+        description="MCP-only AI-agent publishing and local read-back for HTML artifacts through an existing pinned SFTP configuration.",
         instructions=(
-            "Use setup_status before a first publish. Private URLs are viewer links, not read sources: "
-            "call artifact_sftp.read on the local read-back reference instead. Never put credentials, tokens, "
-            "or private-key contents in tool arguments. Publish is private by default and needs user approval."
+            "This is the only Artifact SFTP execution surface for AI agents. Use setup_status before a first "
+            "publish. If the server is not ready, stop rather than invoking a direct setup script. Private URLs "
+            "are viewer links, not read sources: call artifact_sftp.read on the local read-back reference instead. "
+            "Never put credentials, tokens, or private-key contents in tool arguments. Publish is private by "
+            "default and needs user approval."
         ),
     )
 
@@ -55,15 +57,15 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
 
     @server.tool(
         name="artifact_sftp.setup",
-        title="Get safe Artifact SFTP setup instructions",
+        title="Check the Artifact SFTP provisioning boundary",
         description=(
-            "Return the local terminal command for initial setup or reconfiguration. "
-            "This tool never starts the interactive wizard and never accepts credentials."
+            "Report whether pre-provisioned configuration is required. This MCP-only tool never exposes "
+            "a shell setup command and never accepts credentials."
         ),
         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
-    def setup(reconfigure: bool = False) -> ToolOutput:
-        return _tool_result(adapter.setup_instructions(reconfigure=reconfigure))  # type: ignore[return-value]
+    def setup() -> ToolOutput:
+        return _tool_result(adapter.setup_instructions())  # type: ignore[return-value]
 
     @server.tool(
         name="artifact_sftp.publish",

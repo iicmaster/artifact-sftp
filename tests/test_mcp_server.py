@@ -80,6 +80,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("force", publish_properties)
         self.assertNotIn("password", publish_properties)
         self.assertNotIn("secret", publish_properties)
+        self.assertNotIn("reconfigure", tools["artifact_sftp.setup"].input_schema["properties"])
         self.assertTrue(tools["artifact_sftp.read"].annotations.read_only_hint)
         self.assertTrue(tools["artifact_sftp.publish"].annotations.open_world_hint)
 
@@ -214,7 +215,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["network_accessed"])
         self.assertTrue(result["content_is_untrusted"])
 
-    async def test_setup_reports_not_ready_and_returns_a_tty_handoff(self) -> None:
+    async def test_setup_reports_not_ready_without_exposing_a_direct_shell_handoff(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             project, _, _, _ = make_project(Path(temp))
             not_ready = command_result(
@@ -232,10 +233,18 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             setup = await self.call(server, "artifact_sftp.setup", {})
 
         self.assertFalse(status.is_error)
-        self.assertFalse(status.structured_content["result"]["ready"])
-        self.assertTrue(setup.structured_content["result"]["terminal_required"])
-        self.assertIn("setup-wizard.sh", setup.structured_content["result"]["command"])
-        self.assertNotIn("password", setup.structured_content["result"]["command"].lower())
+        status_result = status.structured_content["result"]
+        self.assertFalse(status_result["ready"])
+        self.assertEqual(status_result["agent_action"], "stop")
+        self.assertTrue(status_result["configuration_required"])
+        self.assertNotIn("next_action", status_result)
+        self.assertNotIn("terminal_required", status_result)
+        setup_result = setup.structured_content["result"]
+        self.assertEqual(setup_result["mode"], "configuration_required")
+        self.assertEqual(setup_result["agent_action"], "stop")
+        self.assertNotIn("command", setup_result)
+        self.assertIn("never receives or relays", setup_result["credential_boundary"])
+        self.assertIn("Do not execute a direct setup script", setup_result["configuration_boundary"])
         diagnostics = status.structured_content["result"]["diagnostics"]
         self.assertIn("CF_ACCESS_CLIENT_SECRET=<redacted>", diagnostics)
         self.assertNotIn("should-not-escape", "\n".join(diagnostics))

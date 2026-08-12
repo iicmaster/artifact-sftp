@@ -5,8 +5,21 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PUB="$SCRIPT_DIR/publish.sh"
+HELPER="$SCRIPT_DIR/sftp_helper.py"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
+
+direct_rc=0
+env -u ARTIFACT_SFTP_MCP_CALL bash "$PUB" --help >"$WORK/direct.out" 2>"$WORK/direct.err" || direct_rc=$?
+[ "$direct_rc" -eq 10 ] && grep -Fq 'Artifact SFTP MCP' "$WORK/direct.err" \
+  && echo "PASS direct publish script is rejected outside MCP" \
+  || { echo "FAIL: direct publish script bypass was not rejected" >&2; exit 1; }
+direct_helper_rc=0
+env -u ARTIFACT_SFTP_MCP_CALL python3 "$HELPER" >"$WORK/direct-helper.out" 2>"$WORK/direct-helper.err" || direct_helper_rc=$?
+[ "$direct_helper_rc" -eq 10 ] && grep -Fq 'Artifact SFTP MCP' "$WORK/direct-helper.err" \
+  && echo "PASS direct password transport is rejected outside MCP" \
+  || { echo "FAIL: direct password transport bypass was not rejected" >&2; exit 1; }
+export ARTIFACT_SFTP_MCP_CALL=1
 
 # Sandbox HOME + mock bins
 export HOME="$WORK/home"
@@ -151,10 +164,15 @@ grep -qE 'ok--1--[0-9]{8}T[0-9]{6}Z\.html' "$MOCK_LOG" \
 grep -q 'data-artifact-meta' "$MOCK_LAST_PUT" && grep -q 'created' "$MOCK_LAST_PUT" \
   && echo "PASS timestamp footer stamped into artifact" \
   || { echo "FAIL: timestamp footer not stamped"; fails=$((fails+1)); }
-# The source (no head/html) must still get a UTF-8 declaration and a readable footer.
-grep -q '<head><meta charset="utf-8"></head>' "$MOCK_LAST_PUT" \
+# The source (no head/html) must still get a UTF-8 declaration before the readable footer.
+grep -q '<head>' "$MOCK_LAST_PUT" && grep -q '<meta charset="utf-8">' "$MOCK_LAST_PUT" \
   && echo "PASS UTF-8 charset declared when source has no head" \
   || { echo "FAIL: UTF-8 charset not injected"; fails=$((fails+1)); }
+grep -Fq 'https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap' "$MOCK_LAST_PUT" \
+  && grep -Fq 'data-artifact-sftp-font="sarabun"' "$MOCK_LAST_PUT" \
+  && grep -Fq 'font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif' "$MOCK_LAST_PUT" \
+  && echo "PASS Sarabun is injected as the default Thai font" \
+  || { echo "FAIL: Sarabun default font was not injected"; fails=$((fails+1)); }
 grep -qE 'created [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} +(ICT|UTC|\+[0-9]{2})' "$MOCK_LAST_PUT" \
   && echo "PASS footer time in configured timezone" \
   || { echo "FAIL: footer timezone missing"; fails=$((fails+1)); }
@@ -230,6 +248,17 @@ else
   sed 's/^/  | /' "$STAMPED_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 mv "$cfg.pre-stamp" "$cfg"
+
+# --- a source that already declares the publisher marker must not receive a duplicate font link ---
+printf '%s\n' '<!DOCTYPE html><html><head><style data-artifact-sftp-font="sarabun">html{font-family:"Sarabun"}</style></head><body><p>once</p></body></html>' > "$WORK/sarabun-once.html"
+sarabunrc=0; bash "$PUB" --slug sarabun-once "$WORK/sarabun-once.html" >"$WORK/out" 2>"$WORK/errout" || sarabunrc=$?
+SARABUN_COPY="$WORK/project/docs/artifacts/codex/private/sarabun-once/index.html"
+sarabun_markers=$(grep -o 'data-artifact-sftp-font="sarabun"' "$SARABUN_COPY" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$sarabunrc" -eq 0 ] && [ "$sarabun_markers" -eq 1 ]; then
+  echo "PASS Sarabun marker is idempotent on republishable source"
+else
+  echo "FAIL: Sarabun marker was duplicated or publish failed (exit $sarabunrc)"; sed 's/^/  | /' "$SARABUN_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
 
 # --- footer must target the final </body>, not an inlined JavaScript string ---
 printf '%s\n' '<!DOCTYPE html><html><head><title>t</title></head><body><script>const fragment = "<body>x</body></html>";</script></body></html>' > "$WORK/inline-body.html"

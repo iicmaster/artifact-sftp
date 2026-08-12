@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Portable stdio launcher for a plugin host.  It owns no credentials: the MCP
+# service reads the already-provisioned local Artifact SFTP configuration.
+set -euo pipefail
+
+plugin_root=${PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}}
+if [ -z "$plugin_root" ]; then
+  script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  plugin_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
+fi
+
+if [ ! -f "$plugin_root/plugin.json" ] || [ ! -f "$plugin_root/pyproject.toml" ]; then
+  printf '%s\n' 'artifact-sftp-mcp: trusted plugin root is unavailable' >&2
+  exit 78
+fi
+
+if [ -z "${PLUGIN_DATA:-}" ]; then
+  printf '%s\n' 'artifact-sftp-mcp: plugin host did not provide PLUGIN_DATA' >&2
+  exit 78
+fi
+
+if ! command -v uv >/dev/null 2>&1; then
+  printf '%s\n' 'artifact-sftp-mcp: uv is required to start the packaged MCP server' >&2
+  exit 78
+fi
+
+mkdir -p "$PLUGIN_DATA"
+export ARTIFACT_SFTP_PLUGIN_ROOT="$plugin_root"
+export UV_PROJECT_ENVIRONMENT="$PLUGIN_DATA/venv"
+exec uv run --locked --directory "$plugin_root" artifact-sftp-mcp

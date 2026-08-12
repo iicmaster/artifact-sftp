@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,7 +51,7 @@ class Runner(Protocol):
 
 
 class SubprocessRunner:
-    """Run scripts with a minimal, inherited local environment."""
+    """Run trusted implementation scripts with a minimal MCP-owned environment."""
 
     _ENV_KEYS = frozenset(
         {
@@ -84,6 +83,9 @@ class SubprocessRunner:
         }
         environment.setdefault("HOME", str(Path.home()))
         environment.setdefault("PATH", os.defpath)
+        # The bundled scripts are implementation details, not an agent-facing
+        # command surface. This marker is deliberately set only by the adapter.
+        environment["ARTIFACT_SFTP_MCP_CALL"] = "1"
         try:
             completed = subprocess.run(
                 argv,
@@ -156,49 +158,54 @@ class ArtifactSftpService:
                 command.returncode,
                 "setup_status_failed",
                 "Could not inspect Artifact SFTP readiness.",
-                "Run the setup status command in a local terminal for diagnostics.",
+                "Ask the MCP owner to repair the pre-provisioned configuration boundary.",
             )
 
         lines = self._safe_lines(command.stdout)
         ready = command.returncode == 0 and any(line == "READY" for line in lines)
         auth_mode = self._first_match(lines, AUTH_RE)
         default_tool = self._first_match(lines, DEFAULT_TOOL_RE)
-        wizard = self._wizard_command(reconfigure=False)
         result = {
             "ready": ready,
             "auth_mode": auth_mode,
             "default_tool": default_tool,
             "diagnostics": lines,
-            "terminal_required": not ready,
-            "next_action": None if ready else wizard,
+            "agent_action": "continue" if ready else "stop",
+            "configuration_required": not ready,
         }
         return ServiceResponse(
             ToolOutput(ok=True, operation="setup_status", exit_code=command.returncode, result=result)
         )
 
-    def setup_instructions(self, *, reconfigure: bool = False) -> ServiceResponse:
-        """Return the safe TTY-owned setup handoff; never collect credentials in MCP."""
+    def setup_instructions(self) -> ServiceResponse:
+        """Report the MCP-only provisioning boundary without exposing a shell fallback."""
 
         status = self.setup_status()
         if status.is_error:
             return status
         ready = bool(status.output.result["ready"])
-        if ready and not reconfigure:
+        if ready:
             result = {
-                "mode": "already_ready",
-                "terminal_required": False,
-                "command": None,
+                "mode": "ready",
+                "agent_action": "continue",
                 "setup_status": status.output.result,
             }
         else:
             result = {
-                "mode": "reconfigure" if reconfigure else "initial_setup",
-                "terminal_required": True,
-                "command": self._wizard_command(reconfigure=reconfigure),
+                "mode": "configuration_required",
+                "agent_action": "stop",
                 "setup_status": status.output.result,
-                "credential_boundary": "Enter passwords and Cloudflare secrets only in the local terminal wizard.",
+                "credential_boundary": (
+                    "This MCP-only agent server never receives or relays passwords, Cloudflare secrets, or private keys."
+                ),
+                "configuration_boundary": (
+                    "Artifact SFTP must be provisioned out of band before an agent can publish. "
+                    "Do not execute a direct setup script as a fallback."
+                ),
             }
-        return ServiceResponse(ToolOutput(ok=True, operation="setup", exit_code=0, result=result))
+        return ServiceResponse(
+            ToolOutput(ok=True, operation="setup", exit_code=status.output.exit_code, result=result)
+        )
 
     def publish(
         self,
@@ -510,7 +517,7 @@ class ArtifactSftpService:
             return self._error(
                 "publish", 2, "invalid_source_extension",
                 "Artifact SFTP only publishes .html or .htm files.",
-                "Convert the artifact to a self-contained HTML file first.",
+                "Create an HTML artifact inside the selected project first.",
             )
         return source
 
@@ -598,7 +605,7 @@ class ArtifactSftpService:
     def _publish_failure(self, exit_code: int) -> ServiceResponse:
         mapping = {
             2: ("invalid_input", "Publisher rejected the requested input.", "Correct the tool arguments and retry."),
-            3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.setup_status, then complete the local terminal setup if needed."),
+            3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.setup_status and stop; an MCP owner must provision the environment out of band."),
             4: ("secret_scan_blocked", "Publisher detected a possible secret and blocked upload.", "Remove the secret; the MCP server deliberately does not expose the unsafe override."),
             5: ("remote_operation_failed", "SFTP upload or remote-state operation failed.", "Check the pinned host, account access, and whether the slug already exists."),
             6: ("served_content_mismatch", "Published content did not pass its verification check.", "Do not share the URL; inspect the host and retry only after resolving the mismatch."),
@@ -608,7 +615,7 @@ class ArtifactSftpService:
         }
         code, message, recovery = mapping.get(
             exit_code,
-            ("publish_failed", "Publisher failed without a recognized exit code.", "Inspect the local publisher in a terminal before retrying."),
+            ("publish_failed", "Publisher failed without a recognized exit code.", "Stop and ask the MCP owner to inspect the trusted implementation before retrying."),
         )
         return self._error(
             "publish", exit_code, code, message, recovery,
@@ -652,13 +659,6 @@ class ArtifactSftpService:
             ),
             is_error=True,
         )
-
-    def _wizard_command(self, *, reconfigure: bool) -> str:
-        script = self._script("skills/artifact-sftp-setup/scripts/setup-wizard.sh")
-        if isinstance(script, ServiceResponse):
-            return "Artifact SFTP setup wizard is unavailable; reinstall the trusted plugin checkout."
-        suffix = " --reconfigure" if reconfigure else ""
-        return f"bash {shlex.quote(str(script))}{suffix}"
 
     @staticmethod
     def _safe_lines(value: str) -> list[str]:

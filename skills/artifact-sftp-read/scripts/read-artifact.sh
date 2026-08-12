@@ -4,6 +4,11 @@
 # Cloudflare Access, while the local archive is the read-back source for the publishing agent.
 set -euo pipefail
 
+if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
+  printf '%s\n' 'artifact-sftp-read: resolver is internal to Artifact SFTP MCP; AI agents must use artifact_sftp.read.' >&2
+  exit 10
+fi
+
 usage() {
   cat <<'EOF'
 Usage: read-artifact.sh [--project DIR] [--cat] <artifact-url | read-back-path | archive-path>

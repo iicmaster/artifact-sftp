@@ -4,14 +4,14 @@
     "name": "NGS"
   },
   "metadata": {
-    "description": "Publish, locally read, and safely set up self-contained HTML artifacts on your SFTP web host, including a local stdio MCP adapter.",
-    "version": "0.10.0"
+    "description": "MCP-only AI-agent publishing and local read-back for HTML artifacts on your SFTP web host, with Sarabun as the Thai font default.",
+    "version": "0.11.0"
   },
   "plugins": [
     {
       "name": "artifact-sftp",
-      "description": "Publish one self-contained HTML file per artifact to an SFTP web host and get a stable private-by-default URL. Includes local artifact read-back, an interactive setup skill that pins and verifies the SFTP host key, and a local stdio MCP adapter.",
-      "version": "0.10.0",
+      "description": "Route AI agents through the local stdio MCP adapter to publish and locally read back HTML artifacts on an SFTP web host. Private is the default, private viewer URLs are not fetched, and published artifacts default to Sarabun for Thai typography.",
+      "version": "0.11.0",
       "author": {
         "name": "NGS"
       },

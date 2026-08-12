@@ -67,6 +67,16 @@ run_from_dir_capture() {
 [ -f "$SETUP_SOURCE" ] || fail "setup.sh not found beside this test"
 [ -f "$WIZARD_SOURCE" ] || fail "setup wizard not found in the sibling setup skill"
 
+direct_rc=0
+env -u ARTIFACT_SFTP_MCP_CALL bash "$SETUP_SOURCE" --status >"$TMP_ROOT/direct.out" 2>"$TMP_ROOT/direct.err" || direct_rc=$?
+[ "$direct_rc" -eq 10 ] && grep -Fq 'Artifact SFTP MCP' "$TMP_ROOT/direct.err" \
+  || fail "direct setup script bypass was not rejected"
+wizard_direct_rc=0
+env -u ARTIFACT_SFTP_MCP_CALL bash "$WIZARD_SOURCE" --status >"$TMP_ROOT/wizard-direct.out" 2>"$TMP_ROOT/wizard-direct.err" || wizard_direct_rc=$?
+[ "$wizard_direct_rc" -eq 10 ] && grep -Fq 'Artifact SFTP MCP' "$TMP_ROOT/wizard-direct.err" \
+  || fail "direct setup wizard bypass was not rejected"
+export ARTIFACT_SFTP_MCP_CALL=1
+
 # Supply only the external capabilities setup.sh checks. ssh-keyscan returns a
 # deterministic test-only public host key instead of opening the network.
 MOCK_BIN="$TMP_ROOT/mock-bin"

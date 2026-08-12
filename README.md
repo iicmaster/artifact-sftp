@@ -1,8 +1,9 @@
 # Artifact SFTP
 
-Artifact SFTP is a Codex and OpenClaw plugin for publishing one self-contained HTML
-artifact to your own SFTP-backed web host. It returns a stable URL, keeps versioned
-snapshots, and defaults to private visibility.
+Artifact SFTP is a Codex and OpenClaw plugin for publishing one HTML artifact to your
+own SFTP-backed web host. It returns a stable URL, keeps versioned snapshots, defaults
+to private visibility, and applies [Sarabun](https://fonts.google.com/specimen/Sarabun)
+as the default Thai font.
 
 The repository contains no hosting credentials and does not grant access to the
 maintainer's deployment. You need an SFTP account and a web server that serves its
@@ -10,84 +11,26 @@ upload directory.
 
 ## What it does
 
-- Publishes a single self-contained HTML file to a stable URL.
+- Publishes a single HTML file to a stable URL. HTML, JavaScript, and application assets stay
+  inline; the publisher adds the official Sarabun Google Fonts stylesheet as the one default
+  external runtime dependency.
 - Keeps immutable timestamped versions beside the current `index.html`.
 - Keeps the stamped current file and snapshot in `docs/artifacts/<tool>/<visibility>/<slug>/`
   before any SFTP upload.
-- Includes a dedicated skill that reads a just-published artifact from that local copy (its
-  private viewer URL cannot be fetched over HTTP).
+- Exposes publishing and local read-back to AI agents through a local stdio MCP server.
 - Separates runtimes (`codex`, `openclaw`, `claude`), and `private` and `public`, in the URL path.
 - Pins and verifies the SFTP host key.
 - Supports SSH keys, 1Password SSH-key references, or password authentication through
   Paramiko.
 - Blocks common secret patterns before upload and verifies public content by SHA-256.
-- Provides an interactive first-run setup skill without placing secrets in
-  chat or process arguments.
+- Keeps provisioning outside the AI-agent workflow; agents only inspect readiness through MCP.
 
 ## Agent Plugins compatibility
 
 The portable package root is [plugin.json](plugin.json), which targets the Agent Plugins
-1.0.0 schema and exposes its immediate `skills/` children as Agent Skills. The existing
-`.codex-plugin/` and `.claude-plugin/` files are compatibility metadata for their current
-installers; the root manifest is the portable source of plugin identity and metadata.
-
-## Install
-
-### Codex
-
-```bash
-codex plugin marketplace add iicmaster/artifact-sftp
-codex plugin add artifact-sftp@iicmaster-artifact-sftp
-```
-
-Start a fresh Codex process after installation, then run:
-
-```text
-$artifact-sftp:artifact-sftp-setup
-```
-
-### OpenClaw
-
-```bash
-git clone https://github.com/iicmaster/artifact-sftp.git
-openclaw plugins install ./artifact-sftp
-```
-
-Then run:
-
-```text
-/skill artifact-sftp-setup
-```
-
-### Claude Code
-
-Claude Code has a native `Artifact` tool. Install this plugin when you want artifacts on
-**your own host** instead — to keep them behind your own auth, or to share a URL that is
-not tied to a chat session.
-
-```text
-/plugin marketplace add iicmaster/artifact-sftp
-/plugin install artifact-sftp@artifact-sftp
-```
-
-Then run:
-
-```text
-/artifact-sftp:artifact-sftp-setup
-```
-
-The skills also work linked into your personal skills directory, without the plugin
-system:
-
-```bash
-git clone https://github.com/iicmaster/artifact-sftp.git
-ln -s "$PWD/artifact-sftp/skills/artifact-sftp"       ~/.claude/skills/artifact-sftp
-ln -s "$PWD/artifact-sftp/skills/artifact-sftp-setup" ~/.claude/skills/artifact-sftp-setup
-ln -s "$PWD/artifact-sftp/skills/artifact-sftp-read"  ~/.claude/skills/artifact-sftp-read
-```
-
-Then run `/artifact-sftp-setup`. Artifacts published from Claude Code land under
-`/claude/` in the URL path.
+1.0.0 schema. [mcp.json](mcp.json) is the portable MCP discovery entry; the immediate
+`skills/` children are MCP-routing instructions for AI agents. The existing `.codex-plugin/`
+and `.claude-plugin/` files are compatibility metadata for their current installers.
 
 ## MCP (local stdio)
 
@@ -95,34 +38,25 @@ Then run `/artifact-sftp-setup`. Artifacts published from Claude Code land under
 local read resolver, and setup-status contract; it does not expose an HTTP endpoint or
 reimplement SFTP. The server keeps stdout exclusively for MCP frames.
 
-Run it from a trusted checkout (Python 3.11+ and `uv` are required):
+This package is **MCP-only for AI agents**. A compatible Agent Plugins host discovers the
+plugin-relative launcher in [mcp.json](mcp.json), supplies `PLUGIN_ROOT` and a writable
+`PLUGIN_DATA` directory, and starts the server. The launcher uses the lockfile with `uv` and
+does not store credentials in package metadata or MCP arguments.
 
-```bash
-export ARTIFACT_SFTP_PLUGIN_ROOT=/absolute/path/to/artifact-sftp
-uv run --directory "$ARTIFACT_SFTP_PLUGIN_ROOT" artifact-sftp-mcp
-```
+Tool calls must pass an absolute `project_path`; this is the project where
+`docs/artifacts/` will be kept. If the MCP server is not available or reports a configuration
+boundary, the agent must stop rather than execute a bundled script, direct SFTP, or HTTP
+fallback.
 
-Register that exact launch command with an MCP host, including the absolute
-`ARTIFACT_SFTP_PLUGIN_ROOT` environment value. Tool calls must pass an absolute
-`project_path`; this is the project where `docs/artifacts/` will be kept.
+The MCP-only policy and internal direct-invocation guards prevent ordinary routing mistakes.
+They are not a privilege boundary against a process that already has unrestricted shell and
+filesystem access; enforce that stronger boundary in the AI host's tool or sandbox policy.
 
-For Codex CLI, the equivalent one-time local registration is:
-
-```bash
-codex mcp add artifact-sftp \
-  --env ARTIFACT_SFTP_PLUGIN_ROOT=/absolute/path/to/artifact-sftp \
-  -- uv run --directory /absolute/path/to/artifact-sftp artifact-sftp-mcp
-```
-
-This registers a local stdio process only; it does not put SFTP or Cloudflare
-credentials in Codex configuration. Run `codex mcp get artifact-sftp` to review
-the registration, or `codex mcp remove artifact-sftp` to remove it.
-
-The v1 tool surface is deliberately small:
+The agent tool surface is deliberately small:
 
 - `artifact_sftp.setup_status` checks readiness without writing configuration.
-- `artifact_sftp.setup` returns a local-terminal wizard command. It never collects a
-  password, Cloudflare token, or private key in MCP arguments.
+- `artifact_sftp.setup` reports the pre-provisioning boundary. It never exposes a terminal
+  command or collects a password, Cloudflare token, or private key.
 - `artifact_sftp.publish` accepts a regular project-local `.html`/`.htm` file. It is
   private by default and requires `confirm=true`; public publishing also requires
   `confirm_public=true`. It deliberately has no `--force` or `--allow-sensitive` escape
@@ -131,40 +65,12 @@ The v1 tool surface is deliberately small:
   and returns a bounded local excerpt. It never WebFetches a private viewer URL; returned
   HTML is marked untrusted and is not a rendering verdict.
 
-For a first local protocol check, run the MCP test suite from the checkout:
+## Agent workflow
 
-```bash
-uv run python -m unittest discover -s tests -p 'test_mcp*.py' -v
-```
-
-The setup wizard scans the SFTP host key, displays every fingerprint for independent
-verification, and writes:
-
-- `~/.config/artifact-sftp/config` with mode `0600`
-- `~/.config/artifact-sftp/known_hosts` with mode `0600`
-
-It does not publish a smoke artifact. Password authentication requires Python
-3 with [`paramiko`](https://www.paramiko.org/) importable by `python3`; SSH-key
-and 1Password modes require the OpenSSH `sftp` client.
-
-## Publish
-
-Ask the runtime to publish a self-contained HTML artifact, or invoke the
-bundled script:
-
-```bash
-bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
-  --slug my-report --tool codex report.html
-
-bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
-  --slug my-report --tool codex --public report.html
-```
-
-The default is private. A public publish is readable by anyone who has the
-URL. Run the command from the project working directory. The publisher refuses to upload
-unless it can first write the stamped bytes to `docs/artifacts/<tool>/<visibility>/<slug>/`;
-exit `9` means the local archive gate failed. The last line of successful stdout is always
-the artifact URL.
+Call `artifact_sftp.setup_status` before a first publish. When ready, call
+`artifact_sftp.publish` only after the required confirmation. The default is private; public
+visibility needs a separate confirmation. The MCP server refuses to publish unless it first
+writes the stamped bytes to `docs/artifacts/<tool>/<visibility>/<slug>/`.
 
 The local layout mirrors the remote artifact identity:
 
@@ -173,32 +79,23 @@ docs/artifacts/codex/private/my-report/index.html
 docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
 ```
 
-The local archive remains after `--delete`; deleting a remote artifact does not erase local
-history. `--dry-run` reports the destination without creating files.
+`dry_run: true` reports the destination without creating files. The current agent MCP policy
+does not expose force, sensitive-content override, list, or delete operations.
 
 Every published page is stamped with a creation-time footer and gets a UTF-8 declaration
 plus `<html lang="...">` when the source HTML lacks them, so non-ASCII text renders
-correctly. Optional config keys `DEFAULT_LANG` (default `th`) and `DEFAULT_TIMEZONE`
-(default `Asia/Bangkok`) control the page language and the footer time.
-
-Useful operations:
-
-```bash
-bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh --list --tool codex
-bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
-  --slug my-report --tool codex --public --dry-run report.html
-bash <plugin-dir>/skills/artifact-sftp/scripts/publish.sh \
-  --delete my-report --tool codex
-```
+correctly. It also receives the official Sarabun Google Fonts stylesheet with `font-display=swap`
+and a Thai-safe fallback stack; this is the only default external runtime request. Optional config
+keys `DEFAULT_LANG` (default `th`) and `DEFAULT_TIMEZONE` (default `Asia/Bangkok`) control the
+page language and the footer time.
 
 ## Reading artifacts back
 
 A private artifact's URL is a *viewer* link, not a fetchable resource: the Cloudflare
 Zero Trust gate blocks even the publishing account from reading it over HTTP.
-Use the `artifact-sftp-read` skill whenever an agent is asked to open, inspect, verify, or
-summarize an artifact URL. It resolves the local archive before reading it, so an agent that
-just published the file must not stop at an HTTP access error. Read an artifact you published
-from the local archive instead:
+Use `artifact_sftp.read` whenever an agent is asked to open, inspect, verify, or summarize an
+artifact URL. It resolves the local archive before reading it, so an agent that just published
+the file must not stop at an HTTP access error. Read an artifact from the local archive instead:
 
 ```text
 docs/artifacts/<tool>/<visibility>/<slug>/index.html
@@ -206,22 +103,8 @@ docs/artifacts/<tool>/<visibility>/<slug>/<slug>--<version>--<timestamp>.html
 ```
 
 The URL path encodes the archive path: `https://.../<tool>/<visibility>/<slug>/` maps to
-`docs/artifacts/<tool>/<visibility>/<slug>/`. The publish output prints the exact path on
-stderr as a parseable `read-back:` line. If the local archive is out of reach (a fresh
-session or another machine), use the SFTP path from your config:
-`<remote-base>/<tool>/<visibility>/<slug>/index.html`. Never WebFetch the artifact URL to
-read it back — it is not fetchable over HTTP.
-
-From the publishing project, the bundled resolver maps either the URL or the `read-back:`
-line to an absolute local file path without making a network request:
-
-```bash
-path=$(bash <plugin-dir>/skills/artifact-sftp-read/scripts/read-artifact.sh \
-  'https://artifacts.example/codex/private/my-report/')
-```
-
-See [the setup guide](skills/artifact-sftp/references/setup.md) for server layout,
-automation, authentication modes, and Cloudflare Access verification.
+`docs/artifacts/<tool>/<visibility>/<slug>/`. Pass the URL or exact `read-back:` value to the
+MCP tool. Never WebFetch the artifact URL or use SFTP as a read fallback.
 
 ## Security model
 
@@ -234,14 +117,15 @@ automation, authentication modes, and Cloudflare Access verification.
   readable by other users.
 - HTML executes on the artifact origin. Use a dedicated static-only origin
   with no application cookies or sessions.
-- `--allow-sensitive` is an explicit override, not a safety guarantee.
+- The agent-facing MCP surface has no sensitive-content override.
 
 For vulnerability reports, follow [SECURITY.md](SECURITY.md).
 
-## Development
+## Maintainer development
 
-The test suites are offline: they replace SFTP and HTTP clients with throwaway
-mocks and never read the real local configuration.
+The following are maintainer-only implementation regressions, not AI-agent operational
+fallbacks. The test suites are offline: they replace SFTP and HTTP clients with throwaway mocks
+and never read the real local configuration.
 
 ```bash
 python3 tests/test_agent_plugins.py

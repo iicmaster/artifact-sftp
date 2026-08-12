@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "artifact-sftp",
-  "version": "0.10.0",
-  "description": "Publish, locally read, and safely set up self-contained HTML artifacts on an SFTP-backed web host, with private-by-default visibility and a local stdio MCP adapter.",
+  "version": "0.11.0",
+  "description": "MCP-only AI-agent publishing and local read-back for HTML artifacts on an SFTP-backed web host, private by default with Sarabun as the Thai font default.",
   "author": {
     "name": "NGS"
   },

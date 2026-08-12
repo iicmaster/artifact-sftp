@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.0] - 2026-08-12
+
+- Add portable root `mcp.json` discovery and a plugin-relative stdio launcher. AI-agent skills
+  and the root policy now require `artifact_sftp.*` MCP routing; unavailable MCP is a stop
+  condition rather than a shell, SFTP, or HTTP fallback.
+- Make bundled implementation scripts reject ordinary direct invocation, and replace the
+  agent-facing setup flow with a pre-provisioned MCP boundary that never requests or relays
+  credentials.
+- Make [Sarabun](https://fonts.google.com/specimen/Sarabun) the default Thai font in every
+  published artifact, using the official Google Fonts stylesheet with `font-display=swap` and
+  a Thai-safe fallback stack.
+
 ## [0.10.0] - 2026-08-10
 
 - Add a local stdio MCP server (`artifact-sftp-mcp`) with typed `setup_status`, safe

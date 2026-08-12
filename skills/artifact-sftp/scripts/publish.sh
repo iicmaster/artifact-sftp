@@ -18,6 +18,11 @@
 set -euo pipefail
 umask 077
 
+if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
+  printf '%s\n' 'ERROR: publish.sh is internal to Artifact SFTP MCP; AI agents must use artifact_sftp.publish.' >&2
+  exit 10
+fi
+
 CONFIG="$HOME/.config/artifact-sftp/config"
 MANIFEST="$HOME/.config/artifact-sftp/published.list"
 SLUG_RE='^[a-z0-9][a-z0-9-]{0,62}$'
@@ -114,6 +119,7 @@ CLEANUP_KEY=''
 BATCH=''
 STAMPED=''
 PREINJECT=''
+FONTED=''
 LOCAL_INDEX_TMP=''
 LOCAL_SNAPSHOT_TMP=''
 cleanup() {
@@ -123,6 +129,7 @@ cleanup() {
   if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
   if [ -n "$STAMPED" ]; then rm -f "$STAMPED"; fi
   if [ -n "$PREINJECT" ]; then rm -f "$PREINJECT"; fi
+  if [ -n "$FONTED" ]; then rm -f "$FONTED"; fi
   if [ -n "$LOCAL_INDEX_TMP" ]; then rm -f "$LOCAL_INDEX_TMP"; fi
   if [ -n "$LOCAL_SNAPSHOT_TMP" ]; then rm -f "$LOCAL_SNAPSHOT_TMP"; fi
 }
@@ -285,8 +292,11 @@ SNAPSHOT_URL="${URL}${VFILE}"
 LANG_ATTR=${DEFAULT_LANG:-th}
 TZ_NAME=${DEFAULT_TIMEZONE:-Asia/Bangkok}
 
-# Encoding + language injection: add <meta charset="utf-8"> (into <head>, or open a
-# <head> when the source has none) and <html lang="..."> when either is missing.
+# Encoding, language, and typography injection: add <meta charset="utf-8"> (into
+# <head>, or open a <head> when the source has none), <html lang="..."> when it is
+# missing, and the approved Sarabun Google Fonts stylesheet. The stylesheet has
+# font-display=swap and a Thai-safe fallback stack so the artifact remains readable
+# while the font is loading or when the viewer is offline.
 PREINJECT=$(mktemp)
 grep -qiE '<meta[^>]*charset' "$FILE" && HAS_CHARSET=1 || HAS_CHARSET=0
 grep -qi '</head>'            "$FILE" && HAS_CLOSE_HEAD=1 || HAS_CLOSE_HEAD=0
@@ -310,6 +320,50 @@ BEGIN { cdone = has_charset; ldone = has_lang; nohead = !has_close_head && !has_
   }
   print
 }' "$FILE" > "$PREINJECT"
+
+# Sarabun is the Artifact SFTP default Thai font. Keep the marker idempotent so a
+# previously published artifact can be republished without accumulating stylesheet
+# links. Add it immediately before the final literal </head>, not an earlier string
+# inside an inlined script. If a malformed source has an opening head but no close,
+# append it to the opening tag instead; the charset pass above has already created a
+# complete head for sources with no head at all.
+SARABUN_MARKUP='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>'
+if ! grep -Fqi 'data-artifact-sftp-font="sarabun"' "$PREINJECT"; then
+  FONTED=$(mktemp)
+  LAST_HEAD_LINE=$(awk 'index(tolower($0), "</head>") { last = NR } END { if (last) print last }' "$PREINJECT")
+  if [ -n "$LAST_HEAD_LINE" ]; then
+    awk -v target="$LAST_HEAD_LINE" -v font="$SARABUN_MARKUP" '
+function stamp_last_head(line,    lower, start, pos, last) {
+  lower = tolower(line)
+  start = 1
+  while ((pos = index(substr(lower, start), "</head>")) != 0) {
+    last = start + pos - 1
+    start = last + 7
+  }
+  return substr(line, 1, last - 1) font substr(line, last)
+}
+NR == target { print stamp_last_head($0); next }
+{ print }
+' "$PREINJECT" > "$FONTED"
+  else
+    FIRST_HEAD_LINE=$(awk 'index(tolower($0), "<head") { print NR; exit }' "$PREINJECT")
+    [ -n "$FIRST_HEAD_LINE" ] || die 9 "could not add the Sarabun font declaration to artifact HTML"
+    awk -v target="$FIRST_HEAD_LINE" -v font="$SARABUN_MARKUP" '
+function stamp_open_head(line,    lower, start, close) {
+  lower = tolower(line)
+  start = index(lower, "<head")
+  close = index(substr(lower, start), ">")
+  if (start == 0 || close == 0) return line
+  close = start + close - 1
+  return substr(line, 1, close) font substr(line, close + 1)
+}
+NR == target { print stamp_open_head($0); next }
+{ print }
+' "$PREINJECT" > "$FONTED"
+  fi
+  mv "$FONTED" "$PREINJECT"
+  FONTED=''
+fi
 
 STAMPED=$(mktemp)
 TS_HUMAN=$(TZ="$TZ_NAME" date '+%Y-%m-%d %H:%M %Z' 2>/dev/null) || TS_HUMAN=$(date -u '+%Y-%m-%d %H:%M UTC')

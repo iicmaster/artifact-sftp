@@ -5,6 +5,11 @@ set -euo pipefail
 set +x
 umask 077
 
+if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
+  printf '%s\n' 'ERROR: setup-wizard.sh is not an AI-agent workflow; use Artifact SFTP MCP.' >&2
+  exit 10
+fi
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 SETUP_SH="$SCRIPT_DIR/../../artifact-sftp/scripts/setup.sh"
 CFG_DIR="$HOME/.config/artifact-sftp"

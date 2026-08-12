@@ -7,6 +7,13 @@ READ="$SCRIPT_DIR/read-artifact.sh"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
+direct_rc=0
+env -u ARTIFACT_SFTP_MCP_CALL bash "$READ" --help >"$WORK/direct.out" 2>"$WORK/direct.err" || direct_rc=$?
+[ "$direct_rc" -eq 10 ] && grep -Fq 'Artifact SFTP MCP' "$WORK/direct.err" \
+  && echo "PASS direct read resolver is rejected outside MCP" \
+  || { echo "FAIL: direct read resolver bypass was not rejected" >&2; exit 1; }
+export ARTIFACT_SFTP_MCP_CALL=1
+
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT/docs/artifacts/codex/private/report"
 PROJECT=$(cd -P "$PROJECT" && pwd)

@@ -1,158 +1,34 @@
-# artifact-sftp — one-time setup
+# Artifact SFTP pre-provisioning boundary
 
-## Server side (owner does this once; DirectAdmin shared hosting assumed)
+This is an internal ownership note, not an AI-agent workflow. Agents must use only
+`artifact_sftp.*` MCP tools and must never follow, reconstruct, or request a shell-based
+configuration procedure.
 
-1. Create subdomain `artifacts.ngs.bz` + DNS record.
-2. Create SFTP account `artifacts` whose docroot serves the subdomain.
-3. Create the directory layout under the docroot:
-   ```
-   openclaw/private/   openclaw/public/
-   codex/private/      codex/public/
-   claude/private/     claude/public/
-   ```
-4. Protect both `*/private/` dirs with **Cloudflare Zero Trust**: the deployment serves
-   through Cloudflare, so the policy is enforced at the edge. Create an Access application
-   for `https://artifacts.ngs.bz/` and add a policy that requires authentication for paths
-   under `*/private/` (public paths stay open to everyone).
-5. Auth: install an SSH public key for the account when possible. If the hosting only
-   allows password auth (current deployment does — chroot forbids `~/.ssh`), the script
-   falls back to the paramiko helper via `SFTP_PASS` in the client config; that requires
-   `python3-paramiko` on the client. Keep credentials in 1Password.
-6. Recommended: serve this subdomain static-only, no app cookies/sessions on it —
-   uploaded HTML runs on this origin (stored-XSS blast radius).
-7. Add a 1Password item (e.g. `artifacts.ngs.bz - sftp`) holding the SSH private key.
+## Environment owner responsibilities
 
-## Install the plugin
+Before an agent can publish, the MCP owner provisions and verifies the following out of band:
 
-Install the standalone public marketplace in Codex:
+- An SFTP account and static web origin with distinct `private` and `public` paths for each
+  supported runtime (`codex`, `openclaw`, and `claude`).
+- Strict SFTP host-key pinning and a least-privilege account whose upload root is limited to
+  the artifact origin.
+- Cloudflare Access (or an equivalent authenticated edge policy) that protects every private
+  path. A private publish is not accepted as private until its anonymous probes pass.
+- A local configuration store with owner-only permissions. The plugin package, MCP arguments,
+  project workspace, and artifact HTML must never contain credentials, private keys, passwords,
+  or Cloudflare secrets.
+- A compatible Agent Plugins host that reads the root `mcp.json`, passes `PLUGIN_ROOT` and a
+  writable `PLUGIN_DATA` directory, and starts the packaged launcher.
 
-```bash
-codex plugin marketplace add iicmaster/artifact-sftp
-codex plugin add artifact-sftp@iicmaster-artifact-sftp
-# Start a FRESH Codex process so the installed version and both skills are indexed.
-```
+## Agent-visible contract
 
-For local development, replace `iicmaster/artifact-sftp` with the path to this checkout.
-In the fresh Codex session, start first-run setup with:
+An agent starts with `artifact_sftp.setup_status`.
 
-```text
-$artifact-sftp:artifact-sftp-setup
-```
+- `ready: true` permits the requested MCP operation.
+- `ready: false` means the agent may call `artifact_sftp.setup` to receive a structured stop
+  boundary, then must stop. It must not collect a credential or look for another execution path.
+- The MCP server never sends configuration contents, host-key material, passwords, tokens, or
+  private-key data back to an agent.
 
-OpenClaw can install a local checkout directly, then expose the bundled setup skill:
-
-```bash
-git clone https://github.com/iicmaster/artifact-sftp.git
-openclaw plugins install ./artifact-sftp
-```
-
-Invoke it with `/skill artifact-sftp-setup`. OpenClaw does not consume the Codex
-`.agents/plugins/marketplace.json`.
-
-## Client side (each machine): one-time config
-
-The setup command launches an interactive terminal wizard, shows the SFTP host-key
-fingerprints for confirmation, and writes `~/.config/artifact-sftp/config` plus
-`known_hosts` at mode `0600`. It never publishes a smoke artifact. It also supports a
-read-only readiness check:
-
-Required client tools are `ssh-keyscan`, `ssh-keygen`, `curl`, and either `sha256sum` or
-`shasum`. SSH-key and 1Password modes also need `sftp`; password mode needs Python 3 with
-`paramiko`. The command reports missing dependencies before writing configuration.
-
-```bash
-PLUGIN_DIR=/path/to/artifact-sftp
-bash "$PLUGIN_DIR/skills/artifact-sftp-setup/scripts/setup-wizard.sh" --status
-```
-
-For automation, the implementation remains flag-driven. Secrets are read from **stdin**,
-never argv. `PLUGIN_DIR` must point at the installed or initialized `artifact-sftp` plugin
-directory. Automation must also supply a host-key file whose fingerprints were verified
-with the server owner through an independent channel; `setup.sh` refuses unconfirmed TOFU:
-
-```bash
-KNOWN_HOSTS_FILE=/secure/path/artifact-sftp.known_hosts
-ssh-keyscan -p 22 sftp.artifacts.ngs.bz >"$KNOWN_HOSTS_FILE"
-ssh-keygen -lf "$KNOWN_HOSTS_FILE" -E sha256
-# Compare every fingerprint with the server owner before continuing.
-chmod 600 "$KNOWN_HOSTS_FILE"
-```
-
-Then configure one authentication mode:
-
-```bash
-# password account (current deployment) — needs python3-paramiko.
-# secrets go through stdin (never argv/ps/history), one per line: SFTP pass, then cf-access-secret:
-printf '%s\n%s\n' "$SFTP_PASSWORD" "$CF_ACCESS_CLIENT_SECRET" | \
-  bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
-    --host sftp.artifacts.ngs.bz --user artifacts --port 22 \
-    --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-    --pass - --cf-access-id "$CF_ACCESS_CLIENT_ID" --cf-access-secret - \
-    --known-hosts-file "$KNOWN_HOSTS_FILE"
-
-# OR a local SSH key (no paramiko needed):
-bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
-  --host sftp.artifacts.ngs.bz --user artifacts \
-  --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-  --ssh-key ~/.ssh/id_ed25519_artifacts --known-hosts-file "$KNOWN_HOSTS_FILE"
-
-# OR a key from 1Password (op / op.exe via WSL; desktop app unlocked):
-bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
-  --host sftp.artifacts.ngs.bz --user artifacts \
-  --remote-dir /files --url https://artifacts.ngs.bz --tool codex \
-  --op-ref 'op://vault-id/item-id/private-key' --known-hosts-file "$KNOWN_HOSTS_FILE"
-```
-
-The script refuses to overwrite either file by default. An explicitly approved repair uses
-`--replace`; it first backs up both the config and pinned host keys. Replacement rewrites the
-entire config, so repeat every setting that must be retained: the chosen SFTP auth mode and
-any Cloudflare Access service token.
-
-Config values must be shell-safe (the file is both `source`d by `publish.sh` and split by
-`sftp_helper.py`); `setup.sh` rejects a password with spaces/quotes/`$` and points you to
-`--ssh-key`. To hand-write the config instead, the keys are: `SFTP_HOST`, `SFTP_USER`,
-`SFTP_PORT`, `REMOTE_DIR`, `PUBLIC_BASE_URL`, `DEFAULT_TOOL`, one of
-`SFTP_PASS`/`SSH_KEY`/`OP_KEY_REF`, and optional `CF_ACCESS_CLIENT_ID`,
-`CF_ACCESS_CLIENT_SECRET`, `DEFAULT_LANG` (stamped page language, default `th`),
-`DEFAULT_TIMEZONE` (footer timezone, default `Asia/Bangkok`) — one `KEY=value` per line,
-`chmod 600`. `setup.sh --lang th --timezone Asia/Bangkok` writes them at setup time.
-
-## Private verify behind Cloudflare Access
-
-The current deployment gates `*/private/` with **Cloudflare Access (Zero Trust SSO)**. A
-private publish still uploads fine and
-`publish.sh` exits 0, but it prints `HTTP verify skipped (Cloudflare Access)` because it
-cannot fetch the artifact back to hash-check it. `/public/` is open and verifies normally.
-
-To make private artifacts hash-verify, add a **Cloudflare Access service token** (Zero Trust →
-Access → Service Auth → create a service token; then add its identity to the Access policy for
-`artifacts.ngs.bz`). Store it in the config:
-
-```bash
-printf '%s' "$CF_ACCESS_CLIENT_SECRET" | \
-  bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/setup.sh" \
-  --host sftp.artifacts.ngs.bz --user artifacts --remote-dir /files \
-  --url https://artifacts.ngs.bz --tool codex --ssh-key ~/.ssh/id_ed25519_artifacts \
-  --cf-access-id "$CF_ACCESS_CLIENT_ID" --cf-access-secret - \
-  --known-hosts-file "$KNOWN_HOSTS_FILE" --replace
-```
-
-`publish.sh` then sends `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers on the verify
-fetch and confirms the served sha256 matches. Without the token, private publishes work but
-skip the HTTP verify (upload is still confirmed via SFTP).
-
-Notes for the current deployment: web is proxied by Cloudflare (`artifacts.ngs.bz`), SFTP
-DNS points straight at the origin (`sftp.artifacts.ngs.bz`). SFTP login lands in a chroot
-`/`; artifacts live under `/files/{openclaw,codex,claude}/{private,public}`.
-
-## Smoke test
-
-```bash
-printf '<title>smoke</title><p>hello</p>' > /tmp/smoke.html
-bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/publish.sh" \
-  --slug smoke-test --tool codex /tmp/smoke.html                         # private
-bash "$PLUGIN_DIR/skills/artifact-sftp/scripts/publish.sh" \
-  --delete smoke-test --tool codex                                      # clean up
-```
-
-Run the smoke test only as a separate, explicit publish action after setup succeeds.
+The owner should periodically validate that private paths still require authentication and that
+the agent-facing MCP server remains the only configured Artifact SFTP execution surface.
