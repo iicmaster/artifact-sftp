@@ -12,6 +12,7 @@ import hashlib
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Sequence
@@ -76,6 +77,41 @@ class SubprocessRunner:
         }
     )
 
+    @staticmethod
+    def _path_without_own_runtime(path: str) -> str:
+        """Drop this adapter's own virtual environment from a child's PATH.
+
+        The bundled scripts resolve ``python3`` from PATH and need the one that
+        carries paramiko.  Launched by ``uv run`` — the documented way to start
+        this server — the adapter's own environment is prepended to PATH, and it
+        declares ``mcp`` and nothing else.  The scripts then answer about that
+        interpreter: ``setup.sh --status`` reports ``python3-paramiko missing``
+        through the MCP surface while the identical script run from a shell
+        reports READY, and ``publish.sh`` would refuse for the same reason.
+
+        The environment above is deliberately minimal for safety; PATH is the
+        one variable in it that the launcher rewrites underneath us.  Ask about
+        the interpreter the scripts actually need, and never let our own
+        runtime answer in its place.
+        """
+        own: set[str] = set()
+        for prefix in (sys.prefix, os.environ.get("VIRTUAL_ENV")):
+            # Outside a virtual environment ``sys.prefix`` is the base install,
+            # whose ``bin`` is where the system tools live.  Removing that would
+            # be far worse than the bug being fixed.
+            if not prefix or os.path.realpath(prefix) == os.path.realpath(sys.base_prefix):
+                continue
+            for leaf in ("bin", "Scripts"):
+                own.add(os.path.normcase(os.path.realpath(Path(prefix, leaf))))
+        if not own:
+            return path
+        kept = [
+            entry
+            for entry in path.split(os.pathsep)
+            if entry and os.path.normcase(os.path.realpath(entry)) not in own
+        ]
+        return os.pathsep.join(kept) if kept else os.defpath
+
     def run(self, args: Sequence[str], *, cwd: Path, timeout: float) -> CommandResult:
         argv = tuple(str(arg) for arg in args)
         environment = {
@@ -83,6 +119,7 @@ class SubprocessRunner:
         }
         environment.setdefault("HOME", str(Path.home()))
         environment.setdefault("PATH", os.defpath)
+        environment["PATH"] = self._path_without_own_runtime(environment["PATH"])
         # The bundled scripts are implementation details, not an agent-facing
         # command surface. This marker is deliberately set only by the adapter.
         environment["ARTIFACT_SFTP_MCP_CALL"] = "1"
