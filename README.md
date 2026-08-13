@@ -32,13 +32,28 @@ The portable package root is [plugin.json](plugin.json), which targets the Agent
 `skills/` children are MCP-routing instructions for AI agents. The existing `.codex-plugin/`
 and `.claude-plugin/` files are compatibility metadata for their current installers.
 
-[.mcp.json](.mcp.json) mirrors `mcp.json` byte for byte as the Claude Code compatibility
-entry: that installer discovers a plugin's MCP servers from a root `.mcp.json` or an
-`mcpServers` field in `.claude-plugin/plugin.json`, and reads neither the portable
-`mcp.json` nor `.codex-plugin/`. Without it the plugin installs and its skills load, but
-the host reports `0 plugin MCP servers` and every `artifact_sftp.*` tool is missing —
-which reads as "the MCP is unavailable" rather than "the entry point was never found".
-Keep the two files identical when either changes.
+[.mcp.json](.mcp.json) is the Claude Code compatibility entry. That installer discovers a
+plugin's MCP servers from a root `.mcp.json` or an `mcpServers` field in
+`.claude-plugin/plugin.json`, and reads neither the portable `mcp.json` nor
+`.codex-plugin/`. Without it the plugin installs and its skills load, but the host reports
+`0 plugin MCP servers` and every `artifact_sftp.*` tool is missing.
+
+It is **not** a copy of `mcp.json`, because Claude Code is not an Agent Plugins host and
+supplies a different environment. Three differences are load-bearing:
+
+| | `mcp.json` (Agent Plugins) | `.mcp.json` (Claude Code) |
+|---|---|---|
+| plugin root variable | `${PLUGIN_ROOT}` | `${CLAUDE_PLUGIN_ROOT}` — the only one this host expands |
+| `command` | `./bin/...`, relative to `cwd` | absolute via `${CLAUDE_PLUGIN_ROOT}` |
+| `PLUGIN_DATA` | supplied by the host | **not supplied** — must be set here |
+
+`PLUGIN_DATA` is the sharpest one: [bin/artifact-sftp-mcp](bin/artifact-sftp-mcp) exits 78
+immediately when it is unset, so the host registers the server, starts nothing, and exposes
+no tools. It points outside the plugin directory so the `uv` environment survives plugin
+updates. `PLUGIN_ROOT` is also exported for the launcher's own fallback chain.
+
+When the server definition changes, update both files — they are deliberately not identical,
+so a plain `diff` should show exactly the rows above and nothing else.
 
 ## MCP (local stdio)
 

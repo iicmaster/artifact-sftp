@@ -4,13 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-- Add root `.mcp.json` as the Claude Code compatibility entry, mirroring the portable
-  `mcp.json` byte for byte. That installer discovers a plugin's MCP servers from a root
+- Add root `.mcp.json` so Claude Code can start the MCP server. That installer reads a root
   `.mcp.json` or an `mcpServers` field in `.claude-plugin/plugin.json`, and reads neither
-  the portable `mcp.json` nor `.codex-plugin/`. Since MCP-only routing landed in 0.11.0
-  the plugin installed and its skills loaded there, but the host reported
+  the portable `mcp.json` nor `.codex-plugin/`. Since MCP-only routing landed in 0.11.0 the
+  plugin installed and its skills loaded there, but the host reported
   `0 plugin MCP servers` and every `artifact_sftp.*` tool was missing — which agents
   correctly read as a stop condition, so publishing was unreachable on that host.
+- The new entry is not a copy of `mcp.json`: Claude Code expands `${CLAUDE_PLUGIN_ROOT}`
+  rather than `${PLUGIN_ROOT}`, and does not supply `PLUGIN_DATA`, which the launcher
+  requires — without it `bin/artifact-sftp-mcp` exits 78 and the host registers a server
+  it never starts. `PLUGIN_DATA` now points outside the plugin directory so the `uv`
+  environment survives plugin updates.
 
 ## [0.11.1] - 2026-08-12
 

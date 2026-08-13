@@ -3,10 +3,12 @@
   "mcpServers": {
     "artifact-sftp": {
       "type": "stdio",
-      "command": "./bin/artifact-sftp-mcp",
-      "cwd": "${PLUGIN_ROOT}",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/artifact-sftp-mcp",
+      "cwd": "${CLAUDE_PLUGIN_ROOT}",
       "env": {
-        "ARTIFACT_SFTP_PLUGIN_ROOT": "${PLUGIN_ROOT}"
+        "ARTIFACT_SFTP_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+        "PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${HOME}/.local/share/artifact-sftp"
       }
     }
   }
