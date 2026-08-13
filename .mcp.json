@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "artifact-sftp": {
+      "type": "stdio",
+      "command": "./bin/artifact-sftp-mcp",
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "ARTIFACT_SFTP_PLUGIN_ROOT": "${PLUGIN_ROOT}"
+      }
+    }
+  }
+}

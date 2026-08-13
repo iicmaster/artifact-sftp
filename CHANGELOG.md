@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+- Add root `.mcp.json` as the Claude Code compatibility entry, mirroring the portable
+  `mcp.json` byte for byte. That installer discovers a plugin's MCP servers from a root
+  `.mcp.json` or an `mcpServers` field in `.claude-plugin/plugin.json`, and reads neither
+  the portable `mcp.json` nor `.codex-plugin/`. Since MCP-only routing landed in 0.11.0
+  the plugin installed and its skills loaded there, but the host reported
+  `0 plugin MCP servers` and every `artifact_sftp.*` tool was missing — which agents
+  correctly read as a stop condition, so publishing was unreachable on that host.
+
 ## [0.11.1] - 2026-08-12
 
 - Fix HTML stamping for case-insensitive HTML tag names, including uppercase `HTML`, `HEAD`,

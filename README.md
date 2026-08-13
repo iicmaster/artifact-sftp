@@ -32,6 +32,14 @@ The portable package root is [plugin.json](plugin.json), which targets the Agent
 `skills/` children are MCP-routing instructions for AI agents. The existing `.codex-plugin/`
 and `.claude-plugin/` files are compatibility metadata for their current installers.
 
+[.mcp.json](.mcp.json) mirrors `mcp.json` byte for byte as the Claude Code compatibility
+entry: that installer discovers a plugin's MCP servers from a root `.mcp.json` or an
+`mcpServers` field in `.claude-plugin/plugin.json`, and reads neither the portable
+`mcp.json` nor `.codex-plugin/`. Without it the plugin installs and its skills load, but
+the host reports `0 plugin MCP servers` and every `artifact_sftp.*` tool is missing —
+which reads as "the MCP is unavailable" rather than "the entry point was never found".
+Keep the two files identical when either changes.
+
 ## MCP (local stdio)
 
 `artifact-sftp-mcp` is a **local stdio** MCP server. It wraps the existing publisher,
