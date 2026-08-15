@@ -233,6 +233,7 @@ printf '403'
         self.assertIn("artifact_sftp.publish", names)
         self.assertIn("artifact_sftp.unpublish", names)
         self.assertIn("artifact_sftp.read", names)
+        self.assertIn("artifact_sftp.list", names)
         self.assertIn("artifact_sftp.setup_status", names)
         self.assertFalse(setup_status.is_error)
         setup_status_result = setup_status.structured_content["result"]
