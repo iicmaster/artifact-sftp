@@ -597,7 +597,12 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["latest_version"], 1)
         self.assertEqual(item["snapshot_count"], 1)
         self.assertTrue(item["index_present"])
-        self.assertIn("report.html", result["local_drafts"])
+        self.assertEqual(len(result["local_drafts"]), 1)
+        draft = result["local_drafts"][0]
+        self.assertEqual(draft["path"], "report.html")
+        self.assertIsInstance(draft["mtime"], int)
+        self.assertGreater(draft["size"], 0)
+        self.assertEqual(len(draft["sha256"]), 64)
 
     async def test_list_inventory_filters_by_tool_and_visibility(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -637,7 +642,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(response.is_error)
         result = response.structured_content["result"]
-        self.assertEqual(result["local_drafts"], ["valid.html"])
+        self.assertEqual([d["path"] for d in result["local_drafts"]], ["valid.html"])
         self.assertFalse(result["local_drafts_truncated"])
 
     async def test_list_inventory_respects_limit_and_reports_truncation(self) -> None:
@@ -659,6 +664,49 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["local_drafts_count"], 3)
         self.assertTrue(result["local_drafts_truncated"])
         self.assertEqual(len(result["local_drafts"]), 3)
+
+    async def test_list_inventory_breaks_snapshot_ties_by_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            archive = project / "docs/artifacts/codex/private/multi-snap"
+            archive.mkdir(parents=True)
+            (archive / "index.html").write_text("<html></html>", encoding="utf-8")
+            (archive / "multi-snap--1--20260815T100000Z.html").write_text("<html>v1-early</html>", encoding="utf-8")
+            (archive / "multi-snap--1--20260815T150000Z.html").write_text("<html>v1-late</html>", encoding="utf-8")
+
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project)},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["artifacts_count"], 1)
+        item = result["artifacts"][0]
+        self.assertEqual(item["latest_version"], 1)
+        self.assertEqual(item["latest_timestamp"], "20260815T150000Z")
+        self.assertEqual(item["latest_snapshot"], "multi-snap--1--20260815T150000Z.html")
+
+    async def test_list_inventory_discovers_drafts_inside_docs_artifacts_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            sources_dir = project / "docs/artifacts/sources"
+            sources_dir.mkdir(parents=True)
+            (sources_dir / "draft_source.html").write_text("<html>draft</html>", encoding="utf-8")
+
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project)},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        paths = [d["path"] for d in result["local_drafts"]]
+        self.assertIn("docs/artifacts/sources/draft_source.html", paths)
 
 
 if __name__ == "__main__":

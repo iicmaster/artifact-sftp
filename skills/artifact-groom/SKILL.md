@@ -37,8 +37,14 @@ For each discovered artifact in the inventory:
 
 1. **Source Matching:** Search workspace files for candidate source HTML (e.g. matching filename `<slug>.html`, `docs/artifacts/<slug>.html`, or documented source paths).
 2. **Content Normalization:**
-   - Because the publisher injects official Sarabun font tags, UTF-8 charset declarations, and `<footer data-artifact-meta>`, a raw byte hash will differ from the original source.
-   - Strip publisher-injected elements (`data-artifact-sftp-font`, `data-artifact-meta` footer) before comparing content hashes or DOM structure.
+   - Because the publisher injects defaults during publishing, a raw byte hash will differ from the original source.
+   - Strip or account for all publisher-injected elements before comparing content:
+     - Google Fonts Sarabun stylesheet link (`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun...`)
+     - Injected Sarabun font style (`<style data-artifact-sftp-font="sarabun">...`)
+     - Injected charset declaration (`<meta charset="utf-8">`)
+     - Injected language attribute on `<html>` (`lang="th"` / `lang="en"`)
+     - Injected metadata footer (`<footer data-artifact-meta...>`)
+   - Alternatively, compare normalized DOM body contents or stripped text structures.
 3. **Modification Comparison:** Compare normalized source content and file modification timestamps (`mtime`).
 
 ### 3. Health Classification Matrix

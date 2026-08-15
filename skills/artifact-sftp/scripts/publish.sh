@@ -226,10 +226,14 @@ if [ "$MODE" = delete ]; then
   if [ "$USE_PY" = 1 ]; then
     _timeout 90 python3 "$HELPER" delete "$RPATH" >&2 || die 5 "delete failed for $RPATH"
   else
-    # rm with glob: remove index.html and all versioned snapshots
-    BATCH=$(mktemp)
-    printf -- '-rm %s/*\n-rmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
-    run_sftp "$BATCH" || die 5 "delete failed for $RPATH"
+    CHECK_BATCH=$(mktemp)
+    printf -- 'ls -d %s\n' "$RPATH" > "$CHECK_BATCH"
+    if run_sftp "$CHECK_BATCH" 2>/dev/null; then
+      # rm with glob: remove index.html and all versioned snapshots, then remove directory
+      BATCH=$(mktemp)
+      printf -- '-rm %s/*\nrmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
+      run_sftp "$BATCH" || die 5 "delete failed for $RPATH"
+    fi
   fi
   # drop from manifest so a future publish of this slug re-checks remote existence
   if [ -f "$MANIFEST" ]; then
