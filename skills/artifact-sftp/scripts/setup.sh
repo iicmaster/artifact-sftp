@@ -32,6 +32,28 @@ _stat_perm() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 _config_count() { awk -F= -v key="$1" '$1 == key { count++ } END { print count + 0 }' "$CONFIG"; }
 _config_value() { sed -n "s/^$1=//p" "$CONFIG" | tail -n 1; }
 _shell_safe() { case "$1" in *[!A-Za-z0-9_.:/@%+-]*) return 1;; *) return 0;; esac; }
+# PUBLIC_BASE_URL is appended with /<tool>/<visibility>/<slug>/ by publish.sh.
+# Keep it an HTTPS origin with an authority, no path/query/fragment, and no
+# trailing slash. The MCP result contract maps the origin directly to
+# /<tool>/<visibility>/<slug>/, so accepting a path here could publish bytes
+# successfully but make the returned URL fail that contract.
+_public_base_url_valid() {
+  local url=$1 authority host port
+  case "$url" in https://*) ;; *) return 1 ;; esac
+  case "$url" in *'?'*|*'#'*) return 1 ;; esac
+  case "$url" in */) return 1 ;; esac
+  authority=${url#https://}
+  case "$authority" in */*) return 1 ;; esac
+  authority=${authority%%/*}
+  case "$authority" in ''|:*|*@*|*:) return 1 ;; esac
+  if [[ "$authority" == *:* ]]; then
+    host=${authority%%:*}
+    port=${authority#*:}
+    [ -n "$host" ] || return 1
+    case "$port" in ''|*[!0-9]*) return 1 ;; esac
+  fi
+  return 0
+}
 _config_shape_valid() {
   local line key value
   while IFS= read -r line || [ -n "$line" ]; do
@@ -58,7 +80,7 @@ _known_hosts_has_target() {
 }
 
 status() {
-  local issues=0 perm auth_count=0 auth='none' tool='' count config_ok=1
+  local issues=0 perm auth_count=0 auth='none' tool='' count config_ok=1 shape_ok=1
   local host='' port='' ssh_key=''
   printf 'artifact-sftp setup status\n'
 
@@ -94,7 +116,7 @@ status() {
       *) printf 'config: unsafe mode %s (need 600 or 400)\n' "$perm"; issues=$((issues + 1)) ;;
     esac
     if ! _config_shape_valid; then
-      printf 'config: invalid or unsafe line\n'; issues=$((issues + 1)); config_ok=0
+      printf 'config: invalid or unsafe line\n'; issues=$((issues + 1)); config_ok=0; shape_ok=0
     fi
     if ! _config_keys_unique; then
       printf 'config: duplicate keys\n'; issues=$((issues + 1)); config_ok=0
@@ -105,6 +127,12 @@ status() {
         printf 'config key: %s missing or duplicated\n' "$key"; issues=$((issues + 1)); config_ok=0
       fi
     done
+    if [ "$shape_ok" -eq 1 ] && [ "$(_config_count PUBLIC_BASE_URL)" -eq 1 ] \
+       && [ -n "$(_config_value PUBLIC_BASE_URL)" ] \
+       && ! _public_base_url_valid "$(_config_value PUBLIC_BASE_URL)"; then
+      printf 'config: PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash\n'
+      issues=$((issues + 1)); config_ok=0
+    fi
 
     if [ "$(_config_count SFTP_PASS)" -eq 1 ]; then auth='password'; auth_count=$((auth_count + 1)); fi
     if [ "$(_config_count SSH_KEY)" -eq 1 ]; then auth='ssh-key'; auth_count=$((auth_count + 1)); fi
@@ -224,6 +252,8 @@ done
 
 [ -n "$HOST" ] && [ -n "$SUSER" ] && [ -n "$REMOTE" ] && [ -n "$URL" ] \
   || die "required: --host --user --remote-dir --url"
+[ -n "$URL" ] && _public_base_url_valid "$URL" \
+  || die "--url must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash"
 [ "$AUTH_CHOICES" -eq 1 ] || die "pick exactly one auth mode: --pass - | --ssh-key PATH | --op-ref op://..."
 case "$TOOL" in openclaw|codex|claude) ;; *) die "--tool must be openclaw, codex or claude (got '$TOOL')";; esac
 case "$PORT" in ''|*[!0-9]*) die "--port must be an integer";; esac

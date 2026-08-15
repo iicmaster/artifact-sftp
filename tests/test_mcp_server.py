@@ -72,6 +72,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
                 "artifact_sftp.setup_status",
                 "artifact_sftp.setup",
                 "artifact_sftp.publish",
+                "artifact_sftp.unpublish",
                 "artifact_sftp.read",
             },
         )
@@ -80,9 +81,26 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("force", publish_properties)
         self.assertNotIn("password", publish_properties)
         self.assertNotIn("secret", publish_properties)
+        unpublish_properties = tools["artifact_sftp.unpublish"].input_schema["properties"]
+        self.assertNotIn("force", unpublish_properties)
+        self.assertNotIn("password", unpublish_properties)
+        self.assertTrue(tools["artifact_sftp.unpublish"].annotations.destructive_hint)
         self.assertNotIn("reconfigure", tools["artifact_sftp.setup"].input_schema["properties"])
+        self.assertIn("verify_connection", tools["artifact_sftp.setup_status"].input_schema["properties"])
+        self.assertIn("verify_connection", tools["artifact_sftp.setup"].input_schema["properties"])
+        self.assertEqual(
+            tools["artifact_sftp.setup_status"].input_schema["properties"]["verify_connection"]["type"],
+            "boolean",
+        )
+        self.assertEqual(
+            tools["artifact_sftp.setup"].input_schema["properties"]["verify_connection"]["type"],
+            "boolean",
+        )
         self.assertTrue(tools["artifact_sftp.read"].annotations.read_only_hint)
         self.assertTrue(tools["artifact_sftp.publish"].annotations.open_world_hint)
+        self.assertTrue(tools["artifact_sftp.unpublish"].annotations.open_world_hint)
+        self.assertTrue(tools["artifact_sftp.setup_status"].annotations.open_world_hint)
+        self.assertTrue(tools["artifact_sftp.setup"].annotations.open_world_hint)
 
     async def test_publish_requires_confirmation_without_starting_a_subprocess(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -248,6 +266,286 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         diagnostics = status.structured_content["result"]["diagnostics"]
         self.assertIn("CF_ACCESS_CLIENT_SECRET=<redacted>", diagnostics)
         self.assertNotIn("should-not-escape", "\n".join(diagnostics))
+
+    async def test_setup_status_structures_fresh_machine_prerequisites(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            not_ready = command_result(
+                3,
+                stdout=(
+                    "artifact-sftp setup status\n"
+                    "dependency: python3-paramiko missing\n"
+                    "config: missing\n"
+                    "config key: SFTP_HOST missing or duplicated\n"
+                    "auth: invalid (0 methods configured)\n"
+                    "known_hosts: missing or empty\n"
+                    "SFTP_PASS=fixture-password-must-not-escape\n"
+                    "NOT READY (5 issue(s))\n"
+                ),
+            )
+            fake = FakeRunner(not_ready)
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(server, "artifact_sftp.setup_status", {})
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["status"], "not_ready")
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["remote_connection_checked"])
+        self.assertEqual(result["prerequisites"]["runtime"]["status"], "missing")
+        self.assertEqual(result["prerequisites"]["config"]["status"], "missing")
+        self.assertEqual(result["prerequisites"]["connection"]["status"], "missing")
+        missing = result["missing_prerequisites"]
+        self.assertEqual(
+            {item["category"] for item in missing},
+            {"runtime", "config", "connection"},
+        )
+        self.assertTrue(any(item["code"] == "dependency_missing" for item in missing))
+        self.assertNotIn("fixture-password-must-not-escape", str(result))
+
+    async def test_setup_status_marks_local_prerequisites_ready_without_claiming_remote_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            ready = command_result(
+                0,
+                stdout=(
+                    "artifact-sftp setup status\n"
+                    "config directory: present (mode 700)\n"
+                    "config: present (mode 600)\n"
+                    "auth: ssh-key\n"
+                    "default tool: codex\n"
+                    "known_hosts: present (mode 600)\n"
+                    "READY\n"
+                ),
+            )
+            fake = FakeRunner(ready)
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(server, "artifact_sftp.setup_status", {})
+
+        result = response.structured_content["result"]
+        self.assertFalse(response.is_error)
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["missing_prerequisites"], [])
+        self.assertTrue(all(check["ready"] for check in result["prerequisites"].values()))
+        self.assertFalse(result["remote_connection_checked"])
+
+    async def test_setup_status_can_verify_remote_connection_without_raw_transport_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            local_ready = command_result(
+                0,
+                stdout=(
+                    "artifact-sftp setup status\n"
+                    "config directory: present (mode 700)\n"
+                    "config: present (mode 600)\n"
+                    "auth: ssh-key\n"
+                    "default tool: codex\n"
+                    "known_hosts: present (mode 600)\n"
+                    "READY\n"
+                ),
+            )
+            remote_failure = command_result(
+                5,
+                stderr="sftp: connection refused for artifact@example.invalid\n",
+            )
+            fake = FakeRunner(local_ready, remote_failure)
+            service = ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project)
+            response = service.setup_status(verify_connection=True)
+
+        self.assertFalse(response.is_error)
+        result = response.output.result
+        self.assertTrue(result["local_ready"])
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["configuration_required"])
+        self.assertTrue(result["remote_connection_checked"])
+        self.assertEqual(result["remote_connection"]["status"], "failed")
+        self.assertEqual(
+            result["remote_connection"]["code"],
+            "remote_connection_failed",
+        )
+        self.assertEqual(result["prerequisites"]["connection"]["status"], "failed")
+        self.assertTrue(
+            any(item["code"] == "remote_connection_failed" for item in result["missing_prerequisites"])
+        )
+        self.assertNotIn("example.invalid", str(result))
+        self.assertEqual(
+            fake.calls[1][0],
+            ("bash", str(ROOT / "skills/artifact-sftp/scripts/publish.sh"), "--list", "--tool", "codex"),
+        )
+
+    async def test_remote_preflight_does_not_run_when_local_setup_is_not_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            local_not_ready = command_result(
+                3,
+                stdout="config: missing\nknown_hosts: missing or empty\nNOT READY (2 issue(s))\n",
+            )
+            fake = FakeRunner(local_not_ready)
+            service = ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project)
+            response = service.setup_status(verify_connection=True)
+
+        self.assertFalse(response.is_error)
+        result = response.output.result
+        self.assertFalse(result["local_ready"])
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["remote_connection_checked"])
+        self.assertEqual(result["remote_connection"]["status"], "not_run")
+        self.assertEqual(len(fake.calls), 1)
+
+    async def test_setup_connection_preflight_success_is_explicitly_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            local_ready = command_result(
+                0,
+                stdout=(
+                    "artifact-sftp setup status\n"
+                    "config: present (mode 600)\n"
+                    "auth: ssh-key\n"
+                    "default tool: codex\n"
+                    "known_hosts: present (mode 600)\n"
+                    "READY\n"
+                ),
+            )
+            remote_ready = command_result(0, stdout="private/report\npublic/other\n")
+            fake = FakeRunner(local_ready, remote_ready)
+            service = ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project)
+            response = service.setup_instructions(verify_connection=True)
+
+        self.assertFalse(response.is_error)
+        result = response.output.result
+        self.assertEqual(result["mode"], "ready")
+        self.assertTrue(result["setup_status"]["ready"])
+        self.assertEqual(
+            result["setup_status"]["remote_connection"]["operation"],
+            "authenticated_sftp_preflight",
+        )
+        self.assertNotIn("private/report", str(result))
+
+    async def test_setup_status_connection_preflight_is_available_through_mcp(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            local_ready = command_result(
+                0,
+                stdout=(
+                    "artifact-sftp setup status\n"
+                    "config: present (mode 600)\n"
+                    "auth: ssh-key\n"
+                    "default tool: codex\n"
+                    "known_hosts: present (mode 600)\n"
+                    "READY\n"
+                ),
+            )
+            remote_ready = command_result(0, stdout="remote entries are intentionally discarded\n")
+            fake = FakeRunner(local_ready, remote_ready)
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.setup_status",
+                {"verify_connection": True},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["remote_connection"]["status"], "verified")
+        self.assertTrue(result["remote_connection_checked"])
+        self.assertNotIn("remote entries", str(result))
+
+    async def test_unpublish_requires_confirmation_without_starting_a_subprocess(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            fake = FakeRunner()
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.unpublish",
+                {
+                    "project_path": str(project),
+                    "slug": "report",
+                    "tool": "codex",
+                },
+            )
+
+        self.assertTrue(response.is_error)
+        self.assertEqual(response.structured_content["error"]["code"], "confirmation_required")
+        self.assertEqual(fake.calls, [])
+
+    async def test_public_unpublish_requires_its_own_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            fake = FakeRunner()
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.unpublish",
+                {
+                    "project_path": str(project),
+                    "slug": "report",
+                    "tool": "codex",
+                    "visibility": "public",
+                    "confirm": True,
+                },
+            )
+
+        self.assertTrue(response.is_error)
+        self.assertEqual(
+            response.structured_content["error"]["code"],
+            "public_confirmation_required",
+        )
+        self.assertEqual(fake.calls, [])
+
+    async def test_unpublish_dry_run_passes_dry_run_to_publisher(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            fake = FakeRunner(command_result(0, stdout="dry-run: would delete codex/private/report\n"))
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.unpublish",
+                {
+                    "project_path": str(project),
+                    "slug": "report",
+                    "tool": "codex",
+                    "dry_run": True,
+                },
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["status"], "dry_run")
+        self.assertTrue(result["dry_run"])
+        self.assertFalse(result["remote_removed"])
+        self.assertTrue(result["local_archive_retained"])
+        self.assertEqual(len(fake.calls), 1)
+        argv, cwd, timeout = fake.calls[0]
+        self.assertIn("--delete", argv)
+        self.assertIn("--dry-run", argv)
+
+    async def test_unpublish_succeeds_and_preserves_local_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, current, _ = make_project(Path(temp))
+            fake = FakeRunner(command_result(0, stderr="deleted: codex/private/report\n"))
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.unpublish",
+                {
+                    "project_path": str(project),
+                    "slug": "report",
+                    "tool": "codex",
+                    "confirm": True,
+                },
+            )
+
+            self.assertFalse(response.is_error)
+            result = response.structured_content["result"]
+            self.assertEqual(result["status"], "unpublished")
+            self.assertFalse(result["dry_run"])
+            self.assertTrue(result["remote_removed"])
+            self.assertTrue(result["local_archive_retained"])
+            # Local archive files must remain untouched
+            self.assertTrue(current.is_file())
 
 
 if __name__ == "__main__":

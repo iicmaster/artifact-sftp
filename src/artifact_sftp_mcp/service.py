@@ -33,6 +33,22 @@ VISIBILITIES = frozenset({"private", "public"})
 MAX_READ_BYTES = 65_536
 DEFAULT_READ_BYTES = 16_384
 
+_SETUP_CATEGORIES = ("runtime", "config", "connection")
+_SETUP_ISSUE_MARKERS = (
+    "missing",
+    "invalid",
+    "unsafe",
+    "malformed",
+    "unreadable",
+    "not a ",
+    "no valid ",
+)
+_SETUP_SECRET_RE = re.compile(
+    r"(?i)([A-Z0-9_]*(?:PASS(?:WORD)?|SECRET|TOKEN|AUTHORIZATION|"
+    r"PRIVATE[_-]?KEY|SSH[_-]?KEY|CREDENTIALS?)[A-Z0-9_]*)\s*[=:]\s*\S+"
+)
+_SETUP_PEM_RE = re.compile(r"(?i)-----BEGIN [^-]*PRIVATE KEY-----.*")
+
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -180,8 +196,18 @@ class ArtifactSftpService:
         self.plugin_root = self._resolve_plugin_root(plugin_root)
         self.runner = runner or SubprocessRunner()
 
-    def setup_status(self) -> ServiceResponse:
-        """Inspect local readiness without modifying configuration or using SFTP."""
+    def setup_status(self, *, verify_connection: bool = False) -> ServiceResponse:
+        """Inspect readiness, optionally including a no-write remote preflight.
+
+        The default remains a local-only status check for API compatibility.
+        When ``verify_connection`` is requested, the service invokes the
+        publisher's existing ``--list`` contract with the selected default
+        tool. That path authenticates with the owner-managed configuration and
+        performs a bounded no-write SFTP preflight; it never receives credentials in
+        MCP arguments and never writes configuration, artifacts, or remote
+        state. Authentication may use secure temporary files that are removed
+        by the publisher before it returns.
+        """
 
         script = self._script("skills/artifact-sftp/scripts/setup.sh")
         if isinstance(script, ServiceResponse):
@@ -199,33 +225,78 @@ class ArtifactSftpService:
             )
 
         lines = self._safe_lines(command.stdout)
-        ready = command.returncode == 0 and any(line == "READY" for line in lines)
+        local_ready = command.returncode == 0 and any(line == "READY" for line in lines)
         auth_mode = self._first_match(lines, AUTH_RE)
         default_tool = self._first_match(lines, DEFAULT_TOOL_RE)
+        prerequisites, missing = self._setup_prerequisites(lines, overall_ready=local_ready)
+        connection_probe: dict[str, object] = {
+            "requested": verify_connection,
+            "attempted": False,
+            "status": "not_requested" if not verify_connection else "not_run",
+            "operation": "authenticated_sftp_preflight",
+        }
+        if verify_connection and local_ready:
+            connection_probe = self._verify_connection(default_tool)
+            if connection_probe["status"] != "verified":
+                prerequisites["connection"]["ready"] = False
+                prerequisites["connection"]["status"] = str(connection_probe["status"])
+                missing.append(
+                    {
+                        "category": "connection",
+                        "code": str(connection_probe["code"]),
+                        "diagnostic": str(connection_probe["diagnostic"]),
+                    }
+                )
+        ready = local_ready and (
+            not verify_connection or connection_probe["status"] == "verified"
+        )
         result = {
             "ready": ready,
+            "local_ready": local_ready,
             "auth_mode": auth_mode,
             "default_tool": default_tool,
             "diagnostics": lines,
+            "status": "ready" if ready else "not_ready",
+            "prerequisites": prerequisites,
+            "missing_prerequisites": missing,
+            "remote_connection": connection_probe,
+            "remote_connection_checked": bool(connection_probe["attempted"]),
             "agent_action": "continue" if ready else "stop",
-            "configuration_required": not ready,
+            # Preserve the historical meaning of this field: it describes the
+            # owner-managed local config boundary, not remote reachability.
+            "configuration_required": not local_ready,
+            "remote_connection_required": verify_connection and not ready,
         }
         return ServiceResponse(
             ToolOutput(ok=True, operation="setup_status", exit_code=command.returncode, result=result)
         )
 
-    def setup_instructions(self) -> ServiceResponse:
-        """Report the MCP-only provisioning boundary without exposing a shell fallback."""
+    def setup_instructions(self, *, verify_connection: bool = False) -> ServiceResponse:
+        """Report the MCP-only boundary without exposing a shell fallback."""
 
-        status = self.setup_status()
+        status = self.setup_status(verify_connection=verify_connection)
         if status.is_error:
             return status
         ready = bool(status.output.result["ready"])
+        local_ready = bool(status.output.result.get("local_ready", ready))
         if ready:
             result = {
                 "mode": "ready",
                 "agent_action": "continue",
                 "setup_status": status.output.result,
+            }
+        elif verify_connection and local_ready:
+            result = {
+                "mode": "connection_verification_required",
+                "agent_action": "stop",
+                "setup_status": status.output.result,
+                "credential_boundary": (
+                    "This MCP-only agent server never receives or relays passwords, Cloudflare secrets, or private keys."
+                ),
+                "configuration_boundary": (
+                    "The local configuration is present, but the no-write remote connection preflight failed. "
+                    "An MCP owner must repair the connection boundary out of band."
+                ),
             }
         else:
             result = {
@@ -379,6 +450,89 @@ class ArtifactSftpService:
             },
         }
         return ServiceResponse(ToolOutput(ok=True, operation="publish", exit_code=0, result=result))
+
+    def unpublish(
+        self,
+        *,
+        project_path: str,
+        slug: str,
+        tool: str,
+        visibility: str = "private",
+        dry_run: bool = False,
+        confirm: bool = False,
+        confirm_public: bool = False,
+    ) -> ServiceResponse:
+        """Remove a published artifact slug from the remote SFTP server."""
+
+        project = self._project(project_path, "unpublish")
+        if isinstance(project, ServiceResponse):
+            return project
+        if not SLUG_RE.fullmatch(slug):
+            return self._error(
+                "unpublish", 2, "invalid_slug", "Slug must match the Artifact SFTP slug format.",
+                "Use 1–63 lowercase letters, digits, and single hyphens.",
+            )
+        if tool not in TOOLS:
+            return self._error(
+                "unpublish", 2, "invalid_tool", "Tool must be codex, openclaw, or claude.",
+                "Choose one supported runtime namespace.",
+            )
+        if visibility not in VISIBILITIES:
+            return self._error(
+                "unpublish", 2, "invalid_visibility", "Visibility must be private or public.",
+                "Use private unless public sharing is intentional.",
+            )
+        if not dry_run and not confirm:
+            return self._error(
+                "unpublish", None, "confirmation_required",
+                "Unpublishing removes the remote HTML artifact from the SFTP host.",
+                "Show the target to the user and call again with confirm=true after approval.",
+            )
+        if visibility == "public" and not dry_run and not confirm_public:
+            return self._error(
+                "unpublish", None, "public_confirmation_required",
+                "Public unpublishing removes a publicly accessible URL.",
+                "Obtain explicit public-sharing approval and call again with confirm_public=true.",
+            )
+
+        script = self._script("skills/artifact-sftp/scripts/publish.sh")
+        if isinstance(script, ServiceResponse):
+            return script
+        argv = ["bash", str(script), "--delete", slug, "--tool", tool]
+        if visibility == "public":
+            argv.append("--public")
+        if dry_run:
+            argv.append("--dry-run")
+        command = self.runner.run(argv, cwd=project, timeout=120)
+        if command.timed_out or command.spawn_error:
+            return self._server_failure("unpublish", command)
+        if command.returncode != 0:
+            return self._unpublish_failure(command.returncode)
+
+        result = {
+            "status": "dry_run" if dry_run else "unpublished",
+            "dry_run": dry_run,
+            "slug": slug,
+            "tool": tool,
+            "visibility": visibility,
+            "remote_removed": not dry_run,
+            "local_archive_retained": True,
+        }
+        return ServiceResponse(
+            ToolOutput(ok=True, operation="unpublish", exit_code=0, result=result)
+        )
+
+    def _unpublish_failure(self, exit_code: int) -> ServiceResponse:
+        mapping = {
+            2: ("invalid_input", "Publisher rejected the unpublish arguments.", "Correct the tool arguments and retry."),
+            3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.setup_status and stop; an MCP owner must provision the environment out of band."),
+            5: ("remote_operation_failed", "SFTP remote deletion failed.", "Check the pinned host, account access, and remote permissions."),
+        }
+        code, message, recovery = mapping.get(
+            exit_code,
+            ("unpublish_failed", "Unpublish failed without a recognized exit code.", "Stop and ask the MCP owner to inspect the server implementation before retrying."),
+        )
+        return self._error("unpublish", exit_code, code, message, recovery, retryable=exit_code == 5)
 
     def read(
         self,
@@ -697,6 +851,187 @@ class ArtifactSftpService:
             is_error=True,
         )
 
+    def _verify_connection(self, default_tool: str | None) -> dict[str, object]:
+        """Run a bounded, no-write authenticated SFTP preflight.
+
+        The publisher owns authentication, host-key verification, and transport
+        selection for every supported auth mode. Passing only a fixed list
+        operation and the already validated default tool keeps secrets and
+        connection details inside the owner-managed config boundary.
+        """
+
+        probe: dict[str, object] = {
+            "requested": True,
+            "attempted": False,
+            "status": "not_run",
+            "operation": "authenticated_sftp_preflight",
+        }
+        if default_tool not in TOOLS:
+            probe.update(
+                {
+                    "status": "invalid_local_configuration",
+                    "code": "default_tool_missing",
+                    "diagnostic": "default tool is unavailable for remote preflight",
+                }
+            )
+            return probe
+
+        script = self._script("skills/artifact-sftp/scripts/publish.sh")
+        if isinstance(script, ServiceResponse):
+            error = script.output.error
+            probe.update(
+                {
+                    "status": "local_script_unavailable",
+                    "code": error.code if error else "plugin_script_unavailable",
+                    "diagnostic": "trusted publisher is unavailable for remote preflight",
+                }
+            )
+            return probe
+
+        command = self.runner.run(
+            ("bash", str(script), "--list", "--tool", default_tool),
+            cwd=self.start_cwd,
+            timeout=100,
+        )
+        probe["attempted"] = True
+        if command.timed_out:
+            probe.update(
+                {
+                    "status": "timed_out",
+                    "code": "remote_connection_timed_out",
+                    "diagnostic": "no-write remote connection preflight timed out",
+                }
+            )
+            return probe
+        if command.spawn_error:
+            probe.update(
+                {
+                    "status": "unavailable",
+                    "code": "remote_connection_unavailable",
+                    "diagnostic": "no-write remote connection preflight could not start",
+                }
+            )
+            return probe
+        if command.returncode == 0:
+            probe.update(
+                {
+                    "status": "verified",
+                    "code": "remote_connection_verified",
+                    "diagnostic": "no-write remote connection preflight succeeded",
+                    "exit_code": 0,
+                }
+            )
+            return probe
+
+        code = "remote_connection_config_or_auth_failed" if command.returncode == 3 else "remote_connection_failed"
+        probe.update(
+            {
+                "status": "failed",
+                "code": code,
+                "diagnostic": "no-write remote connection preflight failed",
+                "exit_code": command.returncode,
+            }
+        )
+        return probe
+
+    @classmethod
+    def _setup_prerequisites(
+        cls,
+        lines: Sequence[str],
+        *,
+        overall_ready: bool,
+    ) -> tuple[dict[str, dict[str, object]], list[dict[str, str]]]:
+        """Turn the setup script's stable status lines into safe structured checks.
+
+        ``setup.sh --status`` intentionally does not print configuration values,
+        but keeping this translation here makes the MCP contract useful on a
+        fresh machine without asking an agent to interpret shell output. The
+        status script only checks local prerequisites; this method must never
+        turn a local ``READY`` into a claim that the remote host was contacted.
+        """
+
+        grouped: dict[str, dict[str, object]] = {
+            category: {
+                "ready": False,
+                "status": "not_checked",
+                "diagnostics": [],
+            }
+            for category in _SETUP_CATEGORIES
+        }
+        missing: list[dict[str, str]] = []
+        checked: dict[str, bool] = {category: False for category in _SETUP_CATEGORIES}
+
+        for line in lines:
+            category = cls._setup_category(line)
+            if category is None:
+                continue
+            checked[category] = True
+            diagnostics = grouped[category]["diagnostics"]
+            assert isinstance(diagnostics, list)
+            diagnostics.append(line)
+            if not cls._setup_line_is_issue(line):
+                continue
+
+            reason = cls._setup_issue_reason(line)
+            code = cls._setup_issue_code(line, reason)
+            grouped[category]["ready"] = False
+            grouped[category]["status"] = reason
+            missing.append(
+                {
+                    "category": category,
+                    "code": code,
+                    "diagnostic": line,
+                }
+            )
+
+        for category in _SETUP_CATEGORIES:
+            if not checked[category]:
+                # A dependency branch is only evaluated after a valid config
+                # selects an auth mode. Keep that distinction visible on a
+                # fresh machine instead of claiming that it passed.
+                if overall_ready:
+                    grouped[category]["ready"] = True
+                    grouped[category]["status"] = "ready"
+                continue
+            if not any(item["category"] == category for item in missing):
+                grouped[category]["ready"] = True
+                grouped[category]["status"] = "ready"
+
+        return grouped, missing
+
+    @staticmethod
+    def _setup_category(line: str) -> str | None:
+        """Map stable setup status prefixes to an agent-facing category."""
+
+        prefix = line.split(":", 1)[0].strip().lower()
+        if prefix == "dependency":
+            return "runtime"
+        if prefix in {"config directory", "config", "config key", "default tool"}:
+            return "config"
+        if prefix in {"auth", "config port", "known_hosts", "ssh key"}:
+            return "connection"
+        return None
+
+    @staticmethod
+    def _setup_line_is_issue(line: str) -> bool:
+        lower = line.lower()
+        return lower.startswith("not ready") or any(
+            marker in lower for marker in _SETUP_ISSUE_MARKERS
+        )
+
+    @staticmethod
+    def _setup_issue_reason(line: str) -> str:
+        lower = line.lower()
+        if "missing" in lower or "unreadable" in lower:
+            return "missing"
+        return "invalid"
+
+    @staticmethod
+    def _setup_issue_code(line: str, reason: str) -> str:
+        prefix = line.split(":", 1)[0].strip().lower()
+        prefix = re.sub(r"[^a-z0-9]+", "_", prefix).strip("_") or "setup"
+        return f"{prefix}_{reason}"
+
     @staticmethod
     def _safe_lines(value: str) -> list[str]:
         lines: list[str] = []
@@ -704,11 +1039,8 @@ class ArtifactSftpService:
             line = raw.strip()
             if not line:
                 continue
-            line = re.sub(
-                r"(?i)([A-Z0-9_]*(?:PASSWORD|SECRET|TOKEN|AUTHORIZATION)[A-Z0-9_]*)\s*[=:]\s*\S+",
-                r"\1=<redacted>",
-                line,
-            )
+            line = _SETUP_SECRET_RE.sub(r"\1=<redacted>", line)
+            line = _SETUP_PEM_RE.sub("-----BEGIN PRIVATE KEY-----=<redacted>", line)
             line = re.sub(r"op://\S+", "op://<redacted>", line)
             line = re.sub(r"https?://\S+", "<url-redacted>", line)
             lines.append(line[:300])

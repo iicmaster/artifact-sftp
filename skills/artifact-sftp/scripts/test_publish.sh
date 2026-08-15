@@ -81,6 +81,12 @@ if [ -n "$out" ]; then cat "$src" > "$out"; else cat "$src"; fi
 printf '%s' "$code"   # -w '%{http_code}'
 EOF
 chmod +x "$WORK/bin/sftp" "$WORK/bin/curl"
+cat > "$WORK/bin/op.exe" <<'EOF'
+#!/bin/sh
+[ "${1:-}" = read ] || exit 2
+printf '%s\n' 'offline-op-private-key-fixture'
+EOF
+chmod +x "$WORK/bin/op.exe"
 export PATH="$WORK/bin:$PATH"
 export MOCK_LOG="$WORK/sftp.log"
 export MOCK_LAST_PUT="$WORK/last_put"
@@ -156,6 +162,46 @@ out=$(bash "$PUB" --slug ok "$good" 2>"$WORK/errout") || { echo "FAIL: happy pat
 grep -q 'index.html.tmp' "$MOCK_LOG" || { echo "FAIL: no atomic tmp upload in batch"; fails=$((fails+1)); }
 grep -qxF 'codex/private/ok' "$HOME/.config/artifact-sftp/published.list" || { echo "FAIL: manifest not updated"; fails=$((fails+1)); }
 echo "PASS happy path (atomic upload + manifest)"
+cp "$MOCK_LAST_PUT" "$WORK/happy-last-put"
+
+# 1Password resolution must work when only op.exe is available on PATH (the
+# WSL/native-Windows case). Build an isolated PATH with no directory containing
+# op, while retaining the small set of host utilities publish.sh needs.
+OP_ONLY_BIN="$WORK/op-only-bin"
+mkdir -p "$OP_ONLY_BIN"
+for command_name in awk bash cat chmod cp date grep head mkdir mktemp mv perl rm sed sort stat tail tr; do
+  command_path=$(command -v "$command_name" || true)
+  [ -n "$command_path" ] && ln -sf "$command_path" "$OP_ONLY_BIN/$command_name"
+done
+SAFE_PATH=''
+old_ifs=$IFS; IFS=:
+for path_dir in $PATH; do
+  [ -n "$path_dir" ] || continue
+  [ -x "$path_dir/op" ] && continue
+  SAFE_PATH="${SAFE_PATH:+$SAFE_PATH:}$path_dir"
+done
+IFS=$old_ifs
+OP_ONLY_PATH="$OP_ONLY_BIN:$WORK/bin:$SAFE_PATH"
+if env PATH="$OP_ONLY_PATH" /bin/bash -c 'command -v op >/dev/null 2>&1'; then
+  echo "FAIL: op-only PATH unexpectedly contains op"; fails=$((fails+1))
+fi
+cp "$cfg" "$cfg.before-op"
+awk '!/^SSH_KEY=/' "$cfg.before-op" >"$cfg"
+printf '%s\n' 'OP_KEY_REF=op://vault/item' >>"$cfg"
+chmod 600 "$cfg"
+op_only_rc=0
+op_only_out=''
+op_only_out=$(env PATH="$OP_ONLY_PATH" /bin/bash "$PUB" --slug op-only --force "$good" 2>"$WORK/op-only.err") \
+  || op_only_rc=$?
+if [ "$op_only_rc" -eq 0 ] && [ "$op_only_out" = 'https://example.invalid/codex/private/op-only/' ]; then
+  echo "PASS op.exe-only PATH resolves 1Password key"
+else
+  echo "FAIL: op.exe-only PATH publish — want exit 0 + URL, got exit $op_only_rc '$op_only_out'"
+  sed 's/^/  | /' "$WORK/op-only.err"; fails=$((fails+1))
+fi
+mv "$cfg.before-op" "$cfg"
+chmod 600 "$cfg"
+cp "$WORK/happy-last-put" "$MOCK_LAST_PUT"
 
 # --- versioned snapshot + timestamp stamping ---
 grep -qE 'ok--1--[0-9]{8}T[0-9]{6}Z\.html' "$MOCK_LOG" \
@@ -209,6 +255,30 @@ unset MOCK_SFTP_EXIT
 # --- config guards ---
 chmod 644 "$cfg"
 expect 3 "world-readable config rejected"          -- bash "$PUB" --slug ok "$good"
+chmod 600 "$cfg"
+
+cp "$cfg" "$cfg.before-invalid-url"
+sed 's#^PUBLIC_BASE_URL=.*#PUBLIC_BASE_URL=https://example.invalid/#' \
+  "$cfg.before-invalid-url" >"$cfg"
+chmod 600 "$cfg"
+expect 3 "trailing slash in PUBLIC_BASE_URL rejected" -- bash "$PUB" --slug bad-url "$good"
+mv "$cfg.before-invalid-url" "$cfg"
+chmod 600 "$cfg"
+
+cp "$cfg" "$cfg.before-query-url"
+sed 's#^PUBLIC_BASE_URL=.*#PUBLIC_BASE_URL=https://example.invalid/artifacts?preview=1#' \
+  "$cfg.before-query-url" >"$cfg"
+chmod 600 "$cfg"
+expect 3 "query in PUBLIC_BASE_URL rejected" -- bash "$PUB" --slug query-url "$good"
+mv "$cfg.before-query-url" "$cfg"
+chmod 600 "$cfg"
+
+cp "$cfg" "$cfg.before-path-url"
+sed 's#^PUBLIC_BASE_URL=.*#PUBLIC_BASE_URL=https://example.invalid/artifacts#' \
+  "$cfg.before-path-url" >"$cfg"
+chmod 600 "$cfg"
+expect 3 "path in PUBLIC_BASE_URL rejected" -- bash "$PUB" --slug path-url "$good"
+mv "$cfg.before-path-url" "$cfg"
 chmod 600 "$cfg"
 
 # --- config-injection guard: a config value that SOURCES cleanly but is unsafe for the curl -K

@@ -55,6 +55,36 @@ updates. `PLUGIN_ROOT` is also exported for the launcher's own fallback chain.
 When the server definition changes, update both files — they are deliberately not identical,
 so a plain `diff` should show exactly the rows above and nothing else.
 
+## Fresh-machine onboarding
+
+The environment owner should follow [docs/setup.md](docs/setup.md) before handing this
+plugin to an agent. It covers the host prerequisites, the owner-only configuration location,
+the stdio launch contract, an MCP-only setup/connection smoke test, and the distinction between
+an MCP startup failure and a remote SFTP failure. The checkout is not a credential store: do not put
+the configuration, private keys, host-key material, passwords, or Cloudflare secrets in Git,
+an MCP argument, an agent prompt, or a log.
+
+The packaged runtime is verified for a Unix-like MCP child on macOS or Linux. Native Windows
+processes are not supported; a Windows owner must use a host that launches the child inside WSL
+or Git Bash with the same Unix-like `HOME` and required tools. See the setup checklist before
+assuming a desktop plugin installation also provisions SFTP access.
+
+Plugin discoverability is a host-registration concern, separate from configuration readiness.
+The package includes a Claude Code compatibility [`.mcp.json`](.mcp.json) in addition to the
+portable [mcp.json](mcp.json); the two have different host-variable contracts. The Claude entry
+uses its official persistent `${CLAUDE_PLUGIN_DATA}` location for the locked runtime, so a plugin
+update does not discard it. If the plugin looks installed but the host lists zero Artifact SFTP
+tools, reload/approve the host registration first; `setup_status` cannot run until the MCP server
+is discoverable. A conformant Agent Plugins host supplies the portable `PLUGIN_ROOT` and
+`PLUGIN_DATA` variables automatically; a host that omits either one has a plugin-launch problem,
+not an SFTP credential problem.
+
+For the current Claude Code CLI, the environment owner installs the marketplace with
+`claude plugin marketplace add iicmaster/artifact-sftp`, then runs
+`claude plugin install artifact-sftp@artifact-sftp`. Reload Claude Code and run `claude mcp list`
+outside the plugin checkout; the expected plugin server state is `Connected`. The full
+copy-paste flow and failure triage are in [docs/setup.md](docs/setup.md).
+
 ## MCP (local stdio)
 
 `artifact-sftp-mcp` is a **local stdio** MCP server. It wraps the existing publisher,
@@ -63,8 +93,17 @@ reimplement SFTP. The server keeps stdout exclusively for MCP frames.
 
 This package is **MCP-only for AI agents**. A compatible Agent Plugins host discovers the
 plugin-relative launcher in [mcp.json](mcp.json), supplies `PLUGIN_ROOT` and a writable
-`PLUGIN_DATA` directory, and starts the server. The launcher uses the lockfile with `uv` and
+persisted `PLUGIN_DATA` directory, and starts the server. Those two variables are part of the
+portable host contract rather than values an installer needs to guess. The manifest starts
+`./bin/artifact-sftp-mcp` with `${PLUGIN_ROOT}` as its working directory and passes
+`ARTIFACT_SFTP_PLUGIN_ROOT=${PLUGIN_ROOT}`. `PLUGIN_DATA` is a host-owned runtime/cache
+directory, separate from the SFTP configuration. The launcher uses the lockfile with `uv` and
 does not store credentials in package metadata or MCP arguments.
+
+The pre-provisioned SFTP configuration is read from the MCP process's home directory at
+`$HOME/.config/artifact-sftp/config`, with the pinned host keys in the sibling
+`known_hosts` file. The MCP host must launch the child with the same owner home directory that
+contains those files; an isolated or different `HOME` will correctly appear unconfigured.
 
 The environment owner must pre-provision a compatible `uv` executable on `PATH` (CI verifies
 the packaged launcher with `uv 0.12.3`). If it is absent, the launcher fails closed with exit
@@ -74,6 +113,14 @@ Tool calls must pass an absolute `project_path`; this is the project where
 `docs/artifacts/` will be kept. If the MCP server is not available or reports a configuration
 boundary, the agent must stop rather than execute a bundled script, direct SFTP, or HTTP
 fallback.
+
+If a host reports that it cannot connect before any tools are listed, diagnose the launcher
+environment (plugin root, writable plugin data, `uv`, and the host's MCP process scope) using
+[docs/setup.md](docs/setup.md). If `artifact_sftp.setup_status` is available but returns
+`ready: false`, the MCP server is connected. Use `verify_connection: true` on a fresh machine:
+it adds a bounded, no-write SFTP preflight using only the stored owner configuration. A result
+with `local_ready: true` and a failed `remote_connection` points to the SFTP boundary rather
+than MCP discovery or local configuration.
 
 The MCP-only policy and internal direct-invocation guards prevent ordinary routing mistakes.
 They are not a privilege boundary against a process that already has unrestricted shell and
@@ -94,10 +141,19 @@ The agent tool surface is deliberately small:
 
 ## Agent workflow
 
-Call `artifact_sftp.setup_status` before a first publish. When ready, call
+Call `artifact_sftp.setup_status` with `verify_connection: true` before a first real publish.
+A ready result has `agent_action: "continue"`; a not-ready result has `agent_action: "stop"`.
+`local_ready: false` means the owner-side configuration/dependency boundary needs repair;
+`local_ready: true` plus a failed remote preflight means the SFTP boundary needs repair. When
+ready, call
 `artifact_sftp.publish` only after the required confirmation. The default is private; public
 visibility needs a separate confirmation. The MCP server refuses to publish unless it first
 writes the stamped bytes to `docs/artifacts/<tool>/<visibility>/<slug>/`.
+
+When setup is not ready, call `artifact_sftp.setup` only to receive its structured boundary,
+then stop. Do not ask an agent to inspect or paste the config, run a bundled setup script,
+install a dependency, or try direct SFTP/HTTP. The environment owner repairs the boundary and
+the agent re-runs `setup_status` through MCP.
 
 The local layout mirrors the remote artifact identity:
 

@@ -155,6 +155,25 @@ assert_contains "$UNCONFIRMED_OUT" '--known-hosts-file is required' \
 [ ! -e "$UNCONFIRMED_HOME/.config/artifact-sftp/config" ] \
   || fail "unconfirmed host setup wrote a config"
 
+# URL construction is strict: setup must reject a trailing slash before it can
+# write a config, otherwise publish would produce a double slash in every URL.
+INVALID_URL_HOME="$TMP_ROOT/invalid url home"
+INVALID_URL_OUT="$TMP_ROOT/invalid-url.out"
+run_capture "$INVALID_URL_OUT" env HOME="$INVALID_URL_HOME" PATH="$TEST_PATH" bash "$SETUP" \
+  --host sftp.test.invalid \
+  --user artifact-user \
+  --port 2222 \
+  --remote-dir /files \
+  --url https://artifacts.test.invalid/ \
+  --tool codex \
+  --ssh-key "$KEY_FILE" \
+  --known-hosts-file "$FIRST_KNOWN_SOURCE"
+assert_rc 2 "setup should reject a trailing slash in PUBLIC_BASE_URL"
+assert_contains "$INVALID_URL_OUT" 'HTTPS origin with a host, no path/query/fragment, and no trailing slash' \
+  "invalid PUBLIC_BASE_URL refusal was not explained"
+[ ! -e "$INVALID_URL_HOME/.config/artifact-sftp/config" ] \
+  || fail "invalid PUBLIC_BASE_URL setup wrote a config"
+
 CF_ID='fixture-cf-client-id'
 CF_SECRET='fixture-cf-secret-redact-me'  # pragma: allowlist secret
 SECRET_INPUT="$TMP_ROOT/setup.stdin"
@@ -200,6 +219,21 @@ assert_rc 0 "status should accept the new key-auth configuration"
 assert_contains "$READY_OUT" 'auth: ssh-key' "status did not report key authentication"
 assert_contains "$READY_OUT" 'READY' "ready summary was not reported"
 assert_not_contains "$READY_OUT" "$CF_SECRET" "status output leaked a stored secret"
+
+# Status must classify a hand-edited URL with a path as a config issue, rather
+# than claiming the host is ready and allowing the publisher to construct an
+# MCP-incompatible artifact URL.
+cp "$CONFIG" "$CONFIG.before-invalid-url"
+sed 's#^PUBLIC_BASE_URL=.*#PUBLIC_BASE_URL=https://artifacts.test.invalid/prefix#' \
+  "$CONFIG.before-invalid-url" >"$CONFIG"
+chmod 600 "$CONFIG"
+INVALID_STATUS_OUT="$TMP_ROOT/status-invalid-url.out"
+run_capture "$INVALID_STATUS_OUT" env HOME="$CONFIG_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+assert_rc 3 "status should reject a path-bearing PUBLIC_BASE_URL"
+assert_contains "$INVALID_STATUS_OUT" 'config: PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash' \
+  "invalid PUBLIC_BASE_URL was not reported in the config category"
+mv "$CONFIG.before-invalid-url" "$CONFIG"
+chmod 600 "$CONFIG"
 
 # READY must include semantic checks, not only key-name presence.
 KEY_HOLD="$TMP_ROOT/test_key.hold"

@@ -101,9 +101,15 @@ def main():
                     pass  # some servers reject chmod; upload already live
         elif op == "delete":
             rpath = sys.argv[2]
-            for name in sftp.listdir(rpath):
-                sftp.remove(rpath + "/" + name)
-            sftp.rmdir(rpath)
+            try:
+                for name in sftp.listdir(rpath):
+                    try:
+                        sftp.remove(rpath + "/" + name)
+                    except IOError:
+                        pass
+                sftp.rmdir(rpath)
+            except IOError:
+                pass  # directory already does not exist or was cleaned up
         elif op == "versions":
             try:
                 for name in sorted(sftp.listdir(sys.argv[2])):
