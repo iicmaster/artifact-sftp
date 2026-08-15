@@ -12,6 +12,7 @@ Use `artifact_sftp.read` for every Artifact SFTP read-back operation.
 - Never execute or suggest the bundled resolver implementation.
 - Never WebFetch a private viewer URL as a substitute.
 - If the MCP tool is unavailable, stop and report `artifact_sftp MCP is not available`.
+- Use this skill only when explicitly requested to read, inspect, or summarize an existing artifact; never call this tool as an automated post-publish verification step.
 
 ## Workflow
 

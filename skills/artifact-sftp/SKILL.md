@@ -34,8 +34,24 @@ are not a command surface.
 4. Ask for user approval before a real publish. Call `artifact_sftp.publish` with
    `confirm: true` only after that approval. The default visibility is `private`; public
    publishing additionally needs explicit public-sharing approval and `confirm_public: true`.
-5. On success, keep the returned local archive path as the read-back evidence. To inspect it,
-   call `artifact_sftp.read`, not an HTTP fetch of the viewer URL.
+5. On success, `artifact_sftp.publish` has already completed all necessary validations
+   (local custody archival, SFTP atomic upload, SHA-256 integrity match, and privacy protection
+   probe). Report the published URL and local read-back reference to the user and complete the turn.
+   Do NOT perform redundant post-publish verification (do NOT call `artifact_sftp.read`, and do NOT
+   fetch or browse the URL).
+
+## No redundant post-publish verification
+
+- `artifact_sftp.publish` performs complete internal verification before returning:
+  - Writes local custody copy and versioned snapshot to `docs/artifacts/`.
+  - Atomically delivers bytes over SFTP.
+  - Verifies remote SHA-256 byte match over HTTP (for public or authenticated private artifacts).
+  - Probes anonymous access to ensure private artifacts are not exposed.
+- If `artifact_sftp.publish` succeeds, the publish operation is complete.
+- AI agents MUST NOT execute follow-up verification actions:
+  - Do NOT call `artifact_sftp.read` to "check" or "verify" what was just published. `artifact_sftp.read` is strictly for reading existing archives when explicitly requested.
+  - Do NOT fetch, crawl, or browse the published URL with curl, fetch, or browser tools.
+- Simply provide the resulting URL and local read-back reference (`docs/artifacts/<tool>/<visibility>/<slug>/...`) to the user.
 
 ## Supported MCP operations
 
@@ -48,6 +64,9 @@ are not a command surface.
   Requires `confirm: true` (and `confirm_public: true` for public artifacts). Local archives
   under `docs/artifacts/` are always retained.
 - `artifact_sftp.read` — resolve and read a bounded local archive excerpt with no network fetch.
+  Use only when explicitly requested to read/summarize an existing artifact; never as a post-publish check.
+- `artifact_sftp.list` — list local artifact archives and discovered workspace HTML drafts in a project
+  (Local-First) for auditing and grooming.
 
 The agent surface intentionally has no force, sensitive-content override, or direct remote list
 operation. If asked for one, explain that the current MCP policy does not permit it;
