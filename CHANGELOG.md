@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.13.0] - 2026-08-15
 
 - Add `artifact_sftp.unpublish` MCP tool to safely remove published HTML artifacts from the remote SFTP host by slug while strictly preserving local archives in `docs/artifacts/`. Supports `confirm=true` (and `confirm_public=true` for public visibility) and `--dry-run` preflight (closes #9).
 - Make first-machine Artifact SFTP setup diagnosable through MCP: the packaged launcher now
