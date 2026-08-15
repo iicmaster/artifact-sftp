@@ -167,9 +167,9 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         name="artifact_sftp.list",
         title="List local Artifact SFTP archives and HTML drafts",
         description=(
-            "List all local artifact archives and HTML drafts in a project (Local-First). "
+            "List local artifact archives and HTML drafts in a project (Local-First). "
             "Inspects docs/artifacts/<tool>/<visibility>/<slug>/, parses snapshot versions, "
-            "and discovers workspace HTML drafts for auditing and grooming."
+            "and discovers workspace HTML drafts for auditing and grooming, bounded by limit."
         ),
         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
@@ -177,12 +177,14 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         project_path: str,
         tool: str | None = None,
         visibility: str | None = None,
+        limit: int = 100,
     ) -> ToolOutput:
         return _tool_result(
             adapter.list_inventory(
                 project_path=project_path,
                 tool=tool,
                 visibility=visibility,
+                limit=limit,
             )
         )  # type: ignore[return-value]
 

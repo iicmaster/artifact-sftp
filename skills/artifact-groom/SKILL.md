@@ -23,11 +23,13 @@ and presents an actionable health matrix for updates or cleanups.
 
 ### 1. Inventory Discovery via MCP
 
-Call `artifact_sftp.list` with `project_path`:
+Call `artifact_sftp.list` with `project_path` (optional `tool`, `visibility`, and `limit`):
 
 - Inspects all tool namespaces (`codex`, `openclaw`, `claude`) and visibilities (`private`, `public`) in `docs/artifacts/`.
 - Retrieves each artifact's `latest_version`, `latest_snapshot`, `snapshot_count`, `mtime`, and `index_sha256`.
+- Automatically prunes build, test, and framework cache trees (e.g. `dist/`, `build/`, `coverage/`, `.next/`).
 - Returns `local_drafts` listing workspace `.html`/`.htm` files outside artifact archive directories.
+- Reports `artifacts_truncated` and `local_drafts_truncated` flags when items exceed `limit` (default: 100).
 
 ### 2. Source Matching & Content Normalization
 
