@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.12.0] - 2026-08-15
 
 - Add root `.mcp.json` so Claude Code can start the MCP server. That installer reads a root
   `.mcp.json` or an `mcpServers` field in `.claude-plugin/plugin.json`, and reads neither
@@ -15,6 +15,13 @@ All notable changes to this project are documented here.
   requires — without it `bin/artifact-sftp-mcp` exits 78 and the host registers a server
   it never starts. `PLUGIN_DATA` now points outside the plugin directory so the `uv`
   environment survives plugin updates.
+- Keep the MCP adapter's own virtualenv out of a child script's `PATH`. Launched by `uv run`,
+  the adapter prepends its own virtualenv to `PATH`, which carries only `mcp[cli]`. Subprocess
+  scripts resolving `python3` from `PATH` (such as `setup.sh` and `publish.sh`) now correctly
+  reach the system or environment interpreter carrying `paramiko`.
+- Add the `show-me` skill (adapted from humanlayer's show-me under MIT) to create and publish
+  the smallest diagram, table, or visual artifact that makes a point, published directly through
+  `artifact_sftp` with a strict "never draw a secret" invariant.
 
 ## [0.11.1] - 2026-08-12
 
