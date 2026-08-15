@@ -600,6 +600,7 @@ class ArtifactSftpService:
 
         artifacts_root = project / "docs/artifacts"
         artifacts: list[dict[str, object]] = []
+        known_archive_dirs: set[Path] = set()
 
         allowed_tools = (tool,) if tool else tuple(sorted(TOOLS))
         allowed_vis = (visibility,) if visibility else tuple(sorted(VISIBILITIES))
@@ -620,6 +621,8 @@ class ArtifactSftpService:
                         if not SLUG_RE.fullmatch(slug):
                             continue
 
+                        known_archive_dirs.add(slug_dir.resolve())
+
                         index_file = slug_dir / "index.html"
                         index_present = index_file.is_file() and not index_file.is_symlink()
                         index_sha256 = ""
@@ -639,7 +642,7 @@ class ArtifactSftpService:
                                 ts = match.group(3)
                                 snapshots.append((v_num, ts, child))
 
-                        snapshots.sort(key=lambda s: s[0])
+                        snapshots.sort(key=lambda s: (s[0], s[1]))
                         latest_version = snapshots[-1][0] if snapshots else (1 if index_present else 0)
                         latest_snapshot = snapshots[-1][2].name if snapshots else ("index.html" if index_present else "")
                         latest_timestamp = snapshots[-1][1] if snapshots else ""
@@ -670,15 +673,14 @@ class ArtifactSftpService:
         if artifacts_truncated:
             artifacts = artifacts[:clamped_limit]
 
-        local_drafts: list[str] = []
+        local_drafts: list[dict[str, object]] = []
         local_drafts_truncated = False
 
         for root, dirs, files in os.walk(project):
             dirs[:] = [d for d in dirs if d not in IGNORED_DRAFT_DIRS and not d.startswith(".")]
-            rel_root = Path(root).relative_to(project)
-            if rel_root.parts and rel_root.parts[0] == "docs" and len(rel_root.parts) >= 2 and rel_root.parts[1] == "artifacts":
-                if len(rel_root.parts) >= 4:
-                    continue
+            root_path = Path(root).resolve()
+            if any(root_path == a_dir or a_dir in root_path.parents for a_dir in known_archive_dirs):
+                continue
             for f in sorted(files):
                 if f.lower().endswith((".html", ".htm")):
                     f_path = Path(root) / f
@@ -686,7 +688,23 @@ class ArtifactSftpService:
                         if len(local_drafts) >= clamped_limit:
                             local_drafts_truncated = True
                             break
-                        local_drafts.append(str(f_path.relative_to(project)))
+                        draft_rel = str(f_path.relative_to(project))
+                        draft_mtime: int | None = None
+                        draft_size = 0
+                        draft_sha256 = ""
+                        try:
+                            st = f_path.stat()
+                            draft_mtime = int(st.st_mtime)
+                            draft_size = int(st.st_size)
+                            draft_sha256 = hashlib.sha256(f_path.read_bytes()).hexdigest()
+                        except OSError:
+                            pass
+                        local_drafts.append({
+                            "path": draft_rel,
+                            "mtime": draft_mtime,
+                            "size": draft_size,
+                            "sha256": draft_sha256,
+                        })
             if local_drafts_truncated:
                 break
 
