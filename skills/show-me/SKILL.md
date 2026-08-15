@@ -71,7 +71,7 @@ target shape — plain code.
 
 For any rich diagram, architectural layout, state comparison, UI wireframe, or visual walkthrough:
 1. **Generate a focused, standalone HTML artifact** (styled with modern CSS, responsive layout, and Sarabun font for Thai text).
-2. **Publish it through `artifact_sftp.publish`** with `confirm=true` and a clean `slug`.
+2. **Obtain user approval, then publish it through `artifact_sftp.publish`** with `confirm=true` (and `confirm_public=true` if public) and a clean `slug`.
 3. **Return the local read-back reference** (e.g. `docs/artifacts/<tool>/<visibility>/<slug>/...`) for immediate offline inspection, keeping the artifact persistent, versioned, and shareable.
 
 *For simple inline code, call trees, diffs, or quick Mermaid diagrams, inline snippets may accompany the response, but creating and publishing the HTML artifact is the complete end-to-end standard for this plugin.*

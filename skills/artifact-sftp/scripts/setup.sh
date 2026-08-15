@@ -130,7 +130,7 @@ status() {
     if [ "$shape_ok" -eq 1 ] && [ "$(_config_count PUBLIC_BASE_URL)" -eq 1 ] \
        && [ -n "$(_config_value PUBLIC_BASE_URL)" ] \
        && ! _public_base_url_valid "$(_config_value PUBLIC_BASE_URL)"; then
-      printf 'config: PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash\n'
+      printf 'config: PUBLIC_BASE_URL is invalid (must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash)\n'
       issues=$((issues + 1)); config_ok=0
     fi
 

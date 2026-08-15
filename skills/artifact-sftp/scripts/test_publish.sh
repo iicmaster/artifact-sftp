@@ -433,5 +433,30 @@ else
   sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 
+# --- delete is idempotent and ignores missing directory ---
+del_rc=0
+bash "$PUB" --delete nonexistent-slug >"$WORK/out" 2>"$WORK/del_errout" || del_rc=$?
+if [ "$del_rc" -eq 0 ] && grep -q 'deleted: codex/private/nonexistent-slug' "$WORK/del_errout"; then
+  echo "PASS idempotent delete of non-existent slug succeeds (exit 0)"
+else
+  echo "FAIL: idempotent delete of non-existent slug failed — got exit $del_rc"
+  sed 's/^/  | /' "$WORK/del_errout"; fails=$((fails+1))
+fi
+
+# --- delete operates without validating PUBLIC_BASE_URL ---
+cp "$cfg" "$cfg.before-del-bad-url"
+sed 's#^PUBLIC_BASE_URL=.*#PUBLIC_BASE_URL=https://example.invalid/bad/path/#' "$cfg.before-del-bad-url" >"$cfg"
+chmod 600 "$cfg"
+del_bad_url_rc=0
+bash "$PUB" --delete del-with-bad-url >"$WORK/out" 2>"$WORK/del_bad_url.err" || del_bad_url_rc=$?
+if [ "$del_bad_url_rc" -eq 0 ] && grep -q 'deleted: codex/private/del-with-bad-url' "$WORK/del_bad_url.err"; then
+  echo "PASS delete succeeds even with invalid PUBLIC_BASE_URL"
+else
+  echo "FAIL: delete failed when PUBLIC_BASE_URL had a path — got exit $del_bad_url_rc"
+  sed 's/^/  | /' "$WORK/del_bad_url.err"; fails=$((fails+1))
+fi
+mv "$cfg.before-del-bad-url" "$cfg"
+chmod 600 "$cfg"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi
