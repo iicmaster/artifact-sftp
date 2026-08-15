@@ -5,71 +5,72 @@ description: Audit, inspect, and groom all HTML artifacts in the project (Local-
 
 # Artifact Grooming — Local-First Artifact Curator
 
-The `artifact-groom` skill is an MCP-only workflow that audits and maintains the health of all HTML artifacts in a project.
-It inspects the local custody record (`docs/artifacts/`), compares published snapshots with
-current source documents, and presents an actionable health matrix for updates or cleanups.
+The `artifact-groom` skill is an MCP-only workflow that audits, inspects, and maintains the health of all HTML artifacts in a project.
+It discovers the local custody record (`docs/artifacts/`) and workspace HTML files through `artifact_sftp.list`,
+compares published snapshots with current source documents using normalized markup comparison,
+and presents an actionable health matrix for updates or cleanups.
 
 ## Mandatory routing
 
-1. Use only `artifact_sftp.*` MCP tools for any Artifact SFTP mutation or inspection.
+1. Use only `artifact_sftp.*` MCP tools (`artifact_sftp.list`, `artifact_sftp.publish`, `artifact_sftp.unpublish`, `artifact_sftp.read`).
 2. Never execute, source, or wrap bundled scripts directly.
-3. Local-First Invariant: Always build the artifact inventory from the local project archive
-   under `docs/artifacts/<tool>/<visibility>/<slug>/`.
+3. Local-First Invariant: Always start by inspecting the project's local archive through `artifact_sftp.list`.
 4. Never perform destructive unpublishing or batch republication without explicit user confirmation.
+   - For `private` visibility: requires `confirm=true`.
+   - For `public` visibility: requires BOTH `confirm=true` and `confirm_public=true`.
 
 ## Grooming workflow
 
-### 1. Inventory Discovery (Local-First)
+### 1. Inventory Discovery via MCP
 
-Scan the local project tree under `docs/artifacts/`:
+Call `artifact_sftp.list` with `project_path`:
 
-- Identify every tool namespace (`codex`, `openclaw`, `claude`) and visibility (`private`, `public`).
-- For each slug directory `docs/artifacts/<tool>/<visibility>/<slug>/`:
-  - Locate `index.html` (the current live copy).
-  - Find all snapshot files (`<slug>--<version>--<timestamp>.html`) and identify the latest version number.
-  - Record the latest snapshot timestamp and SHA256 content digest.
+- Inspects all tool namespaces (`codex`, `openclaw`, `claude`) and visibilities (`private`, `public`) in `docs/artifacts/`.
+- Retrieves each artifact's `latest_version`, `latest_snapshot`, `snapshot_count`, `mtime`, and `index_sha256`.
+- Returns `local_drafts` listing workspace `.html`/`.htm` files outside artifact archive directories.
 
-### 2. Source Matching & Comparison
+### 2. Source Matching & Content Normalization
 
-For each discovered slug:
+For each discovered artifact in the inventory:
 
-- Search the project workspace for the corresponding source HTML file (for example, `docs/artifacts/<slug>.html`,
-  `<slug>.html`, or source files specified in project documentation).
-- If source HTML is found:
-  - Compare the source file's SHA256 digest with the latest archived snapshot's SHA256 digest.
-  - Compare file modification timestamps (`mtime`).
-- If no source HTML is found:
-  - Check whether the slug matches temporary test patterns (e.g. `test-*`, `smoke-*`, `tmp-*`, `temp-*`).
+1. **Source Matching:** Search workspace files for candidate source HTML (e.g. matching filename `<slug>.html`, `docs/artifacts/<slug>.html`, or documented source paths).
+2. **Content Normalization:**
+   - Because the publisher injects official Sarabun font tags, UTF-8 charset declarations, and `<footer data-artifact-meta>`, a raw byte hash will differ from the original source.
+   - Strip publisher-injected elements (`data-artifact-sftp-font`, `data-artifact-meta` footer) before comparing content hashes or DOM structure.
+3. **Modification Comparison:** Compare normalized source content and file modification timestamps (`mtime`).
 
 ### 3. Health Classification Matrix
 
-Classify each artifact into one of four states:
+Classify each item into one of the following states:
 
 | Status | Icon | Criteria | Recommended Agent Action |
 |---|---|---|---|
-| **Fresh / Synced** | 🟢 | Source matches latest snapshot hash; up to date | Retain as-is |
-| **Stale / Outdated** | 🟡 | Source HTML has newer edits or different hash | Propose `artifact_sftp.publish` to update version |
-| **Orphaned / Ephemeral** | 🔴 | Source file missing, or slug has temporary test prefix | Propose `artifact_sftp.unpublish` to clean up remote slug |
-| **Local Draft** | ⚪ | Source HTML exists locally without published remote state | Offer initial `artifact_sftp.publish` |
+| **Fresh / Synced** | 🟢 | Normalized source matches latest snapshot; up to date | Retain as-is |
+| **Stale / Outdated** | 🟡 | Source HTML has newer edits or different normalized content | Propose `artifact_sftp.publish` to update version |
+| **Unlinked Source** | ⚪ | Source filename differs from slug; provenance unconfirmed | Keep; prompt user for source path if update needed |
+| **Orphaned / Ephemeral** | 🔴 | Known source deleted, or slug matches test prefixes (`test-*`, `smoke-*`, `tmp-*`) | Propose `artifact_sftp.unpublish` with confirmation |
+| **Local Draft** | 📝 | Workspace HTML file exists without published archive | Offer initial `artifact_sftp.publish` |
 
 ### 4. Present Grooming Report
 
-Render a clear summary table to the user:
+Render a clear, structured summary table to the user:
 
 ```text
-| Slug | Tool / Vis | Version | Last Published | Status | Recommended Action |
+| Slug / Path | Tool / Visibility | Version | Last Updated | Status | Recommended Action |
 |---|---|---|---|---|---|
 | show-me-architecture | openclaw / private | v2 | 2026-08-15 21:13 | 🟢 Fresh | Keep |
 | project-summary | codex / private | v1 | 2026-08-10 14:00 | 🟡 Stale | Update (publish) |
-| test-experiment | openclaw / private | v1 | 2026-08-12 09:30 | 🔴 Orphaned | Take down (unpublish) |
+| reports/q3-review.html | (local draft) | - | 2026-08-15 10:00 | 📝 Local Draft | Publish |
+| smoke-test-1 | openclaw / private | v1 | 2026-08-12 09:30 | 🔴 Ephemeral | Unpublish |
 ```
 
-### 5. Interactive Execution
+### 5. Interactive Execution & Safeguards
 
-Ask the user which proposed actions to execute:
+Ask the user to confirm proposed actions before executing mutations:
 
-- **For updates:** Call `artifact_sftp.publish` with `confirm: true` using the updated source path.
+- **For updates:** Call `artifact_sftp.publish(project_path, source_path, slug, tool, visibility, confirm=true)` (add `confirm_public=true` if public).
+  - *Note on machine ownership:* If the slug was originally published on a different machine, the publisher guards against accidental remote overwrites. Report ownership mismatch if encountered.
 - **For teardowns:**
-  - Optionally preview with `artifact_sftp.unpublish(..., dry_run=true)`.
-  - Execute teardown with `artifact_sftp.unpublish(..., confirm=true)`.
-  - Note to the user that remote hosting is removed while local snapshot history is preserved.
+  - Optionally preview with `artifact_sftp.unpublish(project_path, slug, tool, visibility, dry_run=true)`.
+  - Execute teardown with `artifact_sftp.unpublish(project_path, slug, tool, visibility, confirm=true)` (add `confirm_public=true` if public).
+  - Remind the user that remote hosting is removed while local snapshot history in `docs/artifacts/` is preserved.

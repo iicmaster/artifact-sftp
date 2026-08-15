@@ -74,6 +74,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
                 "artifact_sftp.publish",
                 "artifact_sftp.unpublish",
                 "artifact_sftp.read",
+                "artifact_sftp.list",
             },
         )
         publish_properties = tools["artifact_sftp.publish"].input_schema["properties"]
@@ -97,6 +98,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             "boolean",
         )
         self.assertTrue(tools["artifact_sftp.read"].annotations.read_only_hint)
+        self.assertTrue(tools["artifact_sftp.list"].annotations.read_only_hint)
         self.assertTrue(tools["artifact_sftp.publish"].annotations.open_world_hint)
         self.assertTrue(tools["artifact_sftp.unpublish"].annotations.open_world_hint)
         self.assertTrue(tools["artifact_sftp.setup_status"].annotations.open_world_hint)
@@ -573,6 +575,44 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(result["local_archive_retained"])
             # Local archive files must remain untouched
             self.assertTrue(current.is_file())
+
+    async def test_list_inventory_discovers_artifacts_and_local_drafts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, source, current, snapshot = make_project(Path(temp))
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project)},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["artifacts_count"], 1)
+        self.assertEqual(len(result["artifacts"]), 1)
+        item = result["artifacts"][0]
+        self.assertEqual(item["tool"], "codex")
+        self.assertEqual(item["visibility"], "private")
+        self.assertEqual(item["slug"], "report")
+        self.assertEqual(item["latest_version"], 1)
+        self.assertEqual(item["snapshot_count"], 1)
+        self.assertTrue(item["index_present"])
+        self.assertIn("report.html", result["local_drafts"])
+
+    async def test_list_inventory_filters_by_tool_and_visibility(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project), "tool": "openclaw", "visibility": "public"},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["artifacts_count"], 0)
+        self.assertEqual(result["artifacts"], [])
 
 
 if __name__ == "__main__":

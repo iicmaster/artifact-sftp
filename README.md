@@ -141,6 +141,8 @@ The agent tool surface is deliberately small:
 - `artifact_sftp.read` resolves a canonical URL, `read-back:` line, or local archive path
   and returns a bounded local excerpt. It never WebFetches a private viewer URL; returned
   HTML is marked untrusted and is not a rendering verdict.
+- `artifact_sftp.list` lists local artifact archives and discovered workspace HTML drafts in a project
+  (Local-First) for auditing and grooming.
 
 ## Skills
 

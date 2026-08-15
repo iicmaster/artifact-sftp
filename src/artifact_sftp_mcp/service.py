@@ -534,6 +534,124 @@ class ArtifactSftpService:
         )
         return self._error("unpublish", exit_code, code, message, recovery, retryable=exit_code == 5)
 
+    def list_inventory(
+        self,
+        *,
+        project_path: str,
+        tool: str | None = None,
+        visibility: str | None = None,
+    ) -> ServiceResponse:
+        """List local artifact archives and HTML drafts in a project (Local-First)."""
+
+        project = self._project(project_path, "list")
+        if isinstance(project, ServiceResponse):
+            return project
+
+        if tool is not None and tool not in TOOLS:
+            return self._error(
+                "list", 2, "invalid_tool",
+                f"tool must be one of: {', '.join(sorted(TOOLS))}.",
+                "Filter by a valid tool namespace or omit the filter.",
+            )
+        if visibility is not None and visibility not in VISIBILITIES:
+            return self._error(
+                "list", 2, "invalid_visibility",
+                f"visibility must be one of: {', '.join(sorted(VISIBILITIES))}.",
+                "Filter by a valid visibility ('private' or 'public') or omit the filter.",
+            )
+
+        artifacts_root = project / "docs/artifacts"
+        artifacts: list[dict[str, object]] = []
+
+        allowed_tools = (tool,) if tool else tuple(sorted(TOOLS))
+        allowed_vis = (visibility,) if visibility else tuple(sorted(VISIBILITIES))
+
+        if artifacts_root.is_dir() and not artifacts_root.is_symlink():
+            for t_name in allowed_tools:
+                t_dir = artifacts_root / t_name
+                if not t_dir.is_dir() or t_dir.is_symlink():
+                    continue
+                for v_name in allowed_vis:
+                    v_dir = t_dir / v_name
+                    if not v_dir.is_dir() or v_dir.is_symlink():
+                        continue
+                    for slug_dir in sorted(v_dir.iterdir()):
+                        if not slug_dir.is_dir() or slug_dir.is_symlink():
+                            continue
+                        slug = slug_dir.name
+                        if not SLUG_RE.fullmatch(slug):
+                            continue
+
+                        index_file = slug_dir / "index.html"
+                        index_present = index_file.is_file() and not index_file.is_symlink()
+                        index_sha256 = ""
+                        if index_present:
+                            try:
+                                index_sha256 = hashlib.sha256(index_file.read_bytes()).hexdigest()
+                            except OSError:
+                                pass
+
+                        snapshots: list[tuple[int, str, Path]] = []
+                        for child in slug_dir.iterdir():
+                            if not child.is_file() or child.is_symlink():
+                                continue
+                            match = SNAPSHOT_RE.fullmatch(child.name)
+                            if match and match.group(1) == slug:
+                                v_num = int(match.group(2))
+                                ts = match.group(3)
+                                snapshots.append((v_num, ts, child))
+
+                        snapshots.sort(key=lambda s: s[0])
+                        latest_version = snapshots[-1][0] if snapshots else (1 if index_present else 0)
+                        latest_snapshot = snapshots[-1][2].name if snapshots else ("index.html" if index_present else "")
+                        latest_timestamp = snapshots[-1][1] if snapshots else ""
+
+                        latest_mtime: int | None = None
+                        try:
+                            mtime_target = snapshots[-1][2] if snapshots else (index_file if index_present else slug_dir)
+                            latest_mtime = int(mtime_target.stat().st_mtime)
+                        except OSError:
+                            pass
+
+                        artifacts.append({
+                            "tool": t_name,
+                            "visibility": v_name,
+                            "slug": slug,
+                            "latest_version": latest_version,
+                            "latest_snapshot": latest_snapshot,
+                            "latest_timestamp": latest_timestamp,
+                            "snapshot_count": len(snapshots),
+                            "archive_dir": str(slug_dir),
+                            "index_present": index_present,
+                            "index_sha256": index_sha256,
+                            "mtime": latest_mtime,
+                        })
+
+        local_drafts: list[str] = []
+        ignored_names = {".git", ".venv", "node_modules", "__pycache__", ".agents", ".gemini", ".system_generated"}
+        for root, dirs, files in os.walk(project):
+            dirs[:] = [d for d in dirs if d not in ignored_names]
+            rel_root = Path(root).relative_to(project)
+            if rel_root.parts and rel_root.parts[0] == "docs" and len(rel_root.parts) >= 2 and rel_root.parts[1] == "artifacts":
+                if len(rel_root.parts) >= 4:
+                    continue
+            for f in sorted(files):
+                if f.lower().endswith((".html", ".htm")):
+                    f_path = Path(root) / f
+                    if not f_path.is_symlink():
+                        local_drafts.append(str(f_path.relative_to(project)))
+
+        result = {
+            "project_path": str(project),
+            "artifacts_count": len(artifacts),
+            "artifacts": artifacts,
+            "local_drafts_count": len(local_drafts),
+            "local_drafts": local_drafts,
+        }
+        return ServiceResponse(
+            ToolOutput(ok=True, operation="list", exit_code=0, result=result)
+        )
+
     def read(
         self,
         *,

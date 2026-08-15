@@ -37,7 +37,7 @@ MCP_ONLY_SKILLS = {
     "artifact-sftp": "artifact_sftp.publish",
     "artifact-sftp-read": "artifact_sftp.read",
     "artifact-sftp-setup": "artifact_sftp.setup_status",
-    "artifact-groom": "artifact_sftp.publish",
+    "artifact-groom": "artifact_sftp.list",
 }
 INTERNAL_SCRIPT_NAMES = {"publish.sh", "read-artifact.sh", "setup.sh", "setup-wizard.sh"}
 PLUGIN_NAME_RE = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
