@@ -614,6 +614,52 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["artifacts_count"], 0)
         self.assertEqual(result["artifacts"], [])
 
+    async def test_list_inventory_prunes_ignored_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            (project / "valid.html").write_text("<html></html>", encoding="utf-8")
+            dist_dir = project / "dist"
+            dist_dir.mkdir()
+            (dist_dir / "bundle.html").write_text("<html></html>", encoding="utf-8")
+            cov_dir = project / "coverage"
+            cov_dir.mkdir()
+            (cov_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+            next_dir = project / ".next"
+            next_dir.mkdir()
+            (next_dir / "server.html").write_text("<html></html>", encoding="utf-8")
+
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project)},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["local_drafts"], ["valid.html"])
+        self.assertFalse(result["local_drafts_truncated"])
+
+    async def test_list_inventory_respects_limit_and_reports_truncation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            for i in range(5):
+                (project / f"draft_{i}.html").write_text("<html></html>", encoding="utf-8")
+
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project), "limit": 3},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["limit"], 3)
+        self.assertEqual(result["local_drafts_count"], 3)
+        self.assertTrue(result["local_drafts_truncated"])
+        self.assertEqual(len(result["local_drafts"]), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

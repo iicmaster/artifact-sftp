@@ -32,6 +32,41 @@ TOOLS = frozenset({"codex", "openclaw", "claude"})
 VISIBILITIES = frozenset({"private", "public"})
 MAX_READ_BYTES = 65_536
 DEFAULT_READ_BYTES = 16_384
+DEFAULT_LIST_LIMIT = 100
+MAX_LIST_LIMIT = 1_000
+
+IGNORED_DRAFT_DIRS = frozenset(
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "env",
+        "node_modules",
+        "__pycache__",
+        ".agents",
+        ".gemini",
+        ".system_generated",
+        "dist",
+        "build",
+        "out",
+        "target",
+        "coverage",
+        "htmlcov",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        ".tox",
+        ".next",
+        ".nuxt",
+        ".output",
+        "storybook-static",
+        "tmp",
+        "temp",
+        ".cache",
+        ".idea",
+        ".vscode",
+    }
+)
 
 _SETUP_CATEGORIES = ("runtime", "config", "connection")
 _SETUP_ISSUE_MARKERS = (
@@ -540,6 +575,7 @@ class ArtifactSftpService:
         project_path: str,
         tool: str | None = None,
         visibility: str | None = None,
+        limit: int = DEFAULT_LIST_LIMIT,
     ) -> ServiceResponse:
         """List local artifact archives and HTML drafts in a project (Local-First)."""
 
@@ -559,6 +595,8 @@ class ArtifactSftpService:
                 f"visibility must be one of: {', '.join(sorted(VISIBILITIES))}.",
                 "Filter by a valid visibility ('private' or 'public') or omit the filter.",
             )
+
+        clamped_limit = max(1, min(limit, MAX_LIST_LIMIT))
 
         artifacts_root = project / "docs/artifacts"
         artifacts: list[dict[str, object]] = []
@@ -627,10 +665,16 @@ class ArtifactSftpService:
                             "mtime": latest_mtime,
                         })
 
+        total_artifacts_count = len(artifacts)
+        artifacts_truncated = total_artifacts_count > clamped_limit
+        if artifacts_truncated:
+            artifacts = artifacts[:clamped_limit]
+
         local_drafts: list[str] = []
-        ignored_names = {".git", ".venv", "node_modules", "__pycache__", ".agents", ".gemini", ".system_generated"}
+        local_drafts_truncated = False
+
         for root, dirs, files in os.walk(project):
-            dirs[:] = [d for d in dirs if d not in ignored_names]
+            dirs[:] = [d for d in dirs if d not in IGNORED_DRAFT_DIRS and not d.startswith(".")]
             rel_root = Path(root).relative_to(project)
             if rel_root.parts and rel_root.parts[0] == "docs" and len(rel_root.parts) >= 2 and rel_root.parts[1] == "artifacts":
                 if len(rel_root.parts) >= 4:
@@ -639,13 +683,22 @@ class ArtifactSftpService:
                 if f.lower().endswith((".html", ".htm")):
                     f_path = Path(root) / f
                     if not f_path.is_symlink():
+                        if len(local_drafts) >= clamped_limit:
+                            local_drafts_truncated = True
+                            break
                         local_drafts.append(str(f_path.relative_to(project)))
+            if local_drafts_truncated:
+                break
 
         result = {
             "project_path": str(project),
+            "limit": clamped_limit,
             "artifacts_count": len(artifacts),
+            "total_artifacts_count": total_artifacts_count,
+            "artifacts_truncated": artifacts_truncated,
             "artifacts": artifacts,
             "local_drafts_count": len(local_drafts),
+            "local_drafts_truncated": local_drafts_truncated,
             "local_drafts": local_drafts,
         }
         return ServiceResponse(
