@@ -69,6 +69,7 @@ Render a clear, structured summary table to the user:
 Ask the user to confirm proposed actions before executing mutations:
 
 - **For updates:** Call `artifact_sftp.publish(project_path, source_path, slug, tool, visibility, confirm=true)` (add `confirm_public=true` if public).
+  - *No redundant verification:* Once publish succeeds, the update is complete. Do not execute follow-up verification calls.
   - *Note on machine ownership:* If the slug was originally published on a different machine, the publisher guards against accidental remote overwrites. Report ownership mismatch if encountered.
 - **For teardowns:**
   - Optionally preview with `artifact_sftp.unpublish(project_path, slug, tool, visibility, dry_run=true)`.
