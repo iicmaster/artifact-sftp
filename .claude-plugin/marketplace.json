@@ -25,7 +25,8 @@
         "read",
         "html",
         "hosting",
-        "mcp"
+        "mcp",
+        "groom"
       ],
       "source": "./"
     }

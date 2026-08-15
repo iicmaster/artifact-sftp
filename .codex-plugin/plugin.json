@@ -13,12 +13,13 @@
     "read",
     "html",
     "hosting",
-    "mcp"
+    "mcp",
+    "groom"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Artifact SFTP",
-    "shortDescription": "MCP-only publish and read of HTML artifacts",
+    "shortDescription": "MCP-only publish, read, and groom HTML artifacts",
     "longDescription": "Routes AI agents through a local stdio MCP server to publish and locally read back HTML artifacts on an SFTP web host. Publishing is private by default, archives source bytes locally, avoids private viewer fetches, and applies Sarabun as the default Thai font.",
     "developerName": "NGS",
     "category": "Developer Tools",
@@ -30,7 +31,8 @@
       "Publish this report as an artifact",
       "Update my published artifact in place",
       "Read the artifact I just published",
-      "Check whether artifact-sftp is ready"
+      "Check whether artifact-sftp is ready",
+      "Audit and groom all artifacts in this project"
     ],
     "brandColor": "#3B82F6",
     "screenshots": []

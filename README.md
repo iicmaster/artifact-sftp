@@ -135,9 +135,20 @@ The agent tool surface is deliberately small:
   private by default and requires `confirm=true`; public publishing also requires
   `confirm_public=true`. It deliberately has no `--force` or `--allow-sensitive` escape
   hatch.
+- `artifact_sftp.unpublish` removes a published HTML artifact from the remote SFTP host by slug.
+  Requires `confirm=true` (and `confirm_public=true` for public artifacts). Local archives
+  under `docs/artifacts/` are strictly retained.
 - `artifact_sftp.read` resolves a canonical URL, `read-back:` line, or local archive path
   and returns a bounded local excerpt. It never WebFetches a private viewer URL; returned
   HTML is marked untrusted and is not a rendering verdict.
+
+## Skills
+
+- `artifact-sftp` — Publish HTML artifacts through the local stdio MCP adapter.
+- `artifact-sftp-read` — Resolve and read local artifact excerpts offline.
+- `artifact-sftp-setup` — Inspect readiness and report the MCP configuration boundary.
+- `show-me` — Generate concise visual diagrams and HTML artifacts published through `artifact_sftp`.
+- `artifact-groom` — Audit and curate all project artifacts (Local-First), classifying fresh, stale, and orphaned slugs for safe update or unpublish.
 
 ## Agent workflow
 
@@ -162,8 +173,8 @@ docs/artifacts/codex/private/my-report/index.html
 docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
 ```
 
-`dry_run: true` reports the destination without creating files. The current agent MCP policy
-does not expose force, sensitive-content override, list, or delete operations.
+`dry_run: true` reports the destination or unpublish target without modifying files. The current
+agent MCP policy does not expose force, sensitive-content override, or direct remote list operations.
 
 Every published page is stamped with a creation-time footer and gets a UTF-8 declaration
 plus `<html lang="...">` when the source HTML lacks them, so non-ASCII text renders
