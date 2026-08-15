@@ -19,10 +19,14 @@ are not a command surface.
 
 ## Publish flow
 
-1. Call `artifact_sftp.setup_status` before the first publish in a session.
-2. If it reports `ready: false`, call `artifact_sftp.setup` to obtain the structured boundary,
-   then stop. Configuration is pre-provisioned outside the agent workflow; the agent must not
-   try to configure it.
+1. Before the first real publish in a session, call `artifact_sftp.setup_status` with
+   `verify_connection: true`. It first checks local prerequisites, then performs a bounded,
+   no-write SFTP preflight using the owner-managed configuration.
+2. If it reports `ready: false`, call `artifact_sftp.setup` with the same
+   `verify_connection: true` to obtain the structured boundary, then stop. A result with
+   `local_ready: true` but `remote_connection.status != "verified"` is a remote setup failure,
+   not permission to publish or fall back. Configuration is pre-provisioned outside the agent
+   workflow; the agent must not try to configure it.
 3. Produce one regular `.html` or `.htm` file inside the selected absolute `project_path`.
    Inline CSS, JavaScript, and application assets. The publisher adds the approved
    [Sarabun](https://fonts.google.com/specimen/Sarabun) stylesheet as the default Thai font;
@@ -35,14 +39,18 @@ are not a command surface.
 
 ## Supported MCP operations
 
-- `artifact_sftp.setup_status` — inspect pre-provisioned readiness without mutation.
-- `artifact_sftp.setup` — report the MCP-only configuration boundary; it never exposes a shell
-  setup path or accepts credentials.
+- `artifact_sftp.setup_status` — inspect pre-provisioned readiness without mutation; set
+  `verify_connection: true` for its bounded, no-write remote preflight.
+- `artifact_sftp.setup` — report the MCP-only configuration/connection boundary; it never
+  exposes a shell setup path or accepts credentials.
 - `artifact_sftp.publish` — publish one project-local HTML file, private by default.
+- `artifact_sftp.unpublish` — remove a published HTML artifact from the remote SFTP host by slug.
+  Requires `confirm: true` (and `confirm_public: true` for public artifacts). Local archives
+  under `docs/artifacts/` are always retained.
 - `artifact_sftp.read` — resolve and read a bounded local archive excerpt with no network fetch.
 
-The agent surface intentionally has no force, sensitive-content override, direct remote list,
-or delete operation. If asked for one, explain that the current MCP policy does not permit it;
+The agent surface intentionally has no force, sensitive-content override, or direct remote list
+operation. If asked for one, explain that the current MCP policy does not permit it;
 do not emulate it through another tool.
 
 ## Evidence and safety

@@ -66,7 +66,7 @@ fi
 
 if [ -t 0 ]; then
   exec 3<&0
-elif exec 3<>/dev/tty 2>/dev/null; then
+elif [ -t 2 ] && exec 3<>/dev/tty 2>/dev/null; then
   :
 else
   err "ERROR: an interactive terminal is required; secrets must not be collected in chat."

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+- Add `artifact_sftp.unpublish` MCP tool to safely remove published HTML artifacts from the remote SFTP host by slug while strictly preserving local archives in `docs/artifacts/`. Supports `confirm=true` (and `confirm_public=true` for public visibility) and `--dry-run` preflight (closes #9).
+- Make first-machine Artifact SFTP setup diagnosable through MCP: the packaged launcher now
+  fails closed with distinct portable-host errors, `setup_status` returns redacted structured
+  local prerequisites, and `verify_connection: true` adds a bounded no-write authenticated SFTP
+  preflight without exposing a direct shell fallback.
+- Add a complete environment-owner setup guide, clean-home MCP regressions, and clear separation
+  between plugin startup, local configuration, and remote SFTP failures.
+- Reject malformed `PUBLIC_BASE_URL` values before publish and make 1Password `op.exe` resolution
+  consistent with setup status for WSL/Git Bash environments.
+
 ## [0.12.0] - 2026-08-15
 
 - Add root `.mcp.json` so Claude Code can start the MCP server. That installer reads a root

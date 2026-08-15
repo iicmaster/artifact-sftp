@@ -17,10 +17,10 @@ Before an agent can publish, the MCP owner provisions and verifies the following
 - A local configuration store with owner-only permissions. The plugin package, MCP arguments,
   project workspace, and artifact HTML must never contain credentials, private keys, passwords,
   or Cloudflare secrets.
-- A compatible Agent Plugins host that reads the root `mcp.json`, passes `PLUGIN_ROOT` and a
-  writable `PLUGIN_DATA` directory, starts the packaged launcher, and has a compatible `uv`
-  executable on `PATH`. The launcher fails closed when `uv` is missing; an AI agent may not
-  install it or substitute another runtime.
+- A conformant Agent Plugins host that reads the root `mcp.json`, automatically supplies
+  `PLUGIN_ROOT` and writable persistent `PLUGIN_DATA`, starts the packaged launcher, and has a
+  compatible `uv` executable on `PATH`. The launcher fails closed when either the host contract
+  or `uv` is missing; an AI agent may not install a runtime or substitute another execution path.
 
 ## Agent-visible contract
 

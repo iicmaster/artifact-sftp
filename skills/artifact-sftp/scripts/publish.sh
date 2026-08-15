@@ -37,6 +37,27 @@ _stat_perm() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 _stat_size() { stat -c '%s' "$1" 2>/dev/null || stat -f '%z' "$1"; }
 # sha256sum (coreutils) vs shasum -a 256 (mac); both print "<hash>  -", so cut f1 works.
 _sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
+# PUBLIC_BASE_URL is extended with /<tool>/<visibility>/<slug>/ below. Keep the
+# configured base canonical so generated artifact URLs do not contain a path
+# outside the MCP URL identity, //, a query/fragment in the wrong position, or
+# HTTP.
+_public_base_url_valid() {
+  local url=$1 authority host port
+  case "$url" in https://*) ;; *) return 1 ;; esac
+  case "$url" in *'?'*|*'#'*) return 1 ;; esac
+  case "$url" in */) return 1 ;; esac
+  authority=${url#https://}
+  case "$authority" in */*) return 1 ;; esac
+  authority=${authority%%/*}
+  case "$authority" in ''|:*|*@*|*:) return 1 ;; esac
+  if [[ "$authority" == *:* ]]; then
+    host=${authority%%:*}
+    port=${authority#*:}
+    [ -n "$host" ] || return 1
+    case "$port" in ''|*[!0-9]*) return 1 ;; esac
+  fi
+  return 0
+}
 # _timeout SECS cmd... — coreutils timeout / gtimeout / perl alarm (survives exec).
 if command -v timeout >/dev/null 2>&1; then _timeout() { timeout "$@"; }
 elif command -v gtimeout >/dev/null 2>&1; then _timeout() { gtimeout "$@"; }
@@ -60,7 +81,7 @@ while [ $# -gt 0 ]; do
     --dry-run) DRY=1; shift ;;
     --allow-sensitive) ALLOW_SENSITIVE=1; shift ;;
     --list) MODE=list; shift ;;
-    --delete) [ $# -ge 2 ] || usage; MODE=delete; SLUG=$2; shift 2 ;;
+    --delete|--unpublish) [ $# -ge 2 ] || usage; MODE=delete; SLUG=$2; shift 2 ;;
     -h|--help) usage ;;
     -*) err "unknown option: $1"; usage ;;
     *) FILE=$1; shift ;;
@@ -80,6 +101,8 @@ unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
 . "$CONFIG"
 : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
 : "${REMOTE_DIR:?missing in config}" "${PUBLIC_BASE_URL:?missing in config}"
+_public_base_url_valid "$PUBLIC_BASE_URL" \
+  || die 3 "PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash"
 SFTP_PORT=${SFTP_PORT:-22}
 KNOWN_HOSTS=${KNOWN_HOSTS:-$HOME/.config/artifact-sftp/known_hosts}
 TOOL=${TOOL:-${DEFAULT_TOOL:-}}
@@ -142,6 +165,9 @@ elif [ -n "${OP_KEY_REF:-}" ]; then
   # 1Password fallback: op (native) or op.exe (WSL interop; needs desktop app unlocked).
   OP_BIN=$(command -v op || true)
   if [ -z "$OP_BIN" ]; then
+    OP_BIN=$(command -v op.exe || true)
+  fi
+  if [ -z "$OP_BIN" ]; then
     for p in /mnt/c/Users/*/AppData/Local/Programs/"1Password CLI"/op.exe; do
       [ -x "$p" ] && OP_BIN=$p && break
     done
@@ -188,8 +214,12 @@ fi
 [[ "$SLUG" =~ $SLUG_RE ]] || die 2 "invalid slug '$SLUG' (must match $SLUG_RE)"
 RPATH="$REMOTE_DIR/$TOOL/$VIS/$SLUG"
 
-# ---------- delete ----------
+# ---------- delete / unpublish ----------
 if [ "$MODE" = delete ]; then
+  if [ "$DRY" = 1 ]; then
+    printf 'dry-run: would delete %s\n' "$TOOL/$VIS/$SLUG"
+    exit 0
+  fi
   if [ "$USE_PY" = 1 ]; then
     _timeout 90 python3 "$HELPER" delete "$RPATH" >&2 || die 5 "delete failed for $RPATH"
   else

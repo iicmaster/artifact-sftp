@@ -124,6 +124,40 @@ def check_mcp() -> int:
     return len(servers)
 
 
+def check_claude_mcp_compatibility() -> None:
+    """Keep the Claude Code entry explicit without weakening portable mcp.json.
+
+    Claude Code discovers project/plugin MCP servers from a root ``.mcp.json``.
+    It does not supply the Agent Plugins host variables used by the portable
+    manifest, so this is intentionally a small host-specific compatibility
+    entry instead of a byte-for-byte copy of ``mcp.json``.
+    """
+
+    mcp_path = ROOT / ".mcp.json"
+    require_within_root(mcp_path)
+    if mcp_path.is_symlink() or not mcp_path.is_file():
+        fail("root .mcp.json must be a regular Claude Code compatibility file")
+    manifest = json.loads(mcp_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or set(manifest) - {"$schema", "mcpServers"}:
+        fail("root .mcp.json must contain only $schema and mcpServers")
+    servers = manifest.get("mcpServers")
+    if not isinstance(servers, dict) or set(servers) != {"artifact-sftp"}:
+        fail("root .mcp.json must declare exactly the artifact-sftp server")
+    server = servers["artifact-sftp"]
+    expected = {
+        "type": "stdio",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/artifact-sftp-mcp",
+        "cwd": "${CLAUDE_PLUGIN_ROOT}",
+        "env": {
+            "ARTIFACT_SFTP_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+            "PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+            "PLUGIN_DATA": "${HOME}/.local/share/artifact-sftp",
+        },
+    }
+    if server != expected:
+        fail("root .mcp.json must retain the tested Claude Code launch contract")
+
+
 def parse_frontmatter(skill_path: Path) -> dict[str, str]:
     lines = skill_path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0] != "---":
@@ -200,6 +234,7 @@ def main() -> int:
     try:
         check_manifest()
         servers = check_mcp()
+        check_claude_mcp_compatibility()
         skills = check_skills()
         check_mcp_only_agent_routing()
     except (AssertionError, OSError, json.JSONDecodeError) as error:

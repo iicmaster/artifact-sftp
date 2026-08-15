@@ -39,7 +39,8 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         description="MCP-only AI-agent publishing and local read-back for HTML artifacts through an existing pinned SFTP configuration.",
         instructions=(
             "This is the only Artifact SFTP execution surface for AI agents. Use setup_status before a first "
-            "publish. If the server is not ready, stop rather than invoking a direct setup script. Private URLs "
+            "publish; pass verify_connection=true when a no-write remote preflight is required. If the server is "
+            "not ready, stop rather than invoking a direct setup script. Private URLs "
             "are viewer links, not read sources: call artifact_sftp.read on the local read-back reference instead. "
             "Never put credentials, tokens, or private-key contents in tool arguments. Publish is private by "
             "default and needs user approval."
@@ -49,23 +50,30 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     @server.tool(
         name="artifact_sftp.setup_status",
         title="Check Artifact SFTP setup",
-        description="Read local Artifact SFTP readiness without changing configuration or using SFTP.",
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+        description=(
+            "Read local Artifact SFTP readiness without changing configuration. Set verify_connection=true "
+            "only when a bounded, no-write remote SFTP preflight is also required."
+        ),
+        # ``verify_connection=true`` opens a bounded SFTP session.  Keep the
+        # conservative MCP annotation even though the default status path is
+        # local-only.
+        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
     )
-    def setup_status() -> ToolOutput:
-        return _tool_result(adapter.setup_status())  # type: ignore[return-value]
+    def setup_status(verify_connection: bool = False) -> ToolOutput:
+        return _tool_result(adapter.setup_status(verify_connection=verify_connection))  # type: ignore[return-value]
 
     @server.tool(
         name="artifact_sftp.setup",
         title="Check the Artifact SFTP provisioning boundary",
         description=(
             "Report whether pre-provisioned configuration is required. This MCP-only tool never exposes "
-            "a shell setup command and never accepts credentials."
+            "a shell setup command and never accepts credentials. Set verify_connection=true to request "
+            "a bounded, no-write remote SFTP preflight after local readiness passes."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
     )
-    def setup() -> ToolOutput:
-        return _tool_result(adapter.setup_instructions())  # type: ignore[return-value]
+    def setup(verify_connection: bool = False) -> ToolOutput:
+        return _tool_result(adapter.setup_instructions(verify_connection=verify_connection))  # type: ignore[return-value]
 
     @server.tool(
         name="artifact_sftp.publish",
@@ -91,6 +99,37 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
             adapter.publish(
                 project_path=project_path,
                 source_path=source_path,
+                slug=slug,
+                tool=tool,
+                visibility=visibility,
+                dry_run=dry_run,
+                confirm=confirm,
+                confirm_public=confirm_public,
+            )
+        )  # type: ignore[return-value]
+
+    @server.tool(
+        name="artifact_sftp.unpublish",
+        title="Unpublish an Artifact SFTP slug",
+        description=(
+            "Remove a published HTML artifact from the remote SFTP host by slug. "
+            "Private is the default. Unpublishing requires confirm=true; unpublishing a public "
+            "artifact also requires confirm_public=true. Local archives are always retained."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True),
+    )
+    def unpublish(
+        project_path: str,
+        slug: str,
+        tool: str,
+        visibility: str = "private",
+        dry_run: bool = False,
+        confirm: bool = False,
+        confirm_public: bool = False,
+    ) -> ToolOutput:
+        return _tool_result(
+            adapter.unpublish(
+                project_path=project_path,
                 slug=slug,
                 tool=tool,
                 visibility=visibility,

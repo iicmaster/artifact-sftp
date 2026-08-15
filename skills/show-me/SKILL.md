@@ -67,11 +67,14 @@ shape the topic is:
 The whole block when most of it is new, or when the reader needs a copyable
 target shape — plain code.
 
-A layout, a state comparison, or something too dense for Mermaid — one focused
-HTML file. **Publish it through `artifact_sftp.publish` and hand back the
-read-back path**, rather than leaving it in a temp directory: this repository
-exists to make a page shareable, and a diagram that only lives on one machine is
-the thing it was built to replace.
+## The primary output: Published HTML Artifact
+
+For any rich diagram, architectural layout, state comparison, UI wireframe, or visual walkthrough:
+1. **Generate a focused, standalone HTML artifact** (styled with modern CSS, responsive layout, and Sarabun font for Thai text).
+2. **Publish it through `artifact_sftp.publish`** with `confirm=true` and a clean `slug`.
+3. **Return the local read-back reference** (e.g. `docs/artifacts/<tool>/<visibility>/<slug>/...`) for immediate offline inspection, keeping the artifact persistent, versioned, and shareable.
+
+*For simple inline code, call trees, diffs, or quick Mermaid diagrams, inline snippets may accompany the response, but creating and publishing the HTML artifact is the complete end-to-end standard for this plugin.*
 
 ## Rules
 
