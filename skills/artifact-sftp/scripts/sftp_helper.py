@@ -8,6 +8,7 @@ the same pinned known_hosts file the OpenSSH path uses.
 ops: exists RPATH | upload LOCAL RPATH [VERSIONED_NAME] | delete RPATH | list RBASE | versions RPATH
 Exit: 0 ok | 1 not-found/failed (messages on stderr)
 """
+import errno
 import os
 import sys
 
@@ -102,14 +103,23 @@ def main():
         elif op == "delete":
             rpath = sys.argv[2]
             try:
-                for name in sftp.listdir(rpath):
+                names = sftp.listdir(rpath)
+            except IOError as e:
+                # If directory does not exist, consider it already deleted (idempotent)
+                if getattr(e, "errno", None) != errno.ENOENT and "No such file" not in str(e):
+                    raise
+            else:
+                for name in names:
                     try:
                         sftp.remove(rpath + "/" + name)
-                    except IOError:
-                        pass
-                sftp.rmdir(rpath)
-            except IOError:
-                pass  # directory already does not exist or was cleaned up
+                    except IOError as e:
+                        if getattr(e, "errno", None) != errno.ENOENT and "No such file" not in str(e):
+                            raise
+                try:
+                    sftp.rmdir(rpath)
+                except IOError as e:
+                    if getattr(e, "errno", None) != errno.ENOENT and "No such file" not in str(e):
+                        raise
         elif op == "versions":
             try:
                 for name in sorted(sftp.listdir(sys.argv[2])):

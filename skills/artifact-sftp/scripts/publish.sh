@@ -100,9 +100,12 @@ unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
 # shellcheck disable=SC1090
 . "$CONFIG"
 : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
-: "${REMOTE_DIR:?missing in config}" "${PUBLIC_BASE_URL:?missing in config}"
-_public_base_url_valid "$PUBLIC_BASE_URL" \
-  || die 3 "PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash"
+: "${REMOTE_DIR:?missing in config}"
+if [ "$MODE" = publish ]; then
+  : "${PUBLIC_BASE_URL:?missing in config}"
+  _public_base_url_valid "$PUBLIC_BASE_URL" \
+    || die 3 "PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash"
+fi
 SFTP_PORT=${SFTP_PORT:-22}
 KNOWN_HOSTS=${KNOWN_HOSTS:-$HOME/.config/artifact-sftp/known_hosts}
 TOOL=${TOOL:-${DEFAULT_TOOL:-}}
@@ -225,7 +228,7 @@ if [ "$MODE" = delete ]; then
   else
     # rm with glob: remove index.html and all versioned snapshots
     BATCH=$(mktemp)
-    printf -- '-rm %s/*\nrmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
+    printf -- '-rm %s/*\n-rmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
     run_sftp "$BATCH" || die 5 "delete failed for $RPATH"
   fi
   # drop from manifest so a future publish of this slug re-checks remote existence

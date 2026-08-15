@@ -230,7 +230,7 @@ chmod 600 "$CONFIG"
 INVALID_STATUS_OUT="$TMP_ROOT/status-invalid-url.out"
 run_capture "$INVALID_STATUS_OUT" env HOME="$CONFIG_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
 assert_rc 3 "status should reject a path-bearing PUBLIC_BASE_URL"
-assert_contains "$INVALID_STATUS_OUT" 'config: PUBLIC_BASE_URL must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash' \
+assert_contains "$INVALID_STATUS_OUT" 'config: PUBLIC_BASE_URL is invalid (must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash)' \
   "invalid PUBLIC_BASE_URL was not reported in the config category"
 mv "$CONFIG.before-invalid-url" "$CONFIG"
 chmod 600 "$CONFIG"

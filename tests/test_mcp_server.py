@@ -452,6 +452,33 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["remote_connection_checked"])
         self.assertNotIn("remote entries", str(result))
 
+    async def test_setup_status_classifies_invalid_public_base_url_in_prerequisites(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            local_not_ready = command_result(
+                3,
+                stdout=(
+                    "artifact-sftp setup status\n"
+                    "config: present (mode 600)\n"
+                    "config: PUBLIC_BASE_URL is invalid (must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash)\n"
+                    "auth: ssh-key\n"
+                    "default tool: codex\n"
+                    "known_hosts: present (mode 600)\n"
+                    "NOT READY: 1 issue(s) found\n"
+                ),
+            )
+            fake = FakeRunner(local_not_ready)
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(server, "artifact_sftp.setup_status", {})
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["local_ready"])
+        self.assertFalse(result["prerequisites"]["config"]["ready"])
+        self.assertEqual(result["missing_prerequisites"][0]["category"], "config")
+        self.assertEqual(result["missing_prerequisites"][0]["code"], "config_invalid")
+
     async def test_unpublish_requires_confirmation_without_starting_a_subprocess(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             project, _, _, _ = make_project(Path(temp))
