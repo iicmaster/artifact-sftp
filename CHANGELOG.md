@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.14.0] - 2026-08-15
+
+- Add `artifact_sftp.list` MCP tool to list local artifact archives and discovered workspace HTML drafts in a project (Local-First).
+- Add `artifact-groom` skill for project-wide artifact health auditing, categorization (Fresh, Stale, Unlinked, Orphaned, Local Draft), and safe curation.
+- Improve `sftp_helper.py` delete operation to properly propagate real permission/IO errors while idempotently handling `ENOENT`.
+- Make OpenSSH unpublish/delete truly idempotent using `-rmdir` in batch scripts.
+- Scope `PUBLIC_BASE_URL` validation to publish operations, allowing unpublish/delete on unconfigured or legacy viewer URLs.
+- Improve `setup.sh` diagnostic classification for invalid `PUBLIC_BASE_URL` in `setup_status`.
+- Update `show-me` skill to require explicit user approval before publishing.
+
 ## [0.13.0] - 2026-08-15
 
 - Add `artifact_sftp.unpublish` MCP tool to safely remove published HTML artifacts from the remote SFTP host by slug while strictly preserving local archives in `docs/artifacts/`. Supports `confirm=true` (and `confirm_public=true` for public visibility) and `--dry-run` preflight (closes #9).
