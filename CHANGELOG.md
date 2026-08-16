@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.15.0] - 2026-08-17
+
+- Add explicit anti-pattern rules across skills to eliminate redundant post-publish verification calls (no automated read/fetch after publish), optimizing tokens and context window.
+- Expose complete draft metadata (`path`, `mtime`, `size`, `sha256`) in `artifact_sftp.list` to power offline artifact grooming within the MCP boundary.
+- Bound and paginate `artifact_sftp.list` with `limit: int = 100` parameter, early exit in filesystem walk, directory pruning for build/test/cache trees (`dist`, `build`, `coverage`, `.next`, etc.), and truncation reporting.
+- Preserve real deletion permission and transport errors in OpenSSH mode by probing remote directory existence before running deletion batches instead of suppressive flags.
+- Break snapshot version tie-breaks deterministically by timestamp `(version, timestamp)` on retried uploads.
+- Scope draft discovery directory exclusions strictly to recognized artifact archive directories.
+- Detail all publisher-injected mutations (Google Fonts Sarabun link & style, charset, lang attribute, footer) in `artifact-groom` normalization guidance.
+
 ## [0.14.0] - 2026-08-15
 
 - Add `artifact_sftp.list` MCP tool to list local artifact archives and discovered workspace HTML drafts in a project (Local-First).
