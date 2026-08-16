@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.16.0] - 2026-08-17
+
+- Add `thai-prose-craft` skill for executive and natural Thai prose editing, anti-AI slop filtering, and authentic bilingual technical terminology.
+- Add `artifact-curator` skill for high-impact Markdown artifacts, 3-tier progressive disclosure, scannable callouts/alerts, and comparison tables.
+- Add `visual-illustrator` skill for syntax-safe Mermaid diagrams with double-quoting enforcement, microservice/cloud topologies, ERDs, state machines, and enterprise color palettes.
+- Add `doc-synchronizer` skill for automated auditing of code-to-docs parity, broken links and anchors, and multi-manifest version synchronization across plugin registries.
+
 ## [0.15.0] - 2026-08-17
 
 - Add explicit anti-pattern rules across skills to eliminate redundant post-publish verification calls (no automated read/fetch after publish), optimizing tokens and context window.
