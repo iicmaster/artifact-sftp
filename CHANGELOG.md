@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.0] - 2026-08-17
+
+- Add `artifact-audit` skill as a pre-flight quality, security, and integrity gatekeeper evaluating Thai prose (anti-slop), Mermaid syntax safety, 3-tier layout, broken links, and secret leakage prevention.
+- Upgrade `artifact-groom` skill into an end-to-end 6-stage modernization and publishing suite that diagnoses quality with `artifact-audit`, refactors sources with the specialized DocCraft suite (`thai-prose-craft`, `visual-illustrator`, `artifact-curator`, `doc-synchronizer`), and automatically publishes upgraded versioned snapshots via `artifact_sftp.publish`.
+- Integrate pre-flight quality checks with `artifact-audit` into `artifact-sftp` before executing publications.
+
 ## [0.16.0] - 2026-08-17
 
 - Add `thai-prose-craft` skill for executive and natural Thai prose editing, anti-AI slop filtering, and authentic bilingual technical terminology.
