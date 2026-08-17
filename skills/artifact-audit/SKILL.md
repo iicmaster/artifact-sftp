@@ -108,12 +108,11 @@ flowchart TD
 ### Dimension 5: 🔒 Security & Privacy Hygiene Audit
 
 - **Secret & Token Scan (Hard Blocker):**
-  - Detects accidental inclusion of private keys (`BEGIN RSA PRIVATE KEY`, `BEGIN PRIVATE KEY`).
-  - Scans for 1Password references (`op://`), AWS access keys (`AKIA...`), bearer tokens, and raw API passwords.
+  - Detects accidental inclusion of PEM private keys, 1Password vault references, cloud provider access keys, bearer tokens, and raw API passwords.
 - **Sensitive PII & Internal Network Leaks:**
   - Flags unmasked production credentials, internal staging IP addresses, or customer PII.
 - **Publisher Script Bypasses:**
-  - Ensures artifact does not wrap, invoke, or leak internal scripts (`publish.sh`, `setup.sh`) directly.
+  - Ensures artifact does not wrap, invoke, or leak internal script files directly.
 
 ---
 
