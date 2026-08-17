@@ -52,9 +52,9 @@ Call `artifact_sftp.list` with `project_path` (optional `tool`, `visibility`, an
 
 ---
 
-### Stage 2: Quality & Health Diagnosis (DocCraft Matrix)
+### Stage 2: Quality & Health Diagnosis (via `artifact-audit`)
 
-For each discovered artifact and local draft, evaluate both **Freshness Health** and **Content Modernization Potential**:
+Run `artifact-audit` on discovered artifacts and local drafts to evaluate both **Freshness Health** and **Multi-Dimensional Quality**:
 
 #### 1. Freshness Health Matrix
 
@@ -68,7 +68,7 @@ For each discovered artifact and local draft, evaluate both **Freshness Health**
 
 #### 2. Specialized Skill Diagnostic Checklist
 
-Assess whether the artifact benefits from invocation of the specialized skill suite:
+`artifact-audit` checks whether the artifact requires invocation of specialized skills:
 
 | Diagnostic Focus | Specialized Skill | Target Improvements |
 |---|---|---|
@@ -112,13 +112,14 @@ When the user selects an artifact to modernize, invoke the corresponding skills 
 
 ---
 
-### Stage 5: User Confirmation & Review
+### Stage 5: Pre-Publish Audit (`artifact-audit`) & Confirmation
 
-Present the proposed refactorings and diff summary to the user before publishing:
+Run a final verification pass with `artifact-audit` to ensure a 🟢 **PASS** verdict (zero syntax errors, clean prose, no leaked secrets), and present the diff summary to the user before publishing:
 
 ```text
 Ready to publish modernized version:
 • Target: codex / private / system-arch (v1 -> v2)
+• Audit Verdict: 🟢 PASS (100% clean)
 • Enhancements Applied:
   - Injected Architecture Flowchart (Mermaid) with enterprise palette
   - Polished Thai executive summary (removed 4 AI-slop phrases)

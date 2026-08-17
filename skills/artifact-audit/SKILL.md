@@ -1,0 +1,173 @@
+---
+name: artifact-audit
+description: Pre-publish and pre-groom quality, security, and integrity auditor for HTML/Markdown artifacts. Evaluates Thai prose (anti-slop), Mermaid syntax safety, 3-tier layout, broken links, secret leakage, and renders an actionable readiness gate before publishing or grooming. ใช้ตรวจสุขภาพ คุณภาพ ความปลอดภัย และความพร้อมของ artifact ก่อน publish หรือ groom
+---
+
+# Artifact Pre-Flight & Quality Audit Suite (`artifact-audit`)
+
+The `artifact-audit` skill is an automated quality, security, and integrity gatekeeper for HTML and Markdown artifacts.
+It inspects candidate documents **before** they are published via `artifact_sftp.publish` or during repository maintenance with `artifact-groom`.
+
+By unifying the checks of the DocCraft specialized suite (`thai-prose-craft`, `artifact-curator`, `visual-illustrator`, `doc-synchronizer`) alongside strict security and link hygiene rules, `artifact-audit` ensures every published artifact is executive-ready, syntax-safe, privacy-compliant, and professional.
+
+---
+
+## 1. Mandatory Routing & Invariants
+
+1. **Pre-Flight Execution:** Always run `artifact-audit` before calling `artifact_sftp.publish` on non-trivial documents or as Step 2 of `artifact-groom`.
+2. **Local-First & Non-Destructive:** `artifact-audit` is a read-only diagnostic evaluator. It does not overwrite files without user direction or publish behind the user's back.
+3. **Hard Blocker Gate:** If any **Critical Blockers** (e.g. hardcoded secrets, broken Mermaid syntax, or path traversal links) are detected, publication MUST be halted until remediated.
+4. **Remediation Routing:** When deficiencies are detected, route immediately to the appropriate specialized skill to perform targeted repairs.
+
+---
+
+## 2. The 5-Dimension Quality & Security Audit Matrix
+
+```mermaid
+flowchart TD
+    Doc["Candidate Artifact / Draft\n(.html / .md)"] --> Audit{"artifact-audit\nDiagnostic Engine"}
+    
+    Audit --> D1["1. ✍️ Linguistic Quality\n(Thai Prose & Anti-Slop)"]
+    Audit --> D2["2. 📊 Visual Integrity\n(Mermaid Syntax & Palettes)"]
+    Audit --> D3["3. 📑 Presentation Architecture\n(3-Tier Disclosure & Alerts)"]
+    Audit --> D4["4. 🔍 Parity & Links\n(Anchors, Paths, Endpoints)"]
+    Audit --> D5["5. 🔒 Security & Privacy\n(Secrets, Keys, PII)"]
+
+    D1 --> Gate["Readiness Gate Evaluation\n(PASS / WARN / BLOCK)"]
+    D2 --> Gate
+    D3 --> Gate
+    D4 --> Gate
+    D5 --> Gate
+```
+
+---
+
+### Dimension 1: ✍️ Linguistic Quality & Anti-Slop Audit
+
+*Powered by `thai-prose-craft` standards.*
+
+- **Anti-AI Slop Dictionary:** Scans for banned robotic translation clichés:
+  - ❌ *"ในยุคดิจิทัลปัจจุบัน"*, *"ถือเป็นสิ่งสำคัญอย่างยิ่ง"*, *"กุญแจสำคัญสู่ความสำเร็จ"*
+  - ❌ *"เพื่อเพิ่มประสิทธิภาพและประสิทธิผล"*, *"ด้วยความมุ่งมั่นที่จะพัฒนา"*
+- **Active vs. Passive Bloat:** Flags repetitive passive constructions (e.g. *"ได้ถูกดำเนินการจัดทำขึ้นโดย"*) and replaces with active, direct verbs (*"ทีมงานจัดทำ..."*).
+- **Tone & Register Alignment:** Verifies tone matches the document's intended audience:
+  - **Executive / Board**: Punchy executive summaries, bottom-line upfront, zero conversational filler.
+  - **Technical Spec / RFC**: Unambiguous invariants, precise terminology, RFC 2119 keywords (`MUST`, `SHOULD`).
+  - **User Guide**: Clear step-by-step imperatives.
+
+---
+
+### Dimension 2: 📊 Visual & Diagrammatic Integrity Audit
+
+*Powered by `visual-illustrator` standards.*
+
+- **Zero-Fail Mermaid Quoting Rule:** 
+  - Checks that every node label containing special characters (`()`, `[]`, `{}`, `:`, `/`, `-`) is strictly wrapped in double quotes: `node["Label (Details): Info"]`.
+- **Diagram Syntax & Archetype Validation:**
+  - Verifies chart type keywords are exact: `flowchart TD/LR`, `sequenceDiagram`, `erDiagram`, `stateDiagram-v2`, `gitGraph`, `mindmap`.
+  - Ensures sequence diagrams use valid message arrows (`->>`, `-->>`, `-x`).
+  - Ensures subgraphs are properly paired with `end` statements and not nested deeper than 2 levels.
+- **Enterprise Palette Conformance:**
+  - Flags default unstyled neon colors; validates presence of standardized pastel `classDef` tokens (`primary`, `service`, `gateway`, `storage`, `queue`, `danger`, `external`).
+- **Responsive Layout:** Verifies diagrams and tables are wrapped in fluid/responsive containers (`overflow-x: auto; max-width: 100%`).
+
+---
+
+### Dimension 3: 📑 Structural & Presentation Architecture Audit
+
+*Powered by `artifact-curator` standards.*
+
+- **3-Tier Progressive Disclosure:**
+  - **Tier 1 (Executive Summary):** 3-5 bullet points + key metrics at the top.
+  - **Tier 2 (Core Architecture & Walkthrough):** Visual diagrams, decision flows, core tables.
+  - **Tier 3 (Deep-Dive Appendix):** Complete schemas, logs, edge-case tables.
+- **GitHub Alert Standard:**
+  - Verifies alert callouts use official syntax (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`).
+  - Flags and rejects consecutive or nested callout blocks.
+- **Comparative Data Density:**
+  - Checks that multi-variable data is rendered as structured Markdown comparison tables rather than long unstructured lists.
+- **File & Code Symbol Links:**
+  - Enforces valid clickable link syntax: `[utils.py](file:///path/to/utils.py)` (never `[utils.py](`file:///...`)`).
+
+---
+
+### Dimension 4: 🔍 Code-to-Docs Parity & Link Integrity Audit
+
+*Powered by `doc-synchronizer` standards.*
+
+- **Broken Link & Anchor Verification:**
+  - Scans all relative links (`./docs/guide.html`) and internal anchor hashes (`#section-3`) to confirm targets exist.
+  - Verifies remote URLs are well-formed without trailing typos or bad query strings.
+- **Code & API Parity:**
+  - Matches documented CLI commands, tool names (`artifact_sftp.*`), and function signatures against current codebase files.
+- **Asset Integrity:**
+  - Confirms referenced images, diagrams, or stylesheets exist and are accessible.
+
+---
+
+### Dimension 5: 🔒 Security & Privacy Hygiene Audit
+
+- **Secret & Token Scan (Hard Blocker):**
+  - Detects accidental inclusion of private keys (`BEGIN RSA PRIVATE KEY`, `BEGIN PRIVATE KEY`).
+  - Scans for 1Password references (`op://`), AWS access keys (`AKIA...`), bearer tokens, and raw API passwords.
+- **Sensitive PII & Internal Network Leaks:**
+  - Flags unmasked production credentials, internal staging IP addresses, or customer PII.
+- **Publisher Script Bypasses:**
+  - Ensures artifact does not wrap, invoke, or leak internal scripts (`publish.sh`, `setup.sh`) directly.
+
+---
+
+## 3. Audit Scoring & Readiness Verdict
+
+After completing the 5-dimension scan, `artifact-audit` generates a structured scorecard and verdict:
+
+```text
+================================================================================
+📋 ARTIFACT PRE-FLIGHT AUDIT REPORT
+Target: docs/reports/system-architecture.html (Candidate for: codex/private/system-arch)
+================================================================================
+[1] ✍️ Linguistic Quality (Thai Prose):       🟡 WARN (2 robot translation clichés found)
+[2] 📊 Visual & Mermaid Syntax:              🟢 PASS (All labels double-quoted, enterprise palette)
+[3] 📑 Presentation & Layout:                🟢 PASS (3-tier structure, valid [!IMPORTANT] alert)
+[4] 🔍 Parity & Link Integrity:              🟢 PASS (All internal anchors verified)
+[5] 🔒 Security & Privacy Hygiene:           🟢 PASS (Zero secrets / clean environment)
+--------------------------------------------------------------------------------
+VERDICT: 🟡 READY WITH WARNINGS (Recommended to clean prose before publish)
+================================================================================
+```
+
+### Verdict Rules:
+
+| Verdict | Status | Policy | Agent Action |
+|:---:|:---:|---|---|
+| 🟢 **PASS** | 100% Clean | All 5 dimensions passed with zero defects | Proceed immediately to `artifact_sftp.publish` or complete groom |
+| 🟡 **WARN** | Minor Issues | Non-breaking quality warnings (e.g. minor slop, missing table) | Suggest quick remediation via specialized skill, but permit publish if user approves |
+| 🔴 **BLOCK** | Critical Flaws | Secret detected, broken Mermaid syntax, or dead links | **HALT PUBLISH.** Must invoke remediation skill and re-audit before upload |
+
+---
+
+## 4. Remediation Routing Guide
+
+When an audit surfaces issues, route the artifact to the specialized skill for automatic repair:
+
+| Detected Issue in Audit | Remediation Skill | Trigger Action |
+|---|---|---|
+| Robot clichés, passive verb bloat, unnatural Thai | `thai-prose-craft` | Run Anti-Slop rewrite on identified paragraphs |
+| Broken Mermaid syntax, unquoted labels, missing chart | `visual-illustrator` | Wrap labels in `""`, inject diagram or classDef tokens |
+| Wall-of-text, missing summary, unformatted tables | `artifact-curator` | Refactor into 3-tier layout, insert GitHub alerts & tables |
+| Dead links, outdated CLI flags, version mismatch | `doc-synchronizer` | Fix anchors and synchronize with current repository state |
+| Hardcoded secrets, private keys | *Self-Remediation* | Strip secret string immediately, replace with env placeholder |
+
+---
+
+## 5. Seamless Workflow Integration
+
+### Integration with `artifact-sftp` (Pre-Publish Guard)
+Before executing `artifact_sftp.publish`, run `artifact-audit` on the source file. If verdict is 🔴 **BLOCK**, stop and explain the exact issue to the user.
+
+### Integration with `artifact-groom` (Full Lifecycle Modernization)
+During grooming:
+1. `artifact_sftp.list` discovers existing artifacts and drafts.
+2. `artifact-audit` diagnoses all candidates and populates the Grooming Report with concrete quality scores.
+3. User selects candidates -> Specialized skills refactor source -> `artifact-audit` re-verifies (Verifying 🟢 PASS).
+4. `artifact_sftp.publish` uploads the verified, modernized version.
