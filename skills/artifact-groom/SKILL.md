@@ -1,85 +1,153 @@
 ---
 name: artifact-groom
-description: Audit, inspect, and groom all HTML artifacts in the project (Local-First). Identifies fresh, stale, and orphaned artifacts, proposing safe updates via artifact_sftp.publish or teardowns via artifact_sftp.unpublish. ใช้เมื่อต้องการตรวจสุขภาพ สังคายนา หรือจัดระเบียบ artifact ทั้งหมดในโปรเจกต์
+description: Audit, inspect, modernize, and groom HTML/Markdown artifacts across the project (Local-First). Evaluates quality against the DocCraft suite (thai-prose-craft, artifact-curator, visual-illustrator, doc-synchronizer), refactors sources, and publishes updated versions via artifact_sftp.publish. ใช้เมื่อต้องการตรวจสุขภาพ สังคายนา ปรับปรุงคุณภาพ และ publish artifact ทั้งหมดในโปรเจกต์
 ---
 
-# Artifact Grooming — Local-First Artifact Curator
+# Artifact Grooming & Modernization Suite (Local-First)
 
-The `artifact-groom` skill is an MCP-only workflow that audits, inspects, and maintains the health of all HTML artifacts in a project.
+The `artifact-groom` skill is an MCP-only workflow that audits, inspects, modernizes, and curates HTML and Markdown artifacts in a project.
 It discovers the local custody record (`docs/artifacts/`) and workspace HTML files through `artifact_sftp.list`,
-compares published snapshots with current source documents using normalized markup comparison,
-and presents an actionable health matrix for updates or cleanups.
+diagnoses artifact quality using the specialized DocCraft suite (`thai-prose-craft`, `artifact-curator`, `visual-illustrator`, `doc-synchronizer`),
+refactors candidate sources, and seamlessly publishes upgraded versioned snapshots via `artifact_sftp.publish`.
 
-## Mandatory routing
+## Mandatory Routing & Invariants
 
-1. Use only `artifact_sftp.*` MCP tools (`artifact_sftp.list`, `artifact_sftp.publish`, `artifact_sftp.unpublish`, `artifact_sftp.read`).
-2. Never execute, source, or wrap bundled scripts directly.
-3. Local-First Invariant: Always start by inspecting the project's local archive through `artifact_sftp.list`.
-4. Never perform destructive unpublishing or batch republication without explicit user confirmation.
-   - For `private` visibility: requires `confirm=true`.
-   - For `public` visibility: requires BOTH `confirm=true` and `confirm_public=true`.
+1. **MCP-only routing:** Use only `artifact_sftp.*` MCP tools (`artifact_sftp.list`, `artifact_sftp.publish`, `artifact_sftp.unpublish`, `artifact_sftp.read`).
+2. **Local-First Invariant:** Always begin by discovering local custody in `docs/artifacts/` and workspace drafts with `artifact_sftp.list`.
+3. **Workspace Source Custody:** Apply modernizations to local workspace source documents before publishing so project version control (Git) retains full change provenance.
+4. **Interactive Consent:** Never publish updates or destructive unpublishes without explicit user review and confirmation.
+   - For `private` visibility updates/unpublishes: requires `confirm=true`.
+   - For `public` visibility updates/unpublishes: requires BOTH `confirm=true` and `confirm_public=true`.
+5. **No Redundant Verification:** `artifact_sftp.publish` executes internal hash matching, SFTP verification, and privacy probing automatically. Do NOT execute follow-up `artifact_sftp.read` or browser fetch calls after publishing.
 
-## Grooming workflow
+---
 
-### 1. Inventory Discovery via MCP
+## 6-Stage Grooming & Modernization Workflow
+
+```mermaid
+flowchart LR
+    A["1. Inventory Discovery\n(artifact_sftp.list)"] --> B["2. Quality & Health Audit\n(DocCraft Matrix)"]
+    B --> C["3. Modernization Proposal\n(Present Action Plan)"]
+    C --> D["4. Refactor with Skills\n(Prose/Visual/Layout)"]
+    D --> E["5. Review & Confirm\n(Diff / Preview)"]
+    E --> F["6. Publish & Archive\n(artifact_sftp.publish)"]
+```
+
+---
+
+### Stage 1: Inventory Discovery via MCP
 
 Call `artifact_sftp.list` with `project_path` (optional `tool`, `visibility`, and `limit`):
 
-- Inspects all tool namespaces (`codex`, `openclaw`, `claude`) and visibilities (`private`, `public`) in `docs/artifacts/`.
-- Retrieves each artifact's `latest_version`, `latest_snapshot`, `snapshot_count`, `mtime`, and `index_sha256`.
-- Automatically prunes build, test, and framework cache trees (e.g. `dist/`, `build/`, `coverage/`, `.next/`).
-- Returns `local_drafts` listing workspace `.html`/`.htm` files outside artifact archive directories.
-- Reports `artifacts_truncated` and `local_drafts_truncated` flags when items exceed `limit` (default: 100).
-
-### 2. Source Matching & Content Normalization
-
-For each discovered artifact in the inventory:
-
-1. **Source Matching:** Search workspace files for candidate source HTML (e.g. matching filename `<slug>.html`, `docs/artifacts/<slug>.html`, or documented source paths).
-2. **Content Normalization:**
-   - Because the publisher injects defaults during publishing, a raw byte hash will differ from the original source.
-   - Strip or account for all publisher-injected elements before comparing content:
-     - Google Fonts Sarabun stylesheet link (`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun...`)
-     - Injected Sarabun font style (`<style data-artifact-sftp-font="sarabun">...`)
-     - Injected charset declaration (`<meta charset="utf-8">`)
-     - Injected language attribute on `<html>` (`lang="th"` / `lang="en"`)
-     - Injected metadata footer (`<footer data-artifact-meta...>`)
-   - Alternatively, compare normalized DOM body contents or stripped text structures.
-3. **Modification Comparison:** Compare normalized source content and file modification timestamps (`mtime`).
-
-### 3. Health Classification Matrix
-
-Classify each item into one of the following states:
-
-| Status | Icon | Criteria | Recommended Agent Action |
-|---|---|---|---|
-| **Fresh / Synced** | 🟢 | Normalized source matches latest snapshot; up to date | Retain as-is |
-| **Stale / Outdated** | 🟡 | Source HTML has newer edits or different normalized content | Propose `artifact_sftp.publish` to update version |
-| **Unlinked Source** | ⚪ | Source filename differs from slug; provenance unconfirmed | Keep; prompt user for source path if update needed |
-| **Orphaned / Ephemeral** | 🔴 | Known source deleted, or slug matches test prefixes (`test-*`, `smoke-*`, `tmp-*`) | Propose `artifact_sftp.unpublish` with confirmation |
-| **Local Draft** | 📝 | Workspace HTML file exists without published archive | Offer initial `artifact_sftp.publish` |
-
-### 4. Present Grooming Report
-
-Render a clear, structured summary table to the user:
-
-```text
-| Slug / Path | Tool / Visibility | Version | Last Updated | Status | Recommended Action |
-|---|---|---|---|---|---|
-| show-me-architecture | openclaw / private | v2 | 2026-08-15 21:13 | 🟢 Fresh | Keep |
-| project-summary | codex / private | v1 | 2026-08-10 14:00 | 🟡 Stale | Update (publish) |
-| reports/q3-review.html | (local draft) | - | 2026-08-15 10:00 | 📝 Local Draft | Publish |
-| smoke-test-1 | openclaw / private | v1 | 2026-08-12 09:30 | 🔴 Ephemeral | Unpublish |
+```json
+{
+  "project_path": "/path/to/project",
+  "limit": 100
+}
 ```
 
-### 5. Interactive Execution & Safeguards
+- Inspects all tool namespaces (`codex`, `openclaw`, `claude`) and visibilities (`private`, `public`) in `docs/artifacts/`.
+- Retrieves each artifact's `latest_version`, `latest_snapshot`, `snapshot_count`, `mtime`, and `index_sha256`.
+- Discovers `local_drafts` with structured metadata (`path`, `mtime`, `size`, `sha256`), automatically pruning build/cache trees (`dist/`, `build/`, `coverage/`, `.next/`).
 
-Ask the user to confirm proposed actions before executing mutations:
+---
 
-- **For updates:** Call `artifact_sftp.publish(project_path, source_path, slug, tool, visibility, confirm=true)` (add `confirm_public=true` if public).
-  - *No redundant verification:* Once publish succeeds, the update is complete. Do not execute follow-up verification calls.
-  - *Note on machine ownership:* If the slug was originally published on a different machine, the publisher guards against accidental remote overwrites. Report ownership mismatch if encountered.
-- **For teardowns:**
-  - Optionally preview with `artifact_sftp.unpublish(project_path, slug, tool, visibility, dry_run=true)`.
-  - Execute teardown with `artifact_sftp.unpublish(project_path, slug, tool, visibility, confirm=true)` (add `confirm_public=true` if public).
-  - Remind the user that remote hosting is removed while local snapshot history in `docs/artifacts/` is preserved.
+### Stage 2: Quality & Health Diagnosis (DocCraft Matrix)
+
+For each discovered artifact and local draft, evaluate both **Freshness Health** and **Content Modernization Potential**:
+
+#### 1. Freshness Health Matrix
+
+| Status | Icon | Criteria | Primary Action |
+|---|:---:|---|---|
+| **Fresh / Synced** | 🟢 | Normalized source matches latest snapshot | Evaluate for Modernization |
+| **Stale / Outdated** | 🟡 | Source HTML has newer edits or different normalized content | Modernize & Publish new version |
+| **Unlinked Source** | ⚪ | Source filename differs from slug; provenance unconfirmed | Prompt user for source path |
+| **Orphaned / Ephemeral**| 🔴 | Source deleted or slug matches test prefixes (`test-*`, `tmp-*`) | Propose `artifact_sftp.unpublish` |
+| **Local Draft** | 📝 | Workspace HTML exists without published archive | Modernize & Initial Publish |
+
+#### 2. Specialized Skill Diagnostic Checklist
+
+Assess whether the artifact benefits from invocation of the specialized skill suite:
+
+| Diagnostic Focus | Specialized Skill | Target Improvements |
+|---|---|---|
+| **✍️ Thai Prose & Anti-Slop** | `thai-prose-craft` | • Eliminate AI translation clichés ("ในยุคปัจจุบัน", "ถือเป็นสิ่งสำคัญ")<br>• Convert passive/bloated verbs to crisp active phrasing<br>• Authentic bilingual terminology alignment |
+| **📊 Visual Diagrams** | `visual-illustrator` | • Replace text walls with syntax-safe Mermaid architecture/flowcharts<br>• Enforce double-quoted labels `node["Text"]` to prevent render crash<br>• Apply enterprise palette standard (`classDef` styles) |
+| **📑 Executive Layout & Alerts** | `artifact-curator` | • Restructure into 3-tier progressive disclosure (Summary -> Deep-dive -> Schema)<br>• Insert GitHub alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`)<br>• Add comparative evaluation tables and carousels |
+| **🔍 Parity & Links** | `doc-synchronizer` | • Audit code-to-docs parameter names, endpoints, and version tags<br>• Verify internal anchors and external reference links |
+
+---
+
+### Stage 3: Present Actionable Grooming Report
+
+Render a comprehensive summary table to the user:
+
+```text
+| Slug / Path | Type / Visibility | Version | Health | Modernization Opportunities | Recommended Action |
+|---|---|---|:---:|---|---|
+| system-arch | codex / private | v1 | 🟡 Stale | 📊 Add Mermaid microservice flow<br>✍️ Polish Thai executive summary | Modernize & Publish v2 |
+| onboarding-guide | openclaw / private | v2 | 🟢 Fresh | 📑 Add Callout alerts & 3-tier structure | Upgrade layout & Publish v3 |
+| draft-report.html | (local draft) | - | 📝 Draft | ✍️ Remove AI slop<br>📊 Insert ERD diagram | Modernize & Initial Publish |
+| smoke-test-99 | codex / private | v1 | 🔴 Ephemeral | None (temporary test run) | Unpublish & Teardown |
+```
+
+---
+
+### Stage 4: Refactor Source with Specialized Skills
+
+When the user selects an artifact to modernize, invoke the corresponding skills to enhance the workspace source file:
+
+1. **Invoke `thai-prose-craft`:**
+   - Scan Thai paragraphs for robotic translation patterns.
+   - Rewrite sentences into direct, punchy, active Thai appropriate for the chosen register (Executive / Technical / Guide).
+2. **Invoke `visual-illustrator`:**
+   - Generate robust, syntax-safe Mermaid diagrams with double-quoted node labels.
+   - Attach enterprise color classes (`classDef primary`, `classDef storage`, etc.).
+3. **Invoke `artifact-curator`:**
+   - Organize headings and add executive callouts (`> [!NOTE]`, `> [!IMPORTANT]`).
+   - Format dense lists into scannable comparison matrices.
+4. **Invoke `doc-synchronizer`:**
+   - Re-verify code symbols, config variable names, and file paths.
+
+---
+
+### Stage 5: User Confirmation & Review
+
+Present the proposed refactorings and diff summary to the user before publishing:
+
+```text
+Ready to publish modernized version:
+• Target: codex / private / system-arch (v1 -> v2)
+• Enhancements Applied:
+  - Injected Architecture Flowchart (Mermaid) with enterprise palette
+  - Polished Thai executive summary (removed 4 AI-slop phrases)
+  - Added [!IMPORTANT] security notice callout
+
+Proceed with publish? (y/n)
+```
+
+---
+
+### Stage 6: Publish & Archive (`artifact_sftp.publish`)
+
+Once confirmed, execute publication via MCP:
+
+```json
+{
+  "project_path": "/path/to/project",
+  "source_path": "path/to/source.html",
+  "slug": "system-arch",
+  "tool": "codex",
+  "visibility": "private",
+  "confirm": true
+}
+```
+
+*(For public visibility, provide BOTH `confirm: true` and `confirm_public: true`)*.
+
+#### Post-Publish Completion:
+- The publisher automatically updates `docs/artifacts/<tool>/<vis>/<slug>/index.html` and creates the new versioned snapshot (e.g. `system-arch--2--<timestamp>.html`).
+- Report the published URL, assigned version number, and updated health status to the user.
+- **Do not execute redundant read/verify calls.** The publication is complete and verified.
+
