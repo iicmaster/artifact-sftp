@@ -31,6 +31,7 @@ are not a command surface.
    Inline CSS, JavaScript, and application assets. The publisher adds the approved
    [Sarabun](https://fonts.google.com/specimen/Sarabun) stylesheet as the default Thai font;
    do not add other external CDN dependencies.
+   - *Pre-Flight Quality Audit:* Run `artifact-audit` on candidate documents before publishing to guarantee clean Thai prose, syntax-safe Mermaid diagrams, and zero secret leakage.
 4. Ask for user approval before a real publish. Call `artifact_sftp.publish` with
    `confirm: true` only after that approval. The default visibility is `private`; public
    publishing additionally needs explicit public-sharing approval and `confirm_public: true`.
