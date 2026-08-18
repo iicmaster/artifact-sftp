@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.1] - 2026-08-18
+
+- Fix author font-family override bug by injecting the default Sarabun typography declaration immediately after opening `<head>` instead of before closing `</head>`.
+- Fix latent awk parameter syntax error (`close` keyword renamed to `close_at`) in `stamp_open_head`.
+- Prevent version footer stacking on republished read-back copies by removing stale `<footer data-artifact-meta...>` tags before applying the updated metadata footer.
+- Allow proactive scaffolding of template configuration with secure permissions (0700/0600) and placeholder keys in `artifact-sftp-setup`, avoiding interactive terminal wizards and protecting credential privacy.
+
 ## [0.17.0] - 2026-08-17
 
 - Add `artifact-audit` skill as a pre-flight quality, security, and integrity gatekeeper evaluating Thai prose (anti-slop), Mermaid syntax safety, 3-tier layout, broken links, and secret leakage prevention.

@@ -3,7 +3,7 @@ name: artifact-sftp-setup
 description: Check and bootstrap Artifact SFTP configuration readiness through MCP. AI agents scaffold template configs (0700/0600) with placeholders so users can fill credentials directly, but never solicit or relay secrets in chat. ใช้เมื่อต้องตรวจสอบความพร้อมหรือเตรียมไฟล์คอนฟิกสำหรับ artifact-sftp
 ---
 
-# Artifact SFTP provisioning boundary — MCP & Scaffolding
+# Artifact SFTP provisioning boundary — MCP-only & Scaffolding
 
 This skill checks configuration readiness and scaffolds boilerplate configuration files for the
 environment owner. It separates **Configuration Structure** (automated/public) from **Secret Values**
