@@ -31,15 +31,33 @@ are not a command surface.
    Inline CSS, JavaScript, and application assets. The publisher adds the approved
    [Sarabun](https://fonts.google.com/specimen/Sarabun) stylesheet as the default Thai font;
    do not add other external CDN dependencies.
-   - *Pre-Flight Quality Audit:* Run `artifact-audit` on candidate documents before publishing to guarantee clean Thai prose, syntax-safe Mermaid diagrams, and zero secret leakage.
-4. Ask for user approval before a real publish. Call `artifact_sftp.publish` with
-   `confirm: true` only after that approval. The default visibility is `private`; public
-   publishing additionally needs explicit public-sharing approval and `confirm_public: true`.
-5. On success, `artifact_sftp.publish` has already completed all necessary validations
-   (local custody archival, SFTP atomic upload, SHA-256 integrity match, and privacy protection
-   probe). Report the published URL and local read-back reference to the user and complete the turn.
-   Do NOT perform redundant post-publish verification (do NOT call `artifact_sftp.read`, and do NOT
-   fetch or browse the URL).
+4. **MANDATORY Pre-Flight Quality & Security Gate (`artifact-audit` — CANNOT BYPASS):**
+   - The AI agent **MUST** execute the `artifact-audit` pre-flight quality and security evaluation on the document before asking for publishing approval.
+   - Evaluate all 5 core dimensions:
+     1. ✍️ **Thai Prose & Anti-Slop:** Zero robotic AI translation clichés (e.g. "ในยุคปัจจุบัน", "ถือเป็นสิ่งสำคัญ").
+     2. 📊 **Visual & Mermaid Syntax:** All labels with special characters strictly wrapped in double quotes `node["Label (Details)"]`, valid chart archetype keywords.
+     3. 📑 **3-Tier Structure & Alerts:** Progressive disclosure (Summary -> Core Architecture -> Deep-dive Appendix), valid GitHub alert formatting (`> [!NOTE]`, `> [!IMPORTANT]`, etc.).
+     4. 🔍 **Link & Anchor Parity:** Zero broken relative paths or missing internal anchor hashes.
+     5. 🔒 **Security & Zero Secret Leakage:** Absolute zero API keys, passwords, bearer tokens, private keys, or PII.
+   - **Render the Pre-Flight Audit Gate Table to the user:**
+     ```text
+     ### 🛡️ Pre-Flight Quality & Security Gate (artifact-audit)
+     | Dimension | Status | Key Findings | Remediated By |
+     |---|:---:|---|---|
+     | ✍️ Thai Prose & Anti-Slop | 🟢 PASS / 🟡 WARN / 🔴 BLOCK | ... | `thai-prose-craft` |
+     | 📊 Visual & Mermaid Syntax | 🟢 PASS / 🟡 WARN / 🔴 BLOCK | ... | `visual-illustrator` |
+     | 📑 3-Tier Structure & Alerts | 🟢 PASS / 🟡 WARN / 🔴 BLOCK | ... | `artifact-curator` |
+     | 🔍 Link & Anchor Parity | 🟢 PASS / 🟡 WARN / 🔴 BLOCK | ... | `doc-synchronizer` |
+     | 🔒 Security & Privacy | 🟢 PASS / 🔴 BLOCK | Zero secrets detected | (Manual fix) |
+     **Gate Verdict:** [🟢 PASS / 🟡 WARN / 🔴 BLOCK]
+     ```
+   - **Hard Blocking Invariant:** If ANY dimension is marked **🔴 BLOCK**, publishing is **IMMEDIATELY HALTED**. The agent MUST route to the corresponding specialized skill (`thai-prose-craft`, `visual-illustrator`, `artifact-curator`, `doc-synchronizer`) to repair the source document before proceeding.
+5. **Interactive Confirmation:**
+   - Ask for user approval only AFTER the Pre-Flight Gate verdict is 🟢 **PASS** (or 🟡 **WARN** with explicit user acknowledgement).
+   - Call `artifact_sftp.publish` with `confirm: true` only after that approval. The default visibility is `private`; public publishing additionally needs explicit public-sharing approval and `confirm_public: true`.
+6. **Post-Publish Turn Completion (No Redundant Verification):**
+   - On success, `artifact_sftp.publish` has already completed all necessary validations (local custody archival, SFTP atomic upload, SHA-256 integrity match, and privacy protection probe). Report the published URL and local read-back reference to the user and complete the turn.
+   - Do NOT perform redundant post-publish verification (do NOT call `artifact_sftp.read`, and do NOT fetch or browse the URL).
 
 ## No redundant post-publish verification
 

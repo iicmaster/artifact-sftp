@@ -11,3 +11,5 @@ Artifact SFTP is MCP-only for AI agents.
   available`; do not substitute a shell command, direct SFTP, or HTTP fetch.
 - Do not pass or request credentials, secrets, private keys, or unsafe
   overrides through tool arguments.
+- Enforce the mandatory `artifact-audit` pre-flight quality and security gate
+  prior to publishing or grooming; never bypass the gate when critical blockers are detected.

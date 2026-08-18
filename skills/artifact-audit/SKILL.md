@@ -14,10 +14,10 @@ By unifying the checks of the DocCraft specialized suite (`thai-prose-craft`, `a
 
 ## 1. Mandatory Routing & Invariants
 
-1. **Pre-Flight Execution:** Always run `artifact-audit` before calling `artifact_sftp.publish` on non-trivial documents or as Step 2 of `artifact-groom`.
+1. **Mandatory Hard Gate (CANNOT BYPASS):** Always run `artifact-audit` before calling `artifact_sftp.publish` on non-trivial documents and during Stage 2 & Stage 5 of `artifact-groom`. Skipping or bypassing this gate is strictly forbidden.
 2. **Local-First & Non-Destructive:** `artifact-audit` is a read-only diagnostic evaluator. It does not overwrite files without user direction or publish behind the user's back.
-3. **Hard Blocker Gate:** If any **Critical Blockers** (e.g. hardcoded secrets, broken Mermaid syntax, or path traversal links) are detected, publication MUST be halted until remediated.
-4. **Remediation Routing:** When deficiencies are detected, route immediately to the appropriate specialized skill to perform targeted repairs.
+3. **Hard Blocker Gate:** If any **Critical Blockers** (e.g. hardcoded secrets, broken Mermaid syntax, or path traversal links) are detected (🔴 **BLOCK**), publication MUST be halted immediately until remediated.
+4. **Remediation Routing:** When deficiencies are detected, route immediately to the appropriate specialized skill (`thai-prose-craft`, `visual-illustrator`, `artifact-curator`, `doc-synchronizer`) to perform targeted repairs.
 
 ---
 

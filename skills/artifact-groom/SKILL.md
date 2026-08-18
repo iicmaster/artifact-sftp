@@ -14,11 +14,12 @@ refactors candidate sources, and seamlessly publishes upgraded versioned snapsho
 
 1. **MCP-only routing:** Use only `artifact_sftp.*` MCP tools (`artifact_sftp.list`, `artifact_sftp.publish`, `artifact_sftp.unpublish`, `artifact_sftp.read`).
 2. **Local-First Invariant:** Always begin by discovering local custody in `docs/artifacts/` and workspace drafts with `artifact_sftp.list`.
-3. **Workspace Source Custody:** Apply modernizations to local workspace source documents before publishing so project version control (Git) retains full change provenance.
-4. **Interactive Consent:** Never publish updates or destructive unpublishes without explicit user review and confirmation.
+3. **Mandatory Audit Hard Gate (`artifact-audit` — CANNOT BYPASS):** The AI agent **MUST** execute Stage 2 (`artifact-audit`) and render the 5-dimension quality matrix for discovered artifacts before presenting modernization proposals. Publishing upgraded versions strictly requires a 🟢 **PASS** (or 🟡 **WARN**) pre-flight gate clearance in Stage 5.
+4. **Workspace Source Custody:** Apply modernizations to local workspace source documents before publishing so project version control (Git) retains full change provenance.
+5. **Interactive Consent:** Never publish updates or destructive unpublishes without explicit user review and confirmation.
    - For `private` visibility updates/unpublishes: requires `confirm=true`.
    - For `public` visibility updates/unpublishes: requires BOTH `confirm=true` and `confirm_public=true`.
-5. **No Redundant Verification:** `artifact_sftp.publish` executes internal hash matching, SFTP verification, and privacy probing automatically. Do NOT execute follow-up `artifact_sftp.read` or browser fetch calls after publishing.
+6. **No Redundant Verification:** `artifact_sftp.publish` executes internal hash matching, SFTP verification, and privacy probing automatically. Do NOT execute follow-up `artifact_sftp.read` or browser fetch calls after publishing.
 
 ---
 

@@ -226,6 +226,8 @@ def check_mcp_only_agent_routing() -> None:
         content = skill_path.read_text(encoding="utf-8")
         if "MCP-only" not in content or required_tool not in content:
             fail(f"{skill_path.relative_to(ROOT)} must route agents through {required_tool}")
+        if skill_name in {"artifact-sftp", "artifact-groom"} and "artifact-audit" not in content:
+            fail(f"{skill_path.relative_to(ROOT)} must mandate artifact-audit pre-flight gate")
         leaked = sorted(name for name in INTERNAL_SCRIPT_NAMES if name in content)
         if leaked:
             fail(f"{skill_path.relative_to(ROOT)} must not teach direct internal scripts: {leaked}")
