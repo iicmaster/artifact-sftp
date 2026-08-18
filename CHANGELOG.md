@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+- Parse the Artifact SFTP config instead of sourcing it. `publish.sh` walked the file through `. "$CONFIG"`, which executed every value as shell: a password containing `$(...)` or a backtick ran as the publishing user, and a stray line such as `PATH=/tmp/evil` silently redirected the helpers the publisher invokes. Values are now split on the first `=` and assigned only for allowlisted keys, and an unrecognized key is rejected.
+- Allow any character except CR/LF in `SFTP_PASS`. The shell-safe allowlist was a consequence of sourcing the config, and it locked out passwords containing common metacharacters. Keys that still reach a shell word, a `curl -K` directive, or interpolated HTML keep the original restriction.
+- Stop stripping whitespace from config values in `sftp_helper.py`, so a password that begins or ends with a space no longer authenticates with a silently different secret.
+
 ## [0.17.0] - 2026-08-17
 
 - Add `artifact-audit` skill as a pre-flight quality, security, and integrity gatekeeper evaluating Thai prose (anti-slop), Mermaid syntax safety, 3-tier layout, broken links, and secret leakage prevention.

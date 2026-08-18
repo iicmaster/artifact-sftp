@@ -458,5 +458,50 @@ fi
 mv "$cfg.before-del-bad-url" "$cfg"
 chmod 600 "$cfg"
 
+# --- the config is parsed, never sourced ---
+# Sourcing made every config value executable shell. The value below is deliberately VALID
+# shell, so `. "$CONFIG"` really would run both commands; a parser stores it as a literal.
+# (An invalid-syntax value proves nothing here: sourcing would merely abort on the parse
+# error and leave the canaries untouched for the wrong reason.)
+cp "$cfg" "$cfg.before-parse"
+canary_sub="$WORK/canary-dollar-paren"
+canary_tick="$WORK/canary-backtick"
+rm -f "$canary_sub" "$canary_tick"
+{
+  cat "$cfg.before-parse"
+  printf 'SFTP_PASS=$(touch %s)`touch %s`\n' "$canary_sub" "$canary_tick"
+} >"$cfg"
+chmod 600 "$cfg"
+bash "$PUB" --slug parse-safe "$good" >"$WORK/out" 2>"$WORK/parse.err" || true
+if [ ! -e "$canary_sub" ] && [ ! -e "$canary_tick" ]; then
+  echo "PASS config values are stored literally, never executed"
+else
+  echo "FAIL: loading the config executed a substitution from a value"; fails=$((fails+1))
+fi
+mv "$cfg.before-parse" "$cfg"
+chmod 600 "$cfg"
+
+# The stored password must never reach publisher output, whatever it contains.
+cp "$cfg" "$cfg.before-leak"
+leak_pass="p@ss w0rd!#&;quux"
+{ grep -v '^SSH_KEY=' "$cfg.before-leak"; printf 'SFTP_PASS=%s\n' "$leak_pass"; } >"$cfg"
+chmod 600 "$cfg"
+bash "$PUB" --slug leak-check "$good" >"$WORK/out" 2>"$WORK/leak.err" || true
+if ! grep -Fq "$leak_pass" "$WORK/leak.err" && ! grep -Fq "$leak_pass" "$WORK/out"; then
+  echo "PASS the stored password is not echoed by the publisher"
+else
+  echo "FAIL: the stored password leaked into publisher output"; fails=$((fails+1))
+fi
+mv "$cfg.before-leak" "$cfg"
+chmod 600 "$cfg"
+
+# An unrecognised key must be refused rather than assigned into the publisher's environment.
+cp "$cfg" "$cfg.before-unknown"
+{ cat "$cfg.before-unknown"; printf 'PATH=/nonexistent\n'; } >"$cfg"
+chmod 600 "$cfg"
+expect 3 "unknown config key rejected"            -- bash "$PUB" --slug unknown-key "$good"
+mv "$cfg.before-unknown" "$cfg"
+chmod 600 "$cfg"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi

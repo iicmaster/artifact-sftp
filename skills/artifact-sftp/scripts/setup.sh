@@ -61,11 +61,21 @@ _config_shape_valid() {
     case "$line" in *=*) ;; *) return 1 ;; esac
     key=${line%%=*}
     value=${line#*=}
+    [ -n "$value" ] || return 1
     case "$key" in
-      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SFTP_PASS|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE) ;;
+      # publish.sh parses the config instead of sourcing it and sftp_helper.py splits on the
+      # first '=', so the password is never handed back to a shell. Every byte is safe here
+      # except CR, which would corrupt the one-value-per-line format.
+      SFTP_PASS)
+        case "$value" in *$'\r'*) return 1 ;; esac
+        ;;
+      # These still reach a shell word, a `curl -K` directive, or interpolated HTML, so they
+      # keep the conservative allowlist.
+      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE)
+        _shell_safe "$value" || return 1
+        ;;
       *) return 1 ;;
     esac
-    [ -n "$value" ] && _shell_safe "$value" || return 1
   done < "$CONFIG"
 }
 _config_keys_unique() {

@@ -29,12 +29,15 @@ def require_mcp_call():
 def read_cfg():
     cfg = {}
     with open(CONFIG) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
+        for raw in f:
+            line = raw.rstrip("\n").rstrip("\r")
+            if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
                 continue
             k, v = line.split("=", 1)
-            cfg[k] = v
+            # The value is kept byte-for-byte. A password may legitimately start or end
+            # with a space, and stripping it here would silently authenticate with the
+            # wrong secret.
+            cfg[k.strip()] = v
     return cfg
 
 

@@ -161,7 +161,10 @@ while :; do
       command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
         || die "password auth requires python3-paramiko; install it locally, then rerun setup"
       auth_mode=password
-      prompt_safe_secret sftp_pass "SFTP password (hidden)"
+      # Not prompt_safe_secret: the password is only ever written as a config value and read
+      # back by a parser, so it does not need the shell/curl-safe character allowlist that
+      # the Cloudflare secret below still needs.
+      prompt_secret sftp_pass "SFTP password (hidden)"
       break
       ;;
     ssh-key)
