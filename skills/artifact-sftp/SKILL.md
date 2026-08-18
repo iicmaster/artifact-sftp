@@ -23,10 +23,10 @@ are not a command surface.
    `verify_connection: true`. It first checks local prerequisites, then performs a bounded,
    no-write SFTP preflight using the owner-managed configuration.
 2. If it reports `ready: false`, call `artifact_sftp.setup` with the same
-   `verify_connection: true` to obtain the structured boundary, then stop. A result with
-   `local_ready: true` but `remote_connection.status != "verified"` is a remote setup failure,
-   not permission to publish or fall back. Configuration is pre-provisioned outside the agent
-   workflow; the agent must not try to configure it.
+   `verify_connection: true` to obtain the structured boundary. If `local_ready: false`
+   (missing config), scaffold the template configuration file (`0600`) as outlined in
+   `artifact-sftp-setup` and guide the user to fill in credentials directly, then stop.
+   The agent must never solicit or accept secrets in chat.
 3. Produce one regular `.html` or `.htm` file inside the selected absolute `project_path`.
    Inline CSS, JavaScript, and application assets. The publisher adds the approved
    [Sarabun](https://fonts.google.com/specimen/Sarabun) stylesheet as the default Thai font;
