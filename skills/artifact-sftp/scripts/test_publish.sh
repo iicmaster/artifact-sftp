@@ -344,6 +344,40 @@ else
   echo "FAIL: Sarabun marker was duplicated or publish failed (exit $sarabunrc)"; sed 's/^/  | /' "$SARABUN_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
 
+# --- the injected font is a default, not an override: an author font stack must win ---
+printf '%s\n' '<!DOCTYPE html><html><head><style>body{font-family:"Leelawadee UI","Sarabun",sans-serif}</style></head><body><p>own font</p></body></html>' > "$WORK/own-font.html"
+ownfontrc=0; bash "$PUB" --slug own-font "$WORK/own-font.html" >"$WORK/out" 2>"$WORK/errout" || ownfontrc=$?
+OWN_FONT_COPY="$WORK/project/docs/artifacts/codex/private/own-font/index.html"
+# Both rules land in the head; the author's must come LAST so it wins on source order
+# at equal specificity. Comparing byte offsets is what actually proves who wins —
+# asserting both strings are merely "present" passed even while the publisher was
+# silently replacing every author font stack.
+own_font_injected_at=$(awk '{ p = index($0, "data-artifact-sftp-font"); if (p) { print off + p; exit } off += length($0) + 1 }' "$OWN_FONT_COPY")
+own_font_author_at=$(awk '{ p = index($0, "body{font-family:\"Leelawadee UI\""); if (p) { print off + p; exit } off += length($0) + 1 }' "$OWN_FONT_COPY")
+if [ "$ownfontrc" -eq 0 ] \
+    && [ -n "$own_font_injected_at" ] && [ -n "$own_font_author_at" ] \
+    && [ "$own_font_injected_at" -lt "$own_font_author_at" ]; then
+  echo "PASS injected font precedes the author font stack, so the document keeps its own"
+else
+  echo "FAIL: injected font must precede the author stack (exit $ownfontrc, injected@${own_font_injected_at:-none} author@${own_font_author_at:-none})"
+  sed 's/^/  | /' "$OWN_FONT_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
+# --- republishing a read-back copy must not accumulate version footers ---
+printf '%s\n' '<!DOCTYPE html><html><head><title>t</title></head><body><p>again</p><footer data-artifact-meta style="color:#666">artifact: refooter · v1 · created 2026-01-01 00:00 ICT</footer></body></html>' > "$WORK/refooter.html"
+refooterrc=0; bash "$PUB" --slug refooter "$WORK/refooter.html" >"$WORK/out" 2>"$WORK/errout" || refooterrc=$?
+REFOOTER_COPY="$WORK/project/docs/artifacts/codex/private/refooter/index.html"
+refooter_count=$(grep -o 'data-artifact-meta' "$REFOOTER_COPY" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$refooterrc" -eq 0 ] \
+    && [ "$refooter_count" -eq 1 ] \
+    && ! grep -Fq 'created 2026-01-01 00:00 ICT' "$REFOOTER_COPY" \
+    && grep -Fq '<p>again</p>' "$REFOOTER_COPY"; then
+  echo "PASS a stale version footer is replaced, not appended"
+else
+  echo "FAIL: expected exactly one version footer and the stale one gone (exit $refooterrc, count ${refooter_count:-none})"
+  sed 's/^/  | /' "$REFOOTER_COPY" 2>/dev/null; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
 # --- footer must target the final </body>, not an inlined JavaScript string ---
 printf '%s\n' '<!DOCTYPE html><html><head><title>t</title></head><body><script>const fragment = "<body>x</body></html>";</script></body></html>' > "$WORK/inline-body.html"
 inlinebodyrc=0; bash "$PUB" --slug inline-body "$WORK/inline-body.html" >"$WORK/out" 2>"$WORK/errout" || inlinebodyrc=$?
