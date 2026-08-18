@@ -146,6 +146,7 @@ BATCH=''
 STAMPED=''
 PREINJECT=''
 FONTED=''
+DEFOOTED=''
 LOCAL_INDEX_TMP=''
 LOCAL_SNAPSHOT_TMP=''
 cleanup() {
@@ -156,6 +157,7 @@ cleanup() {
   if [ -n "$STAMPED" ]; then rm -f "$STAMPED"; fi
   if [ -n "$PREINJECT" ]; then rm -f "$PREINJECT"; fi
   if [ -n "$FONTED" ]; then rm -f "$FONTED"; fi
+  if [ -n "$DEFOOTED" ]; then rm -f "$DEFOOTED"; fi
   if [ -n "$LOCAL_INDEX_TMP" ]; then rm -f "$LOCAL_INDEX_TMP"; fi
   if [ -n "$LOCAL_SNAPSHOT_TMP" ]; then rm -f "$LOCAL_SNAPSHOT_TMP"; fi
 }
@@ -378,16 +380,25 @@ BEGIN { cdone = has_charset; ldone = has_lang; nohead = !has_close_head && !has_
   print
 }' "$FILE" > "$PREINJECT"
 
-# Sarabun is the Artifact SFTP default Thai font. Keep the marker idempotent so a
-# previously published artifact can be republished without accumulating stylesheet
-# links. Add it immediately before the final literal </head>, not an earlier string
-# inside an inlined script. If a malformed source has an opening head but no close,
-# append it to the opening tag instead; the charset pass above has already created a
-# complete head for sources with no head at all.
+# Sarabun is the Artifact SFTP default Thai font, and it is a DEFAULT, not an
+# override: an artifact that declares its own font-family must keep it. So the
+# markup goes as early in the head as possible — immediately after the opening
+# <head> tag — where any author stylesheet that follows wins on source order at
+# equal specificity. Injecting it before </head> instead made the publisher beat
+# every author font stack, which silently replaced document fonts on publish.
+# Keep the marker idempotent so a previously published artifact can be republished
+# without accumulating stylesheet links. Only when a malformed source has a closing
+# head but no opening one do we fall back to stamping before </head>; the charset
+# pass above has already created a complete head for sources with no head at all.
 SARABUN_MARKUP='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>'
 if ! grep -Fqi 'data-artifact-sftp-font="sarabun"' "$PREINJECT"; then
   FONTED=$(mktemp)
-  LAST_HEAD_LINE=$(awk 'index(tolower($0), "</head>") { last = NR } END { if (last) print last }' "$PREINJECT")
+  FIRST_HEAD_LINE=$(awk 'index(tolower($0), "<head") { print NR; exit }' "$PREINJECT")
+  if [ -z "$FIRST_HEAD_LINE" ]; then
+    LAST_HEAD_LINE=$(awk 'index(tolower($0), "</head>") { last = NR } END { if (last) print last }' "$PREINJECT")
+  else
+    LAST_HEAD_LINE=''
+  fi
   if [ -n "$LAST_HEAD_LINE" ]; then
     awk -v target="$LAST_HEAD_LINE" -v font="$SARABUN_MARKUP" '
 function stamp_last_head(line,    lower, start, pos, last) {
@@ -403,16 +414,18 @@ NR == target { print stamp_last_head($0); next }
 { print }
 ' "$PREINJECT" > "$FONTED"
   else
-    FIRST_HEAD_LINE=$(awk 'index(tolower($0), "<head") { print NR; exit }' "$PREINJECT")
     [ -n "$FIRST_HEAD_LINE" ] || die 9 "could not add the Sarabun font declaration to artifact HTML"
     awk -v target="$FIRST_HEAD_LINE" -v font="$SARABUN_MARKUP" '
-function stamp_open_head(line,    lower, start, close) {
+# close is an awk built-in, so it cannot be a parameter name: naming it that made
+# this function a syntax error. It never surfaced while this branch was unreachable.
+function stamp_open_head(line,    lower, start, close_at) {
   lower = tolower(line)
   start = index(lower, "<head")
-  close = index(substr(lower, start), ">")
-  if (start == 0 || close == 0) return line
-  close = start + close - 1
-  return substr(line, 1, close) font substr(line, close + 1)
+  if (start == 0) return line
+  close_at = index(substr(lower, start), ">")
+  if (close_at == 0) return line
+  close_at = start + close_at - 1
+  return substr(line, 1, close_at) font substr(line, close_at + 1)
 }
 NR == target { print stamp_open_head($0); next }
 { print }
@@ -421,6 +434,32 @@ NR == target { print stamp_open_head($0); next }
   mv "$FONTED" "$PREINJECT"
   FONTED=''
 fi
+
+# A republished artifact often starts from a previous read-back copy, which already
+# carries the footer this publisher stamped last time. Appending a second one leaves
+# the served page claiming two different versions at the bottom, with the stale one
+# first. Drop any footer we previously stamped before adding the current one. Only
+# same-line footers are removed: everything this script emits is single-line by
+# construction, and a multi-line match would risk eating author markup.
+DEFOOTED=$(mktemp)
+awk '
+{
+  line = $0
+  out = ""
+  while (1) {
+    start = index(tolower(line), "<footer data-artifact-meta")
+    if (start == 0) break
+    rest = substr(line, start)
+    close_at = index(tolower(rest), "</footer>")
+    if (close_at == 0) break
+    out = out substr(line, 1, start - 1)
+    line = substr(rest, close_at + 9)
+  }
+  print out line
+}
+' "$PREINJECT" > "$DEFOOTED"
+mv "$DEFOOTED" "$PREINJECT"
+DEFOOTED=''
 
 STAMPED=$(mktemp)
 TS_HUMAN=$(TZ="$TZ_NAME" date '+%Y-%m-%d %H:%M %Z' 2>/dev/null) || TS_HUMAN=$(date -u '+%Y-%m-%d %H:%M UTC')
