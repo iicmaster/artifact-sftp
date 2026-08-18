@@ -174,12 +174,19 @@ The template is a schema illustration only. An approved owner-side provisioner
 or secret manager must write the real values with the required permissions; an
 AI agent must never be asked to fill it in or inspect it.
 
-Values are read both by a shell publisher and by the password-auth helper, so
-the owner-side provisioning format must be one-line, shell-safe key/value data
-accepted by the package. Do not add duplicate keys, unknown keys, multiline
-values, or an environment override for the host key file. Keep the auth value,
-private-key path, and 1Password reference private even when the value itself is
-not a password.
+Both readers parse this file rather than executing it: the shell publisher walks it
+line by line and the password-auth helper splits on the first `=`. The format is
+therefore one line per key, with the value taken verbatim after the first `=`. Do
+not add duplicate keys, unknown keys, multiline values, or an environment override
+for the host key file — an unknown key is a hard error, not a warning. Keep the
+auth value, private-key path, and 1Password reference private even when the value
+itself is not a password.
+
+`SFTP_PASS` may contain any character except a carriage return or newline, which
+would split one stored value across two lines. Do not quote or escape it; write the
+password exactly as the server expects it. Every other value still reaches a shell
+word, a `curl -K` directive, or interpolated HTML, so those remain restricted to
+`A-Za-z0-9` and `_ . : / @ % + -`.
 
 `known_hosts` must contain valid, pinned key data for the configured endpoint:
 the host label for port 22, or `[host]:port` for another port. Never disable

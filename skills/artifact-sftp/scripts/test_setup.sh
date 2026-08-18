@@ -424,4 +424,60 @@ run_capture "$DIRECTORY_OUT" env HOME="$DIRECTORY_HOME" PATH="$TEST_PATH" bash "
 assert_rc 2 "setup should refuse a directory at the config target"
 assert_contains "$DIRECTORY_OUT" 'not a regular file' "directory target refusal was not explained"
 
+# A password is only ever stored as a config value and read back by a parser
+# (publish.sh) or a first-'=' split (sftp_helper.py); it is never handed back to a
+# shell. Shell metacharacters in it must therefore not be rejected as an unsafe
+# config line, and reading the config must not execute them.
+METACHAR_HOME="$TMP_ROOT/metachar password home"
+METACHAR_CFG_DIR="$METACHAR_HOME/.config/artifact-sftp"
+mkdir -p "$METACHAR_CFG_DIR"
+chmod 700 "$METACHAR_CFG_DIR"
+METACHAR_PASS="P@ss w0rd!#&;\`\$(touch $TMP_ROOT/pwned)'\"\$x"
+{
+  printf 'SFTP_HOST=%s\n' sftp.test.invalid
+  printf 'SFTP_USER=%s\n' artifact-user
+  printf 'SFTP_PORT=%s\n' 22
+  printf 'REMOTE_DIR=%s\n' /files
+  printf 'PUBLIC_BASE_URL=%s\n' https://artifacts.test.invalid
+  printf 'DEFAULT_TOOL=%s\n' codex
+  printf 'SFTP_PASS=%s\n' "$METACHAR_PASS"
+} >"$METACHAR_CFG_DIR/config"
+chmod 600 "$METACHAR_CFG_DIR/config"
+write_known_host "$METACHAR_CFG_DIR/known_hosts" sftp.test.invalid 22
+METACHAR_OUT="$TMP_ROOT/status-metachar-password.out"
+run_capture "$METACHAR_OUT" env HOME="$METACHAR_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+assert_rc 0 "status should accept a password containing shell metacharacters"
+assert_contains "$METACHAR_OUT" 'auth: password' "metacharacter password was not recognised"
+assert_not_contains "$METACHAR_OUT" 'invalid or unsafe line' "metacharacter password was rejected as unsafe"
+assert_not_contains "$METACHAR_OUT" "$METACHAR_PASS" "status output leaked the stored password"
+[ ! -e "$TMP_ROOT/pwned" ] || fail "reading the config executed a substitution from the password"
+
+# A CR would split one stored value across two lines, so it stays rejected.
+CR_HOME="$TMP_ROOT/cr password home"
+CR_CFG_DIR="$CR_HOME/.config/artifact-sftp"
+mkdir -p "$CR_CFG_DIR"
+chmod 700 "$CR_CFG_DIR"
+sed 's/^SFTP_PASS=.*/SFTP_PASS=before\rafter/' "$METACHAR_CFG_DIR/config" >"$CR_CFG_DIR/config"
+chmod 600 "$CR_CFG_DIR/config"
+cp "$METACHAR_CFG_DIR/known_hosts" "$CR_CFG_DIR/known_hosts"
+chmod 600 "$CR_CFG_DIR/known_hosts"
+CR_OUT="$TMP_ROOT/status-cr-password.out"
+run_capture "$CR_OUT" env HOME="$CR_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+assert_rc 3 "status should reject a carriage return inside the password"
+assert_contains "$CR_OUT" 'invalid or unsafe line' "CR in the password was not reported"
+
+# The relaxation is scoped to the password: keys that still reach a shell word, a
+# `curl -K` directive, or interpolated HTML keep the conservative allowlist.
+UNSAFE_HOST_OUT="$TMP_ROOT/status-unsafe-host.out"
+sed 's#^SFTP_HOST=.*#SFTP_HOST=host$(touch /tmp/never)#' "$METACHAR_CFG_DIR/config" \
+  >"$METACHAR_CFG_DIR/config.unsafe"
+mv "$METACHAR_CFG_DIR/config" "$TMP_ROOT/metachar-config.hold"
+mv "$METACHAR_CFG_DIR/config.unsafe" "$METACHAR_CFG_DIR/config"
+chmod 600 "$METACHAR_CFG_DIR/config"
+run_capture "$UNSAFE_HOST_OUT" env HOME="$METACHAR_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+assert_rc 3 "status should still reject shell metacharacters in a non-secret value"
+assert_contains "$UNSAFE_HOST_OUT" 'invalid or unsafe line' "unsafe SFTP_HOST was not reported"
+mv "$TMP_ROOT/metachar-config.hold" "$METACHAR_CFG_DIR/config"
+chmod 600 "$METACHAR_CFG_DIR/config"
+
 printf 'PASS: artifact-sftp setup offline regression tests\n'

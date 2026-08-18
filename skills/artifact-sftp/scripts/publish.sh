@@ -97,8 +97,31 @@ case "$perm" in 600|400) ;; *) die 3 "config $CONFIG must be mode 0600 (is $perm
 unset SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
       DEFAULT_TOOL SSH_KEY OP_KEY_REF SFTP_PASS \
       CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET DEFAULT_LANG DEFAULT_TIMEZONE
-# shellcheck disable=SC1090
-. "$CONFIG"
+# The config is PARSED, never sourced. `. "$CONFIG"` executed every value as shell, so a
+# password containing $(...), a backtick, or a `;` was both a parse hazard and an arbitrary
+# code-execution path, and an unknown line such as `PATH=/tmp/evil` silently poisoned the
+# rest of this script. Splitting on the first '=' and assigning only allowlisted keys removes
+# that class of bug outright, which is what lets SFTP_PASS hold any byte except CR/LF.
+_load_config() {
+  local line key value
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$line" in ''|'#'*) continue ;; esac
+    case "$line" in *=*) ;; *) die 3 "malformed line in $CONFIG (expected KEY=value)" ;; esac
+    key=${line%%=*}
+    value=${line#*=}
+    case "$key" in
+      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|KNOWN_HOSTS|\
+      SFTP_PASS|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|\
+      DEFAULT_LANG|DEFAULT_TIMEZONE)
+        # key is one of the literals above, so the indirect assignment cannot be steered
+        printf -v "$key" '%s' "$value"
+        ;;
+      *) die 3 "unknown key in $CONFIG: $key" ;;
+    esac
+  done < "$CONFIG"
+}
+_load_config
 : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
 : "${REMOTE_DIR:?missing in config}"
 if [ "$MODE" = publish ]; then
