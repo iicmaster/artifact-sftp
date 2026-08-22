@@ -149,7 +149,7 @@ The agent tool surface is deliberately small:
 - `artifact-sftp` — Publish HTML artifacts through the local stdio MCP adapter.
 - `artifact-sftp-read` — Resolve and read local artifact excerpts offline.
 - `artifact-sftp-setup` — Inspect readiness and report the MCP configuration boundary.
-- `show-me` — Generate concise visual diagrams and HTML artifacts published through `artifact_sftp`.
+- `show-me` — Explain a topic with the smallest picture that makes it understood; comprehension first, deeper detail on request. Inline diagrams, or one focused HTML page gated by `artifact-audit` and published through `artifact_sftp`.
 - `artifact-groom` — Audit and curate all project artifacts (Local-First), classifying fresh, stale, and orphaned slugs for safe update or unpublish.
 
 ## Agent workflow

@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.3] - 2026-08-22
+
+- Rework `show-me` around comprehension: the skill now aims to make a reader who knows nothing about the topic understand it, with depth treated as a follow-up the reader asks for rather than a default. The posture is adapted from the `eli5` skill (anthropics/claude-plugins-community, MIT), bounded by a rule that an analogy sits beside a real name and never replaces it, so a reader who greps for a term still finds it.
+- Make the `artifact-audit` pre-flight gate mandatory in `show-me`. The skill previously published HTML artifacts without mentioning the gate at all, so a diagram could reach SFTP without the quality, link, and secret checks every other publish path enforces.
+- Grant standing publish authorization for the `private` + 🟢 PASS case in `show-me` and `artifact-sftp`. That case now calls `artifact_sftp.publish` with `confirm: true` without asking again; 🟡 WARN still requires explicit acknowledgement, 🔴 BLOCK still halts, and `public` is never automatic and always needs `confirm_public: true`.
+- Stop `show-me` from naming internal implementation scripts in its call-tree example, matching the MCP-only routing policy the other skills are tested against.
+
 ## [0.17.2] - 2026-08-18
 
 - Parse the Artifact SFTP config instead of sourcing it. `publish.sh` walked the file through `. "$CONFIG"`, which executed every value as shell: a password containing `$(...)` or a backtick ran as the publishing user, and a stray line such as `PATH=/tmp/evil` silently redirected the helpers the publisher invokes. Values are now split on the first `=` and assigned only for allowlisted keys, and an unrecognized key is rejected.

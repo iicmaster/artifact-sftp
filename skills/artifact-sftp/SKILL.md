@@ -52,9 +52,17 @@ are not a command surface.
      **Gate Verdict:** [🟢 PASS / 🟡 WARN / 🔴 BLOCK]
      ```
    - **Hard Blocking Invariant:** If ANY dimension is marked **🔴 BLOCK**, publishing is **IMMEDIATELY HALTED**. The agent MUST route to the corresponding specialized skill (`thai-prose-craft`, `visual-illustrator`, `artifact-curator`, `doc-synchronizer`) to repair the source document before proceeding.
-5. **Interactive Confirmation:**
-   - Ask for user approval only AFTER the Pre-Flight Gate verdict is 🟢 **PASS** (or 🟡 **WARN** with explicit user acknowledgement).
-   - Call `artifact_sftp.publish` with `confirm: true` only after that approval. The default visibility is `private`; public publishing additionally needs explicit public-sharing approval and `confirm_public: true`.
+5. **Confirmation — standing authorization for `private` at 🟢 PASS:**
+   - **🟢 PASS + `private` — publish immediately, without asking.** Call `artifact_sftp.publish`
+     with `confirm: true` and report the result. Approval for this case is granted in advance
+     by the repository owner, here in this skill; it is a standing authorization, not a skipped
+     one. A user who asks to be prompted overrides this for the turn.
+   - **🟡 WARN — still asks.** Publish only after the user explicitly acknowledges each warning,
+     or remediate first and re-audit to 🟢 PASS.
+   - **🔴 BLOCK — halted** by the Hard Blocking Invariant above. Remediate and re-audit.
+   - **`public` — never automatic, at any verdict.** Public publishing always needs explicit
+     public-sharing approval in the turn, plus `confirm_public: true`. The default visibility
+     stays `private`.
 6. **Post-Publish Turn Completion (No Redundant Verification):**
    - On success, `artifact_sftp.publish` has already completed all necessary validations (local custody archival, SFTP atomic upload, SHA-256 integrity match, and privacy protection probe). Report the published URL and local read-back reference to the user and complete the turn.
    - Do NOT perform redundant post-publish verification (do NOT call `artifact_sftp.read`, and do NOT fetch or browse the URL).
