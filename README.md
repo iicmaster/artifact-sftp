@@ -1,13 +1,32 @@
+**English** · [ภาษาไทย](README.th.md)
+
 # Artifact SFTP
 
-Artifact SFTP is a Codex and OpenClaw plugin for publishing one HTML artifact to your
-own SFTP-backed web host. It returns a stable URL, keeps versioned snapshots, defaults
-to private visibility, and applies [Sarabun](https://fonts.google.com/specimen/Sarabun)
-as the default Thai font.
+Artifact SFTP carries a document from draft to a stable URL on your own SFTP-backed web
+host — and ships the editorial skills that make the document worth publishing. It is a
+plugin for Codex, Claude, and OpenClaw.
+
+It returns a stable URL, keeps versioned snapshots, defaults to private visibility, and
+applies [Sarabun](https://fonts.google.com/specimen/Sarabun) as the default Thai font.
 
 The repository contains no hosting credentials and does not grant access to the
 maintainer's deployment. You need an SFTP account and a web server that serves its
 upload directory.
+
+## The loop
+
+Most publishers do the last two rows. This plugin covers every row, and each one is a
+skill you can invoke on its own.
+
+| Step | What happens | Who does it |
+|---|---|---|
+| **Write** | you draft one self-contained HTML or Markdown file | you, or an agent |
+| **Tighten** | robotic translation clichés and passive bloat come out; tone is matched to the reader | `thai-prose-craft` |
+| **Structure** | summary first, architecture next, deep detail last; alerts and comparison tables where they earn their place | `artifact-curator` |
+| **Draw** | one diagram that survives a syntax check, or the smallest picture that makes the point | `visual-illustrator`, `show-me` |
+| **Audit** | five dimensions — prose, diagram syntax, structure, links, secrets. A leaked key or a dead link halts the publish | `artifact-audit` |
+| **Publish** | archived locally first, then uploaded, then byte-verified and probed for accidental exposure | `artifact_sftp.publish` |
+| **Keep** | every version stays under `docs/artifacts/`, and stale slugs get found later | `artifact_sftp.list`, `artifact-groom` |
 
 ## What it does
 
@@ -24,6 +43,38 @@ upload directory.
   Paramiko.
 - Blocks common secret patterns before upload and verifies public content by SHA-256.
 - Keeps provisioning outside the AI-agent workflow; agents only inspect readiness through MCP.
+
+## Skills
+
+Ten skills ship with the plugin. Three move bytes; five shape the document; two guard it.
+
+### Publishing
+
+- `artifact-sftp` — Publish HTML artifacts through the local stdio MCP adapter.
+- `artifact-sftp-read` — Resolve and read local artifact excerpts offline.
+- `artifact-sftp-setup` — Inspect readiness and report the MCP configuration boundary.
+
+### Document craft
+
+- `thai-prose-craft` — Natural Thai prose editor. Strips robotic translation clichés and
+  passive bloat, and aligns register with the intended reader.
+- `artifact-curator` — Layout architect. Three-tier progressive disclosure, GitHub alert
+  callouts, and comparison tables instead of unstructured lists.
+- `visual-illustrator` — Syntax-safe Mermaid. Enforced label quoting, validated chart
+  archetypes, and a consistent palette instead of default neon.
+- `doc-synchronizer` — Code-to-docs parity auditor. Checks README, SKILL.md, manifests,
+  links, anchors, and documented CLI flags against the actual codebase.
+- `show-me` — Explain a topic with the smallest picture that makes it understood;
+  comprehension first, deeper detail on request. Inline diagrams, or one focused HTML page
+  gated by `artifact-audit` and published through `artifact_sftp`.
+
+### Quality gate and lifecycle
+
+- `artifact-audit` — The pre-publish gate. Scores five dimensions and returns PASS, WARN,
+  or BLOCK; a BLOCK halts the publish and routes the document to the skill that can repair
+  it. `artifact-sftp` and `artifact-groom` are required to run it first.
+- `artifact-groom` — Audit and curate all project artifacts (Local-First), classifying
+  fresh, stale, and orphaned slugs for safe update or unpublish.
 
 ## Agent Plugins compatibility
 
@@ -143,14 +194,6 @@ The agent tool surface is deliberately small:
   HTML is marked untrusted and is not a rendering verdict.
 - `artifact_sftp.list` lists local artifact archives and discovered workspace HTML drafts in a project
   (Local-First) for auditing and grooming.
-
-## Skills
-
-- `artifact-sftp` — Publish HTML artifacts through the local stdio MCP adapter.
-- `artifact-sftp-read` — Resolve and read local artifact excerpts offline.
-- `artifact-sftp-setup` — Inspect readiness and report the MCP configuration boundary.
-- `show-me` — Explain a topic with the smallest picture that makes it understood; comprehension first, deeper detail on request. Inline diagrams, or one focused HTML page gated by `artifact-audit` and published through `artifact_sftp`.
-- `artifact-groom` — Audit and curate all project artifacts (Local-First), classifying fresh, stale, and orphaned slugs for safe update or unpublish.
 
 ## Agent workflow
 

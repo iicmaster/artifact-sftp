@@ -8,6 +8,11 @@ All notable changes to this project are documented here.
 - Make the `artifact-audit` pre-flight gate mandatory in `show-me`. The skill previously published HTML artifacts without mentioning the gate at all, so a diagram could reach SFTP without the quality, link, and secret checks every other publish path enforces.
 - Grant standing publish authorization for the `private` + 🟢 PASS case in `show-me` and `artifact-sftp`. That case now calls `artifact_sftp.publish` with `confirm: true` without asking again; 🟡 WARN still requires explicit acknowledgement, 🔴 BLOCK still halts, and `public` is never automatic and always needs `confirm_public: true`.
 - Stop `show-me` from naming internal implementation scripts in its call-tree example, matching the MCP-only routing policy the other skills are tested against.
+- Reframe the README around the whole document loop — write, tighten, structure, draw, audit, publish, keep — with a table naming the skill that owns each step. The previous opening described a file uploader, which is the last step only.
+- List all ten shipped skills in the README, grouped as publishing, document craft, and quality gate. `artifact-audit`, `thai-prose-craft`, `artifact-curator`, `visual-illustrator` and `doc-synchronizer` were absent from it entirely, so half the plugin was undocumented at its front door.
+- Move the Skills section above the installer and MCP configuration sections. It sat at line 166, 145 lines below the promise that each step is a skill you can invoke on its own.
+- Add `README.th.md`, a Thai companion carrying the concepts, the publish journey, the URL anatomy and the skill roster. It deliberately omits setup, MCP configuration, the security model and maintainer commands, pointing at `README.md` for those, so the two files cannot drift on volatile facts.
+- Add a language switcher as the first line of both READMEs.
 
 ## [0.17.2] - 2026-08-18
 

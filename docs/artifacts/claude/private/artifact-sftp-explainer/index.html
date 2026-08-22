@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="th">
+<head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>artifact-sftp คืออะไร</title>
+<style>
+  :root{
+    --paper:#fbf7f0; --ink:#1d1a16; --muted:#6b625a;
+    --rule:#e3dbd0; --card:#ffffff;
+    --accent:#b8460f; --accent-soft:#fdeee5;
+    --good:#1f6b3f; --good-soft:#e7f3ec;
+    --warn:#8a6100; --warn-soft:#fcf2da;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#16130f; --ink:#f2ece3; --muted:#a4998c;
+      --rule:#332c24; --card:#1f1a15;
+      --accent:#ff8a4c; --accent-soft:#3a1f11;
+      --good:#7fd0a0; --good-soft:#14291d;
+      --warn:#e8bd63; --warn-soft:#2e2413;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:17px; line-height:1.75; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:56px 22px 96px}
+  .eyebrow{
+    font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--accent); font-weight:700; margin:0 0 14px
+  }
+  h1{font-size:clamp(30px,6vw,46px); line-height:1.25; margin:0 0 20px; font-weight:800; letter-spacing:-.01em}
+  .lede{font-size:clamp(19px,3.2vw,23px); line-height:1.65; color:var(--ink); margin:0 0 10px; font-weight:600}
+  .sub{color:var(--muted); margin:0 0 8px}
+  h2{
+    font-size:13px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+    font-weight:700; margin:64px 0 20px; padding-bottom:10px; border-bottom:1px solid var(--rule)
+  }
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em;
+    background:var(--accent-soft); color:var(--accent); padding:.12em .38em; border-radius:4px;
+    word-break:break-word;
+  }
+  /* ---- the big picture ---- */
+  .flow{display:grid; gap:12px; margin:8px 0 4px}
+  .step{
+    display:grid; grid-template-columns:44px 1fr; gap:16px; align-items:start;
+    background:var(--card); border:1px solid var(--rule); border-radius:12px; padding:16px 18px;
+  }
+  .step .n{
+    width:44px; height:44px; border-radius:50%; display:grid; place-items:center;
+    background:var(--accent); color:#fff; font-weight:800; font-size:17px;
+  }
+  .step.local .n{background:var(--good)}
+  .step h3{margin:2px 0 4px; font-size:18px; font-weight:700}
+  .step p{margin:0; color:var(--muted); font-size:15.5px; line-height:1.6}
+  .arrow{text-align:center; color:var(--rule); font-size:22px; line-height:1; margin:-4px 0}
+  .pin{
+    display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; padding:2px 8px; border-radius:20px; margin-left:8px; vertical-align:2px;
+    background:var(--good-soft); color:var(--good);
+  }
+  /* ---- cards ---- */
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px}
+  .card{background:var(--card); border:1px solid var(--rule); border-radius:12px; padding:20px}
+  .card .big{font-size:30px; line-height:1; margin-bottom:12px}
+  .card h3{margin:0 0 6px; font-size:17px; font-weight:700}
+  .card p{margin:0; color:var(--muted); font-size:15px; line-height:1.6}
+  /* ---- url anatomy ---- */
+  .url{
+    background:var(--card); border:1px solid var(--rule); border-radius:12px;
+    padding:22px 18px; overflow-x:auto;
+  }
+  .url .line{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px;
+    white-space:nowrap; margin-bottom:14px;
+  }
+  .url .seg{padding:3px 5px; border-radius:5px}
+  .s1{background:var(--accent-soft); color:var(--accent); font-weight:700}
+  .s2{background:var(--good-soft); color:var(--good); font-weight:700}
+  .s3{background:var(--warn-soft); color:var(--warn); font-weight:700}
+  .legend{display:grid; gap:8px; font-size:15px}
+  .legend div{display:flex; gap:10px; align-items:baseline}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none; position:relative; top:6px}
+  .d1{background:var(--accent)} .d2{background:var(--good)} .d3{background:var(--warn)}
+  /* ---- table ---- */
+  .tablewrap{overflow-x:auto; max-width:100%; border:1px solid var(--rule); border-radius:12px; background:var(--card)}
+  table{border-collapse:collapse; width:100%; min-width:520px; font-size:15.5px}
+  th,td{text-align:left; padding:13px 18px; border-bottom:1px solid var(--rule); vertical-align:top}
+  th{font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td:first-child{white-space:nowrap}
+  /* ---- notes ---- */
+  .note{border-left:3px solid var(--accent); background:var(--card); padding:16px 20px; border-radius:0 10px 10px 0; margin:22px 0}
+  .note strong{color:var(--accent)}
+  .note p{margin:0; font-size:15.5px; line-height:1.65}
+  ul.plain{margin:0; padding-left:22px}
+  ul.plain li{margin-bottom:9px; color:var(--muted); font-size:15.5px; line-height:1.6}
+  ul.plain li b{color:var(--ink); font-weight:700}
+  footer{margin-top:72px; padding-top:22px; border-top:1px solid var(--rule); color:var(--muted); font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">อธิบายให้คนที่ยังไม่เคยเห็นมันเลย</p>
+  <h1>artifact-sftp คืออะไร</h1>
+  <p class="lede">คุณมีไฟล์ HTML หนึ่งไฟล์ในเครื่อง — มันพาไฟล์นั้นไปอยู่บนเว็บของคุณเอง ที่ลิงก์ซึ่งไม่เปลี่ยน</p>
+  <p class="sub">แค่นั้น ที่เหลือคือรายละเอียดว่ามันระวังอะไรระหว่างทาง</p>
+
+  <div class="note">
+    <p><strong>สิ่งที่มันไม่ใช่:</strong> มันไม่ใช่บริการโฮสต์ มันไม่มีเซิร์ฟเวอร์ให้คุณ คุณต้องมีบัญชี SFTP กับเว็บเซิร์ฟเวอร์ของตัวเองอยู่แล้ว — มันคือ<em>คนส่งของ</em> ไม่ใช่<em>โกดัง</em></p>
+  </div>
+
+  <h2>เส้นทางของไฟล์หนึ่งไฟล์</h2>
+
+  <div class="flow">
+    <div class="step">
+      <div class="n">1</div>
+      <div>
+        <h3>คุณเขียนไฟล์ <code>.html</code> หนึ่งไฟล์</h3>
+        <p>ไฟล์เดียว จบในตัวเอง CSS กับ JavaScript อยู่ข้างในหมด ไม่ดึงของจากที่อื่น</p>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="step local">
+      <div class="n">2</div>
+      <div>
+        <h3>เก็บสำเนาไว้ในเครื่องก่อน<span class="pin">ก่อนส่ง</span></h3>
+        <p>ลงใน <code>docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/</code> ทั้งไฟล์ปัจจุบันและสำเนาที่ปั๊มเวลาไว้ — ถ้าอัปโหลดล้มทีหลัง ของยังอยู่ครบ</p>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="step">
+      <div class="n">3</div>
+      <div>
+        <h3>สแกนหาความลับที่หลุดมา</h3>
+        <p>ถ้าเจอรูปแบบที่เหมือนคีย์หรือรหัสผ่านฝังอยู่ในไฟล์ มันหยุด ไม่ส่ง</p>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="step">
+      <div class="n">4</div>
+      <div>
+        <h3>อัปโหลดผ่าน SFTP</h3>
+        <p>ตรวจลายนิ้วมือของเซิร์ฟเวอร์ก่อนคุย (host key pinning) — เจอเครื่องแปลกปลอมแล้วไม่ยอมส่ง</p>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="step">
+      <div class="n">5</div>
+      <div>
+        <h3>ตรวจว่าถึงจริงและถึงถูกตัว</h3>
+        <p>เทียบ SHA-256 ว่าไบต์บนเซิร์ฟเวอร์ตรงกับในเครื่อง แล้วลองเปิดแบบไม่ล็อกอิน เพื่อยืนยันว่าของ <code>private</code> ไม่ได้โผล่ให้คนทั่วไปเห็น</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>สามอย่างที่ <code>scp</code> ธรรมดาไม่ทำให้</h2>
+
+  <div class="cards">
+    <div class="card">
+      <div class="big">🗂️</div>
+      <h3>ทับแล้วของเก่าไม่หาย</h3>
+      <p>ทุกครั้งที่ส่ง มันเก็บสำเนาแยกพร้อมเลขเวอร์ชันและเวลาไว้ข้าง ๆ ตัวปัจจุบัน ย้อนดูได้ว่าเมื่อวานหน้าตาเป็นยังไง</p>
+    </div>
+    <div class="card">
+      <div class="big">🔒</div>
+      <h3>เงียบไว้ก่อนเป็นค่าเริ่มต้น</h3>
+      <p><code>private</code> คือค่าตั้งต้น จะทำให้เป็นสาธารณะต้องสั่งเพิ่มอีกชั้นหนึ่งโดยเฉพาะ พลาดแล้วหลุดยาก</p>
+    </div>
+    <div class="card">
+      <div class="big">✋</div>
+      <h3>ไม่เชื่อว่า "ส่งแล้ว" แปลว่าสำเร็จ</h3>
+      <p>มันไปอ่านกลับมาเทียบไบต์จริง ๆ คำว่าสำเร็จของมันคือเทียบแล้วตรง ไม่ใช่คำสั่งจบโดยไม่มี error</p>
+    </div>
+  </div>
+
+  <h2>ลิงก์ที่ได้ ประกอบด้วยอะไร</h2>
+
+  <div class="url">
+    <div class="line">https://เว็บของคุณ/<span class="seg s1">claude</span>/<span class="seg s2">private</span>/<span class="seg s3">my-report</span>/</div>
+    <div class="legend">
+      <div><span class="dot d1"></span><span><b>tool</b> — ผู้ช่วยตัวไหนเป็นคนส่ง: <code>codex</code>, <code>openclaw</code> หรือ <code>claude</code></span></div>
+      <div><span class="dot d2"></span><span><b>visibility</b> — <code>private</code> หรือ <code>public</code> แยกกันคนละโฟลเดอร์ ไม่ปนกัน</span></div>
+      <div><span class="dot d3"></span><span><b>slug</b> — ชื่อที่คุณตั้ง ขึ้นต้นด้วยตัวพิมพ์เล็กหรือตัวเลข ตามด้วยตัวพิมพ์เล็ก ตัวเลข หรือขีดกลาง รวมไม่เกิน 63 ตัว</span></div>
+    </div>
+  </div>
+
+  <h2>เครื่องมือที่มีให้เรียก มีหกตัว</h2>
+
+  <div class="tablewrap">
+  <table>
+    <thead>
+      <tr><th>เครื่องมือ</th><th>ทำอะไร</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>artifact_sftp.setup_status</code></td><td>พร้อมส่งหรือยัง — คอนฟิกครบไหม ต่อเครื่องปลายทางติดไหม</td></tr>
+      <tr><td><code>artifact_sftp.setup</code></td><td>บอกว่าต้องเตรียมอะไรเพิ่ม ไม่รับรหัสผ่าน ไม่รันตัวติดตั้งให้</td></tr>
+      <tr><td><code>artifact_sftp.publish</code></td><td>ส่งไฟล์ขึ้น ต้องสั่ง <code>confirm</code> เสมอ ถ้าจะให้เป็นสาธารณะต้องสั่ง <code>confirm_public</code> เพิ่มอีก</td></tr>
+      <tr><td><code>artifact_sftp.unpublish</code></td><td>เอาลงจากเซิร์ฟเวอร์ — สำเนาในเครื่องยังอยู่เสมอ</td></tr>
+      <tr><td><code>artifact_sftp.read</code></td><td>อ่านสำเนาในเครื่อง ไม่ใช่ไปดึงจากลิงก์</td></tr>
+      <tr><td><code>artifact_sftp.list</code></td><td>ดูว่ามีอะไรเคยส่งไปแล้วบ้าง และมีร่างอะไรค้างอยู่</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <p><strong>ทำไมลิงก์ <code>private</code> ถึงอ่านไม่ได้:</strong> มันเป็นลิงก์สำหรับ<em>คนเปิดดู</em> ที่มีด่านกั้นอยู่ข้างหน้า ไม่ใช่ที่อยู่สำหรับให้โปรแกรมไปดึงข้อมูล อยากอ่านเนื้อหาต้องใช้ <code>artifact_sftp.read</code> กับสำเนาในเครื่องแทน</p>
+  </div>
+
+  <h2>สิ่งที่ภาพนี้ไม่ได้วาด</h2>
+
+  <ul class="plain">
+    <li><b>การตั้งค่าตอนเริ่มต้น</b> — ไฟล์คอนฟิกอยู่นอกโปรเจกต์ ตั้งสิทธิ์ไว้แคบ และผู้ใช้เป็นคนกรอกเอง ผู้ช่วย AI ไม่แตะ ไม่ถาม ไม่ส่งต่อ</li>
+    <li><b>วิธียืนยันตัวตนสามแบบ</b> — รหัสผ่าน, SSH key หรืออ้างอิงคีย์จาก 1Password ภาพนี้รวบให้เหลือกล่องเดียวว่า "อัปโหลด"</li>
+    <li><b>ข้างในตัวส่งจริง</b> — ขั้นตอนที่ 2 ถึง 5 เกิดในสคริปต์ตัวเดียวกัน ภาพนี้แยกให้เห็นเป็นห้าก้อนเพื่อให้ตามทัน ไม่ใช่เพราะมันเป็นห้าโปรแกรม</li>
+    <li><b>กติกาว่าใครเรียกอะไรได้</b> — ผู้ช่วย AI ต้องเรียกผ่านเครื่องมือหกตัวข้างบนเท่านั้น ห้ามไปเรียกสคริปต์ข้างในตรง ๆ ห้ามหาทางอื่นส่งแทน</li>
+  </ul>
+
+  <footer>
+    ภาพนี้อธิบายพฤติกรรมที่อ่านจากซอร์สจริงในโปรเจกต์ — ไม่ใช่จากแผนที่ตั้งใจไว้ ·
+    ชื่อเครื่องมือ เส้นทางโฟลเดอร์ และค่าตั้งต้นทุกตัวใช้ชื่อจริงตามที่โค้ดใช้
+  </footer>
+
+</div>
+<footer data-artifact-meta style="max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666">artifact: artifact-sftp-explainer · v1 · created 2026-08-22 18:22 +07</footer></body>
+</html>
