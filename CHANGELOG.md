@@ -16,6 +16,7 @@ All notable changes to this project are documented here.
 - Bump the version the MCP server advertises at initialization. `build_server()` hard-coded `0.17.2`, so every client diagnostic identified a 0.17.3 server as 0.17.2.
 - Stop `show-me` claiming the published bytes were SHA-256 matched. A private publish with no Cloudflare service token skips authenticated HTTP verification and returns `content: not_independently_byte_verified`; the skill now reports that field as it comes back instead of upgrading it.
 - Correct the documented publish order. The secret scan runs before any local archive is written, so a secret-blocked publish leaves nothing under `docs/artifacts/` — the README and the explainer artifact previously showed archival first, sending readers to look for files that were never created.
+- Reconcile the MCP server's own publish instruction with the standing-approval policy. It read "needs user approval" while `show-me` and `artifact-sftp` grant that approval in advance for the `private` + PASS case, so an agent received two contradictory rules. The instruction now states what is actually invariant: `confirm=true` is always required, the calling skill may hold standing approval for the private path, and public publishing is never automatic.
 
 ## [0.17.2] - 2026-08-18
 
