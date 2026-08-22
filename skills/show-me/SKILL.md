@@ -120,8 +120,12 @@ visual walkthrough:
 4. **Report the published URL and the local read-back reference** (e.g.
    `docs/artifacts/<tool>/<visibility>/<slug>/...`) and end the turn. Do NOT perform
    redundant post-publish verification — no `artifact_sftp.read`, no browser fetch.
-   `publish` has already archived, uploaded, matched SHA-256, and probed for
-   anonymous exposure.
+   `publish` has already scanned the source for secrets, archived the bytes locally,
+   uploaded them, and probed the URL anonymously to prove a private artifact is not
+   exposed. **Report its `verification` field as it comes back, and never upgrade it.**
+   A private publish with no Cloudflare service token returns
+   `content: not_independently_byte_verified` — that is an unverified upload, not a
+   byte match, and calling it one is the exact overstatement this skill exists to avoid.
 
 *For simple inline code, call trees, diffs, or quick Mermaid diagrams, an inline
 snippet is the whole answer — no artifact, no gate, no publish.*

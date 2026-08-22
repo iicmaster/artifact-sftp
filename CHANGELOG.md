@@ -13,6 +13,9 @@ All notable changes to this project are documented here.
 - Move the Skills section above the installer and MCP configuration sections. It sat at line 166, 145 lines below the promise that each step is a skill you can invoke on its own.
 - Add `README.th.md`, a Thai companion carrying the concepts, the publish journey, the URL anatomy and the skill roster. It deliberately omits setup, MCP configuration, the security model and maintainer commands, pointing at `README.md` for those, so the two files cannot drift on volatile facts.
 - Add a language switcher as the first line of both READMEs.
+- Bump the version the MCP server advertises at initialization. `build_server()` hard-coded `0.17.2`, so every client diagnostic identified a 0.17.3 server as 0.17.2.
+- Stop `show-me` claiming the published bytes were SHA-256 matched. A private publish with no Cloudflare service token skips authenticated HTTP verification and returns `content: not_independently_byte_verified`; the skill now reports that field as it comes back instead of upgrading it.
+- Correct the documented publish order. The secret scan runs before any local archive is written, so a secret-blocked publish leaves nothing under `docs/artifacts/` — the README and the explainer artifact previously showed archival first, sending readers to look for files that were never created.
 
 ## [0.17.2] - 2026-08-18
 
