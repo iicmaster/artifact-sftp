@@ -35,15 +35,17 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     adapter = service or ArtifactSftpService()
     server = MCPServer(
         "Artifact SFTP",
-        version="0.17.2",
+        version="0.17.3",
         description="MCP-only AI-agent publishing and local read-back for HTML artifacts through an existing pinned SFTP configuration.",
         instructions=(
             "This is the only Artifact SFTP execution surface for AI agents. Use setup_status before a first "
             "publish; pass verify_connection=true when a no-write remote preflight is required. If the server is "
             "not ready, stop rather than invoking a direct setup script. Private URLs "
             "are viewer links, not read sources: call artifact_sftp.read on the local read-back reference instead. "
-            "Never put credentials, tokens, or private-key contents in tool arguments. Publish is private by "
-            "default and needs user approval."
+            "Never put credentials, tokens, or private-key contents in tool arguments. Publishing is private "
+            "by default and always requires confirm=true; the calling skill may hold standing approval for "
+            "that private path, granted in advance by the repository owner. Public publishing additionally "
+            "requires explicit approval in the turn plus confirm_public=true, and is never automatic."
         ),
     )
 

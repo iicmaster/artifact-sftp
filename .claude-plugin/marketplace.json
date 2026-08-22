@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "MCP-only AI-agent publishing and local read-back for HTML artifacts on your SFTP web host, with Sarabun as the Thai font default.",
-    "version": "0.17.2"
+    "version": "0.17.3"
   },
   "plugins": [
     {
       "name": "artifact-sftp",
       "description": "Route AI agents through the local stdio MCP adapter to publish and locally read back HTML artifacts on an SFTP web host. Private is the default, private viewer URLs are not fetched, and published artifacts default to Sarabun for Thai typography.",
-      "version": "0.17.2",
+      "version": "0.17.3",
       "author": {
         "name": "NGS"
       },

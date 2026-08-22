@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artifact SFTP — README preview (EN / ไทย)</title>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--soft:#f6f8fa;
+      --link:#0969da;--accent:#b8460f;--codebg:#f6f8fa;--quote:#d1d9e0;--shell:#eef1f4;}
+@media (prefers-color-scheme:dark){
+:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--soft:#151b23;
+      --link:#4493f8;--accent:#ff8a4c;--codebg:#151b23;--quote:#3d444d;--shell:#010409;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--shell);color:var(--fg);
+  font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.bar{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--line);
+  padding:10px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.bar .name{font-weight:700;font-size:14px;margin-right:auto}
+.bar .name span{color:var(--muted);font-weight:400}
+.tab{border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:13.5px;
+  padding:5px 14px;border-radius:20px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.sheet{max-width:900px;margin:22px auto;background:var(--bg);border:1px solid var(--line);
+  border-radius:10px;padding:36px 44px 56px}
+@media(max-width:640px){.sheet{margin:0;border-radius:0;border-left:0;border-right:0;padding:24px 18px 40px}}
+.doc[hidden]{display:none}
+.doc h1,.doc h2{border-bottom:1px solid var(--line);padding-bottom:.3em;margin:28px 0 16px;line-height:1.3}
+.doc h1{font-size:2em;margin-top:0}.doc h2{font-size:1.5em;margin-top:40px}
+.doc h3{font-size:1.2em;margin:26px 0 12px;line-height:1.35}
+.doc p,.doc li{font-size:15.5px}
+.doc a{color:var(--link);text-decoration:none}.doc a:hover{text-decoration:underline}
+.doc code{background:var(--codebg);border:1px solid var(--line);border-radius:5px;
+  padding:.14em .38em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;
+  word-break:break-word}
+.doc pre{background:var(--codebg);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;overflow-x:auto;max-width:100%}
+.doc pre code{background:none;border:0;padding:0;font-size:13.2px;line-height:1.5;white-space:pre}
+.doc blockquote{margin:16px 0;padding:2px 16px;border-left:4px solid var(--quote);color:var(--muted)}
+.doc blockquote p{margin:8px 0}
+.tw{overflow-x:auto;max-width:100%;margin:16px 0}
+.doc table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+.doc th,.doc td{border:1px solid var(--line);padding:8px 13px;text-align:left;vertical-align:top}
+.doc th{background:var(--soft);font-weight:700}
+.doc tr:nth-child(2n) td{background:var(--soft)}
+.doc hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+.doc ul,.doc ol{padding-left:26px}.doc li{margin:5px 0}
+.foot{max-width:900px;margin:0 auto 50px;padding:0 20px;color:var(--muted);font-size:12.8px}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="name">Artifact SFTP <span>· README preview</span></div>
+  <button class="tab" data-lang="en" aria-selected="true">English</button>
+  <button class="tab" data-lang="th" aria-selected="false">ภาษาไทย</button>
+</div>
+<div class="sheet">
+  <div class="doc" data-lang="en"><h1>Artifact SFTP</h1>
+<p>Artifact SFTP carries a document from draft to a stable URL on your own SFTP-backed web
+host — and ships the editorial skills that make the document worth publishing. It is a
+plugin for Codex, Claude, and OpenClaw.</p>
+<p>It returns a stable URL, keeps versioned snapshots, defaults to private visibility, and
+applies <a href="https://fonts.google.com/specimen/Sarabun">Sarabun</a> as the default Thai font.</p>
+<p>The repository contains no hosting credentials and does not grant access to the
+maintainer's deployment. You need an SFTP account and a web server that serves its
+upload directory.</p>
+<h2>The loop</h2>
+<p>Most publishers do the last two rows. This plugin covers every row, and each one is a
+skill you can invoke on its own.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What happens</th>
+<th>Who does it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Write</strong></td>
+<td>you draft one self-contained HTML or Markdown file</td>
+<td>you, or an agent</td>
+</tr>
+<tr>
+<td><strong>Tighten</strong></td>
+<td>robotic translation clichés and passive bloat come out; tone is matched to the reader</td>
+<td><code>thai-prose-craft</code></td>
+</tr>
+<tr>
+<td><strong>Structure</strong></td>
+<td>summary first, architecture next, deep detail last; alerts and comparison tables where they earn their place</td>
+<td><code>artifact-curator</code></td>
+</tr>
+<tr>
+<td><strong>Draw</strong></td>
+<td>one diagram that survives a syntax check, or the smallest picture that makes the point</td>
+<td><code>visual-illustrator</code>, <code>show-me</code></td>
+</tr>
+<tr>
+<td><strong>Audit</strong></td>
+<td>five dimensions — prose, diagram syntax, structure, links, secrets. A leaked key or a dead link halts the publish</td>
+<td><code>artifact-audit</code></td>
+</tr>
+<tr>
+<td><strong>Publish</strong></td>
+<td>archived locally first, then uploaded, then byte-verified and probed for accidental exposure</td>
+<td><code>artifact_sftp.publish</code></td>
+</tr>
+<tr>
+<td><strong>Keep</strong></td>
+<td>every version stays under <code>docs/artifacts/</code>, and stale slugs get found later</td>
+<td><code>artifact_sftp.list</code>, <code>artifact-groom</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2>What it does</h2>
+<ul>
+<li>Publishes a single HTML file to a stable URL. HTML, JavaScript, and application assets stay
+  inline; the publisher adds the official Sarabun Google Fonts stylesheet as the one default
+  external runtime dependency.</li>
+<li>Keeps immutable timestamped versions beside the current <code>index.html</code>.</li>
+<li>Keeps the stamped current file and snapshot in <code>docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/</code>
+  before any SFTP upload.</li>
+<li>Exposes publishing and local read-back to AI agents through a local stdio MCP server.</li>
+<li>Separates runtimes (<code>codex</code>, <code>openclaw</code>, <code>claude</code>), and <code>private</code> and <code>public</code>, in the URL path.</li>
+<li>Pins and verifies the SFTP host key.</li>
+<li>Supports SSH keys, 1Password SSH-key references, or password authentication through
+  Paramiko.</li>
+<li>Blocks common secret patterns before upload and verifies public content by SHA-256.</li>
+<li>Keeps provisioning outside the AI-agent workflow; agents only inspect readiness through MCP.</li>
+</ul>
+<h2>Skills</h2>
+<p>Ten skills ship with the plugin. Three move bytes; five shape the document; two guard it.</p>
+<h3>Publishing</h3>
+<ul>
+<li><code>artifact-sftp</code> — Publish HTML artifacts through the local stdio MCP adapter.</li>
+<li><code>artifact-sftp-read</code> — Resolve and read local artifact excerpts offline.</li>
+<li><code>artifact-sftp-setup</code> — Inspect readiness and report the MCP configuration boundary.</li>
+</ul>
+<h3>Document craft</h3>
+<ul>
+<li><code>thai-prose-craft</code> — Natural Thai prose editor. Strips robotic translation clichés and
+  passive bloat, and aligns register with the intended reader.</li>
+<li><code>artifact-curator</code> — Layout architect. Three-tier progressive disclosure, GitHub alert
+  callouts, and comparison tables instead of unstructured lists.</li>
+<li><code>visual-illustrator</code> — Syntax-safe Mermaid. Enforced label quoting, validated chart
+  archetypes, and a consistent palette instead of default neon.</li>
+<li><code>doc-synchronizer</code> — Code-to-docs parity auditor. Checks README, SKILL.md, manifests,
+  links, anchors, and documented CLI flags against the actual codebase.</li>
+<li><code>show-me</code> — Explain a topic with the smallest picture that makes it understood;
+  comprehension first, deeper detail on request. Inline diagrams, or one focused HTML page
+  gated by <code>artifact-audit</code> and published through <code>artifact_sftp</code>.</li>
+</ul>
+<h3>Quality gate and lifecycle</h3>
+<ul>
+<li><code>artifact-audit</code> — The pre-publish gate. Scores five dimensions and returns PASS, WARN,
+  or BLOCK; a BLOCK halts the publish and routes the document to the skill that can repair
+  it. <code>artifact-sftp</code> and <code>artifact-groom</code> are required to run it first.</li>
+<li><code>artifact-groom</code> — Audit and curate all project artifacts (Local-First), classifying
+  fresh, stale, and orphaned slugs for safe update or unpublish.</li>
+</ul>
+<h2>Agent Plugins compatibility</h2>
+<p>The portable package root is <a href="https://github.com/iicmaster/artifact-sftp/blob/main/plugin.json">plugin.json</a>, which targets the Agent Plugins
+1.0.0 schema. <a href="https://github.com/iicmaster/artifact-sftp/blob/main/mcp.json">mcp.json</a> is the portable MCP discovery entry; the immediate
+<code>skills/</code> children are MCP-routing instructions for AI agents. The existing <code>.codex-plugin/</code>
+and <code>.claude-plugin/</code> files are compatibility metadata for their current installers.</p>
+<p><a href="https://github.com/iicmaster/artifact-sftp/blob/main/.mcp.json">.mcp.json</a> is the Claude Code compatibility entry. That installer discovers a
+plugin's MCP servers from a root <code>.mcp.json</code> or an <code>mcpServers</code> field in
+<code>.claude-plugin/plugin.json</code>, and reads neither the portable <code>mcp.json</code> nor
+<code>.codex-plugin/</code>. Without it the plugin installs and its skills load, but the host reports
+<code>0 plugin MCP servers</code> and every <code>artifact_sftp.*</code> tool is missing.</p>
+<p>It is <strong>not</strong> a copy of <code>mcp.json</code>, because Claude Code is not an Agent Plugins host and
+supplies a different environment. Three differences are load-bearing:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><code>mcp.json</code> (Agent Plugins)</th>
+<th><code>.mcp.json</code> (Claude Code)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>plugin root variable</td>
+<td><code>${PLUGIN_ROOT}</code></td>
+<td><code>${CLAUDE_PLUGIN_ROOT}</code> — the only one this host expands</td>
+</tr>
+<tr>
+<td><code>command</code></td>
+<td><code>./bin/...</code>, relative to <code>cwd</code></td>
+<td>absolute via <code>${CLAUDE_PLUGIN_ROOT}</code></td>
+</tr>
+<tr>
+<td><code>PLUGIN_DATA</code></td>
+<td>supplied by the host</td>
+<td><strong>not supplied</strong> — must be set here</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>PLUGIN_DATA</code> is the sharpest one: <a href="https://github.com/iicmaster/artifact-sftp/blob/main/bin/artifact-sftp-mcp">bin/artifact-sftp-mcp</a> exits 78
+immediately when it is unset, so the host registers the server, starts nothing, and exposes
+no tools. It points outside the plugin directory so the <code>uv</code> environment survives plugin
+updates. <code>PLUGIN_ROOT</code> is also exported for the launcher's own fallback chain.</p>
+<p>When the server definition changes, update both files — they are deliberately not identical,
+so a plain <code>diff</code> should show exactly the rows above and nothing else.</p>
+<h2>Fresh-machine onboarding</h2>
+<p>The environment owner should follow <a href="https://github.com/iicmaster/artifact-sftp/blob/main/docs/setup.md">docs/setup.md</a> before handing this
+plugin to an agent. It covers the host prerequisites, the owner-only configuration location,
+the stdio launch contract, an MCP-only setup/connection smoke test, and the distinction between
+an MCP startup failure and a remote SFTP failure. The checkout is not a credential store: do not put
+the configuration, private keys, host-key material, passwords, or Cloudflare secrets in Git,
+an MCP argument, an agent prompt, or a log.</p>
+<p>The packaged runtime is verified for a Unix-like MCP child on macOS or Linux. Native Windows
+processes are not supported; a Windows owner must use a host that launches the child inside WSL
+or Git Bash with the same Unix-like <code>HOME</code> and required tools. See the setup checklist before
+assuming a desktop plugin installation also provisions SFTP access.</p>
+<p>Plugin discoverability is a host-registration concern, separate from configuration readiness.
+The package includes a Claude Code compatibility <a href="https://github.com/iicmaster/artifact-sftp/blob/main/.mcp.json"><code>.mcp.json</code></a> in addition to the
+portable <a href="https://github.com/iicmaster/artifact-sftp/blob/main/mcp.json">mcp.json</a>; the two have different host-variable contracts. The Claude entry
+uses its official persistent <code>${CLAUDE_PLUGIN_DATA}</code> location for the locked runtime, so a plugin
+update does not discard it. If the plugin looks installed but the host lists zero Artifact SFTP
+tools, reload/approve the host registration first; <code>setup_status</code> cannot run until the MCP server
+is discoverable. A conformant Agent Plugins host supplies the portable <code>PLUGIN_ROOT</code> and
+<code>PLUGIN_DATA</code> variables automatically; a host that omits either one has a plugin-launch problem,
+not an SFTP credential problem.</p>
+<p>For the current Claude Code CLI, the environment owner installs the marketplace with
+<code>claude plugin marketplace add iicmaster/artifact-sftp</code>, then runs
+<code>claude plugin install artifact-sftp@artifact-sftp</code>. Reload Claude Code and run <code>claude mcp list</code>
+outside the plugin checkout; the expected plugin server state is <code>Connected</code>. The full
+copy-paste flow and failure triage are in <a href="https://github.com/iicmaster/artifact-sftp/blob/main/docs/setup.md">docs/setup.md</a>.</p>
+<h2>MCP (local stdio)</h2>
+<p><code>artifact-sftp-mcp</code> is a <strong>local stdio</strong> MCP server. It wraps the existing publisher,
+local read resolver, and setup-status contract; it does not expose an HTTP endpoint or
+reimplement SFTP. The server keeps stdout exclusively for MCP frames.</p>
+<p>This package is <strong>MCP-only for AI agents</strong>. A compatible Agent Plugins host discovers the
+plugin-relative launcher in <a href="https://github.com/iicmaster/artifact-sftp/blob/main/mcp.json">mcp.json</a>, supplies <code>PLUGIN_ROOT</code> and a writable
+persisted <code>PLUGIN_DATA</code> directory, and starts the server. Those two variables are part of the
+portable host contract rather than values an installer needs to guess. The manifest starts
+<code>./bin/artifact-sftp-mcp</code> with <code>${PLUGIN_ROOT}</code> as its working directory and passes
+<code>ARTIFACT_SFTP_PLUGIN_ROOT=${PLUGIN_ROOT}</code>. <code>PLUGIN_DATA</code> is a host-owned runtime/cache
+directory, separate from the SFTP configuration. The launcher uses the lockfile with <code>uv</code> and
+does not store credentials in package metadata or MCP arguments.</p>
+<p>The pre-provisioned SFTP configuration is read from the MCP process's home directory at
+<code>$HOME/.config/artifact-sftp/config</code>, with the pinned host keys in the sibling
+<code>known_hosts</code> file. The MCP host must launch the child with the same owner home directory that
+contains those files; an isolated or different <code>HOME</code> will correctly appear unconfigured.</p>
+<p>The environment owner must pre-provision a compatible <code>uv</code> executable on <code>PATH</code> (CI verifies
+the packaged launcher with <code>uv 0.12.3</code>). If it is absent, the launcher fails closed with exit
+78; an AI agent must report that boundary rather than installing a runtime or using a fallback.</p>
+<p>Tool calls must pass an absolute <code>project_path</code>; this is the project where
+<code>docs/artifacts/</code> will be kept. If the MCP server is not available or reports a configuration
+boundary, the agent must stop rather than execute a bundled script, direct SFTP, or HTTP
+fallback.</p>
+<p>If a host reports that it cannot connect before any tools are listed, diagnose the launcher
+environment (plugin root, writable plugin data, <code>uv</code>, and the host's MCP process scope) using
+<a href="https://github.com/iicmaster/artifact-sftp/blob/main/docs/setup.md">docs/setup.md</a>. If <code>artifact_sftp.setup_status</code> is available but returns
+<code>ready: false</code>, the MCP server is connected. Use <code>verify_connection: true</code> on a fresh machine:
+it adds a bounded, no-write SFTP preflight using only the stored owner configuration. A result
+with <code>local_ready: true</code> and a failed <code>remote_connection</code> points to the SFTP boundary rather
+than MCP discovery or local configuration.</p>
+<p>The MCP-only policy and internal direct-invocation guards prevent ordinary routing mistakes.
+They are not a privilege boundary against a process that already has unrestricted shell and
+filesystem access; enforce that stronger boundary in the AI host's tool or sandbox policy.</p>
+<p>The agent tool surface is deliberately small:</p>
+<ul>
+<li><code>artifact_sftp.setup_status</code> checks readiness without writing configuration.</li>
+<li><code>artifact_sftp.setup</code> reports the pre-provisioning boundary. It never exposes a terminal
+  command or collects a password, Cloudflare token, or private key.</li>
+<li><code>artifact_sftp.publish</code> accepts a regular project-local <code>.html</code>/<code>.htm</code> file. It is
+  private by default and requires <code>confirm=true</code>; public publishing also requires
+  <code>confirm_public=true</code>. It deliberately has no <code>--force</code> or <code>--allow-sensitive</code> escape
+  hatch.</li>
+<li><code>artifact_sftp.unpublish</code> removes a published HTML artifact from the remote SFTP host by slug.
+  Requires <code>confirm=true</code> (and <code>confirm_public=true</code> for public artifacts). Local archives
+  under <code>docs/artifacts/</code> are strictly retained.</li>
+<li><code>artifact_sftp.read</code> resolves a canonical URL, <code>read-back:</code> line, or local archive path
+  and returns a bounded local excerpt. It never WebFetches a private viewer URL; returned
+  HTML is marked untrusted and is not a rendering verdict.</li>
+<li><code>artifact_sftp.list</code> lists local artifact archives and discovered workspace HTML drafts in a project
+  (Local-First) for auditing and grooming.</li>
+</ul>
+<h2>Agent workflow</h2>
+<p>Call <code>artifact_sftp.setup_status</code> with <code>verify_connection: true</code> before a first real publish.
+A ready result has <code>agent_action: "continue"</code>; a not-ready result has <code>agent_action: "stop"</code>.
+<code>local_ready: false</code> means the owner-side configuration/dependency boundary needs repair;
+<code>local_ready: true</code> plus a failed remote preflight means the SFTP boundary needs repair. When
+ready, call
+<code>artifact_sftp.publish</code> only after the required confirmation. The default is private; public
+visibility needs a separate confirmation. The MCP server refuses to publish unless it first
+writes the stamped bytes to <code>docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/</code>.</p>
+<p>When setup is not ready, call <code>artifact_sftp.setup</code> only to receive its structured boundary,
+then stop. Do not ask an agent to inspect or paste the config, run a bundled setup script,
+install a dependency, or try direct SFTP/HTTP. The environment owner repairs the boundary and
+the agent re-runs <code>setup_status</code> through MCP.</p>
+<p>The local layout mirrors the remote artifact identity:</p>
+<pre><code class="language-text">docs/artifacts/codex/private/my-report/index.html
+docs/artifacts/codex/private/my-report/my-report--1--20260804T120000Z.html
+</code></pre>
+<p><code>dry_run: true</code> reports the destination or unpublish target without modifying files. The current
+agent MCP policy does not expose force, sensitive-content override, or direct remote list operations.</p>
+<p>Every published page is stamped with a creation-time footer and gets a UTF-8 declaration
+plus <code>&lt;html lang="..."&gt;</code> when the source HTML lacks them, so non-ASCII text renders
+correctly. It also receives the official Sarabun Google Fonts stylesheet with <code>font-display=swap</code>
+and a Thai-safe fallback stack; this is the only default external runtime request. Optional config
+keys <code>DEFAULT_LANG</code> (default <code>th</code>) and <code>DEFAULT_TIMEZONE</code> (default <code>Asia/Bangkok</code>) control the
+page language and the footer time.</p>
+<h2>Reading artifacts back</h2>
+<p>A private artifact's URL is a <em>viewer</em> link, not a fetchable resource: the Cloudflare
+Zero Trust gate blocks even the publishing account from reading it over HTTP.
+Use <code>artifact_sftp.read</code> whenever an agent is asked to open, inspect, verify, or summarize an
+artifact URL. It resolves the local archive before reading it, so an agent that just published
+the file must not stop at an HTTP access error. Read an artifact from the local archive instead:</p>
+<pre><code class="language-text">docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/index.html
+docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/&lt;slug&gt;--&lt;version&gt;--&lt;timestamp&gt;.html
+</code></pre>
+<p>The URL path encodes the archive path: <code>https://.../&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/</code> maps to
+<code>docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/</code>. Pass the URL or exact <code>read-back:</code> value to the
+MCP tool. Never WebFetch the artifact URL or use SFTP as a read fallback.</p>
+<h2>Security model</h2>
+<ul>
+<li>Treat publishing as data exfiltration: inspect every artifact before upload.</li>
+<li>Treat <code>docs/artifacts/</code> as a local custody copy, not as release or public-delivery proof.</li>
+<li>Never put credentials, tokens, private keys, customer data, or unapproved
+  file contents in an artifact.</li>
+<li>Never disable strict host-key checking to work around a mismatch.</li>
+<li>The local config is rejected if it is a symlink, not a regular file, or
+  readable by other users.</li>
+<li>HTML executes on the artifact origin. Use a dedicated static-only origin
+  with no application cookies or sessions.</li>
+<li>The agent-facing MCP surface has no sensitive-content override.</li>
+</ul>
+<p>For vulnerability reports, follow <a href="https://github.com/iicmaster/artifact-sftp/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+<h2>Maintainer development</h2>
+<p>The following are maintainer-only implementation regressions, not AI-agent operational
+fallbacks. The test suites are offline: they replace SFTP and HTTP clients with throwaway mocks
+and never read the real local configuration.</p>
+<pre><code class="language-bash">python3 tests/test_agent_plugins.py
+uv run python -m unittest discover -s tests -p 'test_mcp*.py'
+bash skills/artifact-sftp/scripts/test_publish.sh
+bash skills/artifact-sftp/scripts/test_setup.sh
+bash skills/artifact-sftp-read/scripts/test_read_artifact.sh
+
+for script in skills/artifact-sftp/scripts/*.sh \
+  skills/artifact-sftp-setup/scripts/*.sh \
+  skills/artifact-sftp-read/scripts/*.sh; do
+  bash -n &quot;$script&quot;
+done
+python3 -m py_compile skills/artifact-sftp/scripts/sftp_helper.py
+</code></pre>
+<h2>License</h2>
+<p><a href="https://github.com/iicmaster/artifact-sftp/blob/main/LICENSE">MIT</a></p></div>
+  <div class="doc" data-lang="th" hidden><h1>Artifact SFTP</h1>
+<p><em>ฉบับหลักคือ <a href="#" data-goto="en">README.md</a> — ขั้นตอนติดตั้ง คอนฟิก MCP และโมเดลความปลอดภัยอยู่ที่นั่น</em></p>
+<p>คุณมีไฟล์ HTML หนึ่งไฟล์ในเครื่อง — มันพาไฟล์นั้นไปอยู่บนเว็บของคุณเอง ที่ลิงก์ซึ่งไม่เปลี่ยน
+และมันไม่ได้ทำแค่นั้น มันมีชุดสกิลสำหรับ <strong>ทำให้เอกสารดีพอที่จะเผยแพร่</strong> มาให้ด้วย</p>
+<blockquote>
+<p><strong>สิ่งที่มันไม่ใช่:</strong> มันไม่ใช่บริการโฮสต์ มันไม่มีเซิร์ฟเวอร์ให้คุณ
+คุณต้องมีบัญชี SFTP กับเว็บเซิร์ฟเวอร์ของตัวเองอยู่แล้ว
+— มันคือ <em>คนส่งของ</em> ไม่ใช่ <em>โกดัง</em>
+ใน repo นี้ไม่มีรหัสผ่านหรือคีย์ใด ๆ และไม่ได้ให้สิทธิ์เข้าถึงเครื่องของผู้ดูแล</p>
+</blockquote>
+<hr />
+<h2>วงจรที่มันครอบคลุม</h2>
+<p>ตัวส่งไฟล์ทั่วไปทำแค่สองแถวล่าง ปลั๊กอินนี้ทำครบทุกแถว และแต่ละแถวเรียกใช้เดี่ยว ๆ ได้</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>ขั้น</th>
+<th>เกิดอะไรขึ้น</th>
+<th>ใครทำ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>เขียน</strong></td>
+<td>คุณร่างไฟล์เดียวที่จบในตัวเอง</td>
+<td>คุณ หรือผู้ช่วย</td>
+</tr>
+<tr>
+<td><strong>ขัดสำนวน</strong></td>
+<td>วลีแปลหุ่นยนต์กับประโยคถูกกระทำที่ยืดยาดถูกเอาออก ปรับระดับภาษาให้ตรงคนอ่าน</td>
+<td><code>thai-prose-craft</code></td>
+</tr>
+<tr>
+<td><strong>จัดโครง</strong></td>
+<td>สรุปขึ้นก่อน สถาปัตยกรรมตรงกลาง รายละเอียดลึกไว้ท้าย</td>
+<td><code>artifact-curator</code></td>
+</tr>
+<tr>
+<td><strong>วาด</strong></td>
+<td>ไดอะแกรมที่ผ่านการตรวจไวยากรณ์ หรือภาพที่เล็กที่สุดที่ทำให้เข้าใจ</td>
+<td><code>visual-illustrator</code>, <code>show-me</code></td>
+</tr>
+<tr>
+<td><strong>ตรวจ</strong></td>
+<td>ห้ามิติ — สำนวน ไวยากรณ์ไดอะแกรม โครงสร้าง ลิงก์ ความลับ · เจอคีย์หลุดหรือลิงก์ตายแล้วหยุด</td>
+<td><code>artifact-audit</code></td>
+</tr>
+<tr>
+<td><strong>ส่ง</strong></td>
+<td>เก็บสำเนาในเครื่องก่อน แล้วอัปโหลด แล้วเทียบไบต์ แล้วลองเปิดแบบไม่ล็อกอิน</td>
+<td><code>artifact_sftp.publish</code></td>
+</tr>
+<tr>
+<td><strong>เก็บ</strong></td>
+<td>ทุกเวอร์ชันอยู่ใต้ <code>docs/artifacts/</code> และตามหาของค้างได้ทีหลัง</td>
+<td><code>artifact_sftp.list</code>, <code>artifact-groom</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2>เส้นทางของไฟล์หนึ่งไฟล์</h2>
+<pre><code class="language-text">1  คุณเขียนไฟล์ .html หนึ่งไฟล์
+       CSS กับ JavaScript อยู่ข้างในหมด ไม่ดึงของจากที่อื่น
+            ↓
+2  สแกนหาความลับที่หลุดมา  ← ก่อนอย่างอื่นทั้งหมด
+       เจอรูปแบบที่เหมือนคีย์หรือรหัสผ่าน → ออกด้วยรหัส 4 ทันที
+       ยังไม่มีสำเนาถูกสร้าง ยังไม่มีอะไรถูกส่ง
+            ↓
+3  เก็บสำเนาไว้ในเครื่อง  ← ก่อนอัปโหลด
+       docs/artifacts/&lt;tool&gt;/&lt;visibility&gt;/&lt;slug&gt;/
+       ทั้งไฟล์ปัจจุบันและสำเนาที่ปั๊มเวลาไว้ อัปโหลดล้มทีหลังของยังอยู่ครบ
+            ↓
+4  อัปโหลดผ่าน SFTP
+       ตรวจลายนิ้วมือเซิร์ฟเวอร์ก่อนคุย เจอเครื่องแปลกปลอมแล้วไม่ยอมส่ง
+            ↓
+5  พิสูจน์ว่าคนนอกเปิดไม่ได้
+       ลองเปิดแบบไม่ล็อกอิน ถ้าเปิดได้ = หลุด ถือว่าล้มเหลว
+       ส่วนการเทียบ SHA-256 กับไบต์บนเซิร์ฟเวอร์ทำได้เฉพาะตอนมี
+       Cloudflare service token ในคอนฟิก ถ้าไม่มี ผลลัพธ์จะบอกว่า
+       not_independently_byte_verified ตรง ๆ ไม่แอบเคลมว่าเทียบแล้ว
+</code></pre>
+<hr />
+<h2>สามอย่างที่ <code>scp</code> ธรรมดาไม่ทำให้</h2>
+<ul>
+<li><strong>ทับแล้วของเก่าไม่หาย</strong> — ทุกครั้งที่ส่ง มันเก็บสำเนาแยกพร้อมเลขเวอร์ชันและเวลาไว้ข้าง ๆ ตัวปัจจุบัน</li>
+<li><strong>เงียบไว้ก่อนเป็นค่าเริ่มต้น</strong> — <code>private</code> คือค่าตั้งต้น จะทำให้เป็นสาธารณะต้องยืนยันเพิ่มอีกชั้นหนึ่งโดยเฉพาะ</li>
+<li><strong>ไม่เชื่อว่า "ส่งแล้ว" แปลว่าสำเร็จ</strong> — ของ <code>private</code> มันลองเปิดแบบไม่ล็อกอินเพื่อพิสูจน์ว่าคนนอกอ่านไม่ได้ และรายงานตรง ๆ ว่าเทียบไบต์ได้หรือไม่ได้ ไม่กลบด้วยคำว่าสำเร็จ</li>
+</ul>
+<hr />
+<h2>ลิงก์ที่ได้ ประกอบด้วยอะไร</h2>
+<pre><code class="language-text">https://เว็บของคุณ/claude/private/my-report/
+                   ▲       ▲       ▲
+                   │       │       └─ slug ชื่อที่คุณตั้ง
+                   │       └───────── visibility: private หรือ public
+                   └───────────────── tool: codex, openclaw หรือ claude
+</code></pre>
+<ul>
+<li><strong>tool</strong> — ผู้ช่วยตัวไหนเป็นคนส่ง แยกกันคนละเส้นทาง</li>
+<li><strong>visibility</strong> — <code>private</code> กับ <code>public</code> อยู่คนละโฟลเดอร์ ไม่ปนกัน</li>
+<li><strong>slug</strong> — ขึ้นต้นด้วยตัวพิมพ์เล็กหรือตัวเลข ตามด้วยตัวพิมพ์เล็ก ตัวเลข หรือขีดกลาง รวมไม่เกิน 63 ตัว</li>
+</ul>
+<hr />
+<h2>สกิลทั้งสิบตัว</h2>
+<p>สามตัวขนไบต์ · ห้าตัวทำให้เอกสารดี · สองตัวเฝ้าประตู</p>
+<h3>ส่งของ</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>สกิล</th>
+<th>ทำอะไร</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>artifact-sftp</code></td>
+<td>เผยแพร่ HTML artifact ผ่าน MCP adapter</td>
+</tr>
+<tr>
+<td><code>artifact-sftp-read</code></td>
+<td>อ่านสำเนาในเครื่องแบบออฟไลน์ ไม่ไปดึงจากลิงก์</td>
+</tr>
+<tr>
+<td><code>artifact-sftp-setup</code></td>
+<td>ตรวจความพร้อมและบอกขอบเขตของคอนฟิก ไม่รับรหัสผ่าน</td>
+</tr>
+</tbody>
+</table></div>
+<h3>ทำให้เอกสารดี</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>สกิล</th>
+<th>ทำอะไร</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thai-prose-craft</code></td>
+<td>บรรณาธิการภาษาไทย ตัดวลีแปลหุ่นยนต์และประโยคถูกกระทำที่ยืดยาด ปรับระดับภาษาให้ตรงคนอ่าน</td>
+</tr>
+<tr>
+<td><code>artifact-curator</code></td>
+<td>สถาปนิกโครงเอกสาร สรุปสามชั้น กล่องแจ้งเตือนแบบ GitHub และตารางเปรียบเทียบแทนลิสต์ยาว ๆ</td>
+</tr>
+<tr>
+<td><code>visual-illustrator</code></td>
+<td>Mermaid ที่ไวยากรณ์ไม่พัง บังคับใส่เครื่องหมายคำพูดในป้ายกำกับ ตรวจชนิดแผนภาพ และคุมโทนสี</td>
+</tr>
+<tr>
+<td><code>doc-synchronizer</code></td>
+<td>ตรวจว่าเอกสารยังตรงกับโค้ดจริงไหม README, SKILL.md, manifest, ลิงก์, anchor และแฟล็ก CLI</td>
+</tr>
+<tr>
+<td><code>show-me</code></td>
+<td>อธิบายด้วยภาพที่เล็กที่สุดที่ทำให้เข้าใจ เอาความเข้าใจขึ้นก่อน อยากลึกค่อยสั่งเพิ่ม</td>
+</tr>
+</tbody>
+</table></div>
+<h3>เฝ้าประตูและดูแลระยะยาว</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>สกิล</th>
+<th>ทำอะไร</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>artifact-audit</code></td>
+<td>ด่านก่อนเผยแพร่ ให้คะแนนห้ามิติแล้วตัดสิน PASS / WARN / BLOCK · BLOCK คือหยุด แล้วส่งเอกสารไปหาสกิลที่ซ่อมได้ · <code>artifact-sftp</code> กับ <code>artifact-groom</code> ต้องเรียกมันก่อนเสมอ</td>
+</tr>
+<tr>
+<td><code>artifact-groom</code></td>
+<td>ไล่ตรวจ artifact ทั้งโปรเจกต์ แยกว่าอันไหนสด อันไหนเก่า อันไหนกำพร้า แล้วอัปเดตหรือถอนออกอย่างปลอดภัย</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2>เครื่องมือที่เรียกผ่าน MCP มีหกตัว</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>เครื่องมือ</th>
+<th>ทำอะไร</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>artifact_sftp.setup_status</code></td>
+<td>พร้อมส่งหรือยัง คอนฟิกครบไหม ต่อเครื่องปลายทางติดไหม</td>
+</tr>
+<tr>
+<td><code>artifact_sftp.setup</code></td>
+<td>บอกว่าต้องเตรียมอะไรเพิ่ม ไม่รับรหัสผ่าน ไม่รันตัวติดตั้งให้</td>
+</tr>
+<tr>
+<td><code>artifact_sftp.publish</code></td>
+<td>ส่งไฟล์ขึ้น ต้องสั่ง <code>confirm</code> เสมอ จะให้เป็นสาธารณะต้องสั่ง <code>confirm_public</code> เพิ่ม</td>
+</tr>
+<tr>
+<td><code>artifact_sftp.unpublish</code></td>
+<td>เอาลงจากเซิร์ฟเวอร์ สำเนาในเครื่องยังอยู่เสมอ</td>
+</tr>
+<tr>
+<td><code>artifact_sftp.read</code></td>
+<td>อ่านสำเนาในเครื่อง</td>
+</tr>
+<tr>
+<td><code>artifact_sftp.list</code></td>
+<td>ดูว่าเคยส่งอะไรไปแล้วบ้าง และมีร่างอะไรค้างอยู่</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p><strong>ทำไมลิงก์ <code>private</code> ถึงอ่านไม่ได้:</strong> มันเป็นลิงก์สำหรับ <em>คนเปิดดู</em> ที่มีด่านกั้นอยู่ข้างหน้า
+ไม่ใช่ที่อยู่สำหรับให้โปรแกรมไปดึงข้อมูล อยากอ่านเนื้อหาให้ใช้ <code>artifact_sftp.read</code> กับสำเนาในเครื่องแทน</p>
+<p><strong>ผู้ช่วย AI ต้องเรียกผ่านหกตัวนี้เท่านั้น</strong> ห้ามไปเรียกสคริปต์ข้างในตรง ๆ
+ห้ามหาทางอื่นส่งแทน และห้ามแตะคอนฟิกหรือรับความลับผ่านแชท</p>
+</blockquote>
+<hr />
+<h2>ไฟล์นี้ไม่ได้เขียนอะไรไว้</h2>
+<p>ตั้งใจไม่เขียน เพื่อไม่ให้สองภาษาเล่าไม่ตรงกันเมื่อโค้ดเปลี่ยน — ทั้งหมดนี้อยู่ใน <a href="#" data-goto="en">README.md</a>:</p>
+<ul>
+<li>ขั้นตอนติดตั้งบนเครื่องใหม่ และการตั้งค่า MCP</li>
+<li>รายละเอียดโมเดลความปลอดภัย และวิธียืนยันตัวตนทั้งสามแบบ</li>
+<li>ความเข้ากันได้กับ Agent Plugins และตัวติดตั้งแต่ละเจ้า</li>
+<li>คำสั่งสำหรับผู้พัฒนาและการรันเทสต์</li>
+</ul></div>
+</div>
+<p class="foot">หน้านี้เรนเดอร์จาก README.md และ README.th.md ในโปรเจกต์เพื่อตรวจการจัดหน้าเท่านั้น —
+ไม่ใช่หน้าตาที่ GitHub เรนเดอร์จริงทุกพิกเซล ปุ่มสลับภาษาด้านบนจำค่าไว้ในเบราว์เซอร์ของคุณเอง</p>
+<script>
+var tabs=document.querySelectorAll('.tab');
+function show(l){
+  tabs.forEach(function(b){b.setAttribute('aria-selected',b.dataset.lang===l)});
+  document.querySelectorAll('.doc').forEach(function(d){d.hidden=d.dataset.lang!==l});
+  document.documentElement.lang = (l==='th') ? 'th' : 'en';
+  try{localStorage.setItem('readme-lang',l)}catch(e){}
+  window.scrollTo(0,0);
+}
+tabs.forEach(function(b){b.addEventListener('click',function(){show(b.dataset.lang)})});
+document.querySelectorAll('a[data-goto]').forEach(function(a){
+  a.addEventListener('click',function(e){e.preventDefault();show(a.dataset.goto)})});
+var saved='en';try{saved=localStorage.getItem('readme-lang')||'en'}catch(e){}
+show(saved);
+</script>
+</body>
+</html>

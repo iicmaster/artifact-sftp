@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.3] - 2026-08-22
+
+- Rework `show-me` around comprehension: the skill now aims to make a reader who knows nothing about the topic understand it, with depth treated as a follow-up the reader asks for rather than a default. The posture is adapted from the `eli5` skill (anthropics/claude-plugins-community, MIT), bounded by a rule that an analogy sits beside a real name and never replaces it, so a reader who greps for a term still finds it.
+- Make the `artifact-audit` pre-flight gate mandatory in `show-me`. The skill previously published HTML artifacts without mentioning the gate at all, so a diagram could reach SFTP without the quality, link, and secret checks every other publish path enforces.
+- Grant standing publish authorization for the `private` + 🟢 PASS case in `show-me` and `artifact-sftp`. That case now calls `artifact_sftp.publish` with `confirm: true` without asking again; 🟡 WARN still requires explicit acknowledgement, 🔴 BLOCK still halts, and `public` is never automatic and always needs `confirm_public: true`.
+- Stop `show-me` from naming internal implementation scripts in its call-tree example, matching the MCP-only routing policy the other skills are tested against.
+- Reframe the README around the whole document loop — write, tighten, structure, draw, audit, publish, keep — with a table naming the skill that owns each step. The previous opening described a file uploader, which is the last step only.
+- List all ten shipped skills in the README, grouped as publishing, document craft, and quality gate. `artifact-audit`, `thai-prose-craft`, `artifact-curator`, `visual-illustrator` and `doc-synchronizer` were absent from it entirely, so half the plugin was undocumented at its front door.
+- Move the Skills section above the installer and MCP configuration sections. It sat at line 166, 145 lines below the promise that each step is a skill you can invoke on its own.
+- Add `README.th.md`, a Thai companion carrying the concepts, the publish journey, the URL anatomy and the skill roster. It deliberately omits setup, MCP configuration, the security model and maintainer commands, pointing at `README.md` for those, so the two files cannot drift on volatile facts.
+- Add a language switcher as the first line of both READMEs.
+- Bump the version the MCP server advertises at initialization. `build_server()` hard-coded `0.17.2`, so every client diagnostic identified a 0.17.3 server as 0.17.2.
+- Stop `show-me` claiming the published bytes were SHA-256 matched. A private publish with no Cloudflare service token skips authenticated HTTP verification and returns `content: not_independently_byte_verified`; the skill now reports that field as it comes back instead of upgrading it.
+- Correct the documented publish order. The secret scan runs before any local archive is written, so a secret-blocked publish leaves nothing under `docs/artifacts/` — the README and the explainer artifact previously showed archival first, sending readers to look for files that were never created.
+- Reconcile the MCP server's own publish instruction with the standing-approval policy. It read "needs user approval" while `show-me` and `artifact-sftp` grant that approval in advance for the `private` + PASS case, so an agent received two contradictory rules. The instruction now states what is actually invariant: `confirm=true` is always required, the calling skill may hold standing approval for the private path, and public publishing is never automatic.
+
 ## [0.17.2] - 2026-08-18
 
 - Parse the Artifact SFTP config instead of sourcing it. `publish.sh` walked the file through `. "$CONFIG"`, which executed every value as shell: a password containing `$(...)` or a backtick ran as the publishing user, and a stray line such as `PATH=/tmp/evil` silently redirected the helpers the publisher invokes. Values are now split on the first `=` and assigned only for allowlisted keys, and an unrecognized key is rejected.
