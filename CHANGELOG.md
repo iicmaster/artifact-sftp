@@ -1,6 +1,15 @@
 # Changelog
-
+ 
 All notable changes to this project are documented here.
+ 
+## [0.18.0] - 2026-08-24
+
+- Adopt **Option 4 (Static Sanitized Inline SVG Delivery)** for published HTML artifacts, resolving the Mermaid renderer paradox (Issue #21). Mermaid remains the lightweight authoring format for inline chat and pure Markdown documents, while published HTML requires self-contained, sanitized inline SVG.
+- Enforce **100% Fit-First Responsive Diagram Layout** (`max-width: 100%`, `overflow: hidden`, strictly no horizontal scrolling on primary diagram cards) to preserve the big-picture overview in published artifacts (Issue #23).
+- Introduce **Viewport Lightbox / Expand Detail** (`<dialog>` + `showModal()`) with accessible Zoom In/Out/Reset controls, keyboard navigation (`Esc`), backdrop click, focus trapping, and focus restoration for detail inspection.
+- Update `artifact-audit` pre-flight gate with 🔴 **BLOCK** for raw unrendered Mermaid in published HTML, horizontal scrolling on primary diagram overviews, and unsafe SVG content (`<script>`, inline `on*` handlers, external URLs, or colliding IDs); 🟡 **WARN** for complex diagrams (>12 nodes) lacking an Expand Detail trigger.
+- Update `skills/visual-illustrator/SKILL.md`, `skills/show-me/SKILL.md`, and `skills/artifact-audit/SKILL.md` to reflect the new diagram ergonomics and audit standards.
+- Add formal Technical Specification at `docs/rfcs/rfc-diagram-ergonomics-and-renderer.md`.
 
 ## [0.17.3] - 2026-08-22
 

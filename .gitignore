@@ -8,3 +8,6 @@ __pycache__/
 .claude/
 _bmad/
 _bmad-output/
+.pm/
+.tmux-teams/
+.mailbox-out/

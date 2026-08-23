@@ -69,6 +69,255 @@ Words such as `end`, `subgraph`, `state`, `class`, `style`, `graph`, `default`, 
 
 ---
 
+## Diagram Layout Ergonomics & Responsive Delivery
+
+This section is mandatory for rich diagrams in published HTML artifacts. It is
+the **Option 4 (Static Sanitized Inline SVG Delivery)** contract and does not
+replace the Mermaid rules below for inline chat or pure Markdown.
+
+### Rule: 100% Fit-First Responsive Container
+
+The primary overview MUST fit the available container at every viewport width.
+Use `max-width: 100%` and `overflow: hidden` on the diagram card. Strictly NO
+horizontal scroll is allowed on the primary overview. Pan or scroll belongs only
+inside the detail viewport after the reader activates the lightbox.
+
+```css
+.diagram-card {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.diagram-card > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 480px;
+}
+```
+
+### Rule: Semantic Responsive Inline SVG
+
+For published HTML artifacts, produce a clean, semantic, responsive inline SVG
+with all important meaning available to assistive technology:
+
+- `viewBox="0 W H"` MUST define the coordinate system;
+- `preserveAspectRatio="xMidYMid meet"` MUST preserve the whole overview;
+- `width="100%"`, `height="auto"`, and `max-height: 480px` MUST be present;
+- include `<title>` and `<desc>` when the diagram conveys more than decoration;
+- keep the SVG inline and self-contained; do not load a renderer, font, image,
+  stylesheet, or other asset from a remote URL.
+
+### Rule: Namespaced Element IDs & Security Sanitization
+
+Every gradient, marker, and clip must have a unique per-diagram ID such as
+`diag-auth-grad1`, `diag-auth-marker1`, or `diag-auth-clip1`. IDs must not
+collide with another diagram in the complete HTML document. Local references
+such as `url(#diag-auth-grad1)` are allowed; external `url()` references are
+not.
+
+Never put `<script>`, `<foreignObject>`, `javascript:` URLs, external assets,
+or inline `on*` event-handler attributes such as `onclick` or `onload` inside an
+inline SVG. The lightbox JavaScript belongs in the surrounding HTML component
+and must never be embedded inside the SVG node.
+
+### Rule: Viewport Lightbox Component (`<dialog>`)
+
+Use this copy-pasteable Tier A component for deep-dive inspection. It keeps one
+sanitized SVG node and moves it into the dialog rather than cloning it, so
+resource IDs remain unique. The component provides the standard trigger,
+`dialog.showModal()` with a backdrop, Zoom In (`+`), Zoom Out (`-`), Reset (`↺`),
+`Esc` handling, backdrop click to close, focus trapping, and focus restoration.
+
+```html
+<style>
+  .diagram-card {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .diagram-card > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: 480px;
+  }
+
+  .diagram-lightbox {
+    width: min(95vw, 1200px);
+    max-width: 95vw;
+    max-height: 90vh;
+    padding: 1rem;
+    border: 0;
+    border-radius: 0.75rem;
+  }
+
+  .diagram-lightbox::backdrop {
+    background: rgb(15 23 42 / 70%);
+  }
+
+  .diagram-lightbox__detail {
+    max-width: 100%;
+    max-height: 72vh;
+    overflow: auto;
+  }
+
+  .diagram-lightbox__detail > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    transform-origin: center;
+  }
+</style>
+
+<figure class="diagram-card" id="diag-auth-card">
+  <svg id="diag-auth-svg"
+       viewBox="0 0 800 420"
+       preserveAspectRatio="xMidYMid meet"
+       width="100%"
+       height="auto"
+       role="img"
+       aria-labelledby="diag-auth-title diag-auth-desc">
+    <title id="diag-auth-title">Authentication request flow</title>
+    <desc id="diag-auth-desc">The client reaches the gateway, which validates a token before the service reads the account store.</desc>
+    <defs>
+      <linearGradient id="diag-auth-grad1" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#e0f2fe" />
+        <stop offset="1" stop-color="#f3e8ff" />
+      </linearGradient>
+      <marker id="diag-auth-marker1" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0 0L8 4L0 8Z" fill="#334155" />
+      </marker>
+      <clipPath id="diag-auth-clip1">
+        <rect x="24" y="24" width="752" height="372" rx="16" />
+      </clipPath>
+    </defs>
+    <rect x="24" y="24" width="752" height="372" rx="16" fill="url(#diag-auth-grad1)" clip-path="url(#diag-auth-clip1)" />
+    <g fill="#ffffff" stroke="#334155" stroke-width="2">
+      <rect x="72" y="170" width="160" height="72" rx="12" />
+      <rect x="320" y="170" width="160" height="72" rx="12" />
+      <rect x="568" y="170" width="160" height="72" rx="12" />
+    </g>
+    <g fill="#0f172a" font-family="Sarabun, sans-serif" font-size="22" text-anchor="middle">
+      <text x="152" y="212">Client</text>
+      <text x="400" y="212">Gateway</text>
+      <text x="648" y="212">Account Store</text>
+    </g>
+    <g stroke="#334155" stroke-width="3" fill="none" marker-end="url(#diag-auth-marker1)">
+      <path d="M232 206H320" />
+      <path d="M480 206H568" />
+    </g>
+  </svg>
+  <figcaption>Token validation and account lookup</figcaption>
+  <button type="button"
+          id="diag-auth-open"
+          aria-controls="diag-auth-dialog">
+    🔍 ขยายดูรายละเอียด (Expand / View Detail)
+  </button>
+</figure>
+
+<dialog class="diagram-lightbox"
+        id="diag-auth-dialog"
+        aria-labelledby="diag-auth-dialog-title">
+  <div>
+    <h2 id="diag-auth-dialog-title">Authentication request flow</h2>
+    <button type="button" id="diag-auth-close">✕ Close</button>
+  </div>
+  <div class="diagram-lightbox__detail" id="diag-auth-detail"></div>
+  <div role="group" aria-label="Diagram zoom controls">
+    <button type="button" id="diag-auth-zoom-in" data-zoom="in" aria-label="Zoom In">+</button>
+    <button type="button" id="diag-auth-zoom-out" data-zoom="out" aria-label="Zoom Out">-</button>
+    <button type="button" id="diag-auth-zoom-reset" data-zoom="reset" aria-label="Reset">↺</button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  const card = document.querySelector("#diag-auth-card");
+  const source = card.querySelector("svg");
+  const trigger = card.querySelector("#diag-auth-open");
+  const dialog = document.querySelector("#diag-auth-dialog");
+  const detail = dialog.querySelector("#diag-auth-detail");
+  const closeButton = dialog.querySelector("#diag-auth-close");
+  const placeholder = document.createComment("diagram source position");
+  let lastFocused = null;
+  let scale = 1;
+
+  const focusable = () => [...dialog.querySelectorAll(
+    "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])"
+  )];
+
+  const renderScale = () => {
+    source.style.transform = `scale(${scale})`;
+  };
+
+  trigger.addEventListener("click", () => {
+    if (typeof dialog.showModal !== "function") return;
+    lastFocused = document.activeElement;
+    source.replaceWith(placeholder);
+    detail.append(source);
+    scale = 1;
+    renderScale();
+    dialog.showModal();
+    closeButton.focus();
+  });
+
+  closeButton.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    dialog.close();
+  });
+
+  dialog.querySelector("#diag-auth-zoom-in").addEventListener("click", () => {
+    scale = Math.min(3, scale + 0.25);
+    renderScale();
+  });
+  dialog.querySelector("#diag-auth-zoom-out").addEventListener("click", () => {
+    scale = Math.max(0.5, scale - 0.25);
+    renderScale();
+  });
+  dialog.querySelector("#diag-auth-zoom-reset").addEventListener("click", () => {
+    scale = 1;
+    renderScale();
+  });
+
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const items = focusable();
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
+  dialog.addEventListener("close", () => {
+    placeholder.replaceWith(source);
+    source.style.transform = "";
+    detail.replaceChildren();
+    scale = 1;
+    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+  });
+})();
+</script>
+```
+
+If native `<dialog>` is unavailable, use the RFC's Tier B iframe viewport or
+Tier C no-JavaScript sanitized static fit. Neither fallback may reintroduce
+horizontal scrolling in the primary overview.
+
+---
+
 ## 3. Core Diagram Archetypes & Production Templates
 
 ### Archetype 1: Architecture & System Component Flow (`flowchart`)

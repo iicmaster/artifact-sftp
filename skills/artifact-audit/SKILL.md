@@ -28,7 +28,7 @@ flowchart TD
     Doc["Candidate Artifact / Draft\n(.html / .md)"] --> Audit{"artifact-audit\nDiagnostic Engine"}
     
     Audit --> D1["1. ✍️ Linguistic Quality\n(Thai Prose & Anti-Slop)"]
-    Audit --> D2["2. 📊 Visual Integrity\n(Mermaid Syntax & Palettes)"]
+    Audit --> D2["2. 📊 Visual Integrity\n(Static SVG, Mermaid & Fit-First)"]
     Audit --> D3["3. 📑 Presentation Architecture\n(3-Tier Disclosure & Alerts)"]
     Audit --> D4["4. 🔍 Parity & Links\n(Anchors, Paths, Endpoints)"]
     Audit --> D5["5. 🔒 Security & Privacy\n(Secrets, Keys, PII)"]
@@ -61,6 +61,10 @@ flowchart TD
 
 *Powered by `visual-illustrator` standards.*
 
+This dimension enforces the accepted **Option 4 (Static Sanitized Inline SVG
+Delivery)** contract for published HTML while preserving Mermaid validation for
+inline chat and pure Markdown.
+
 - **Zero-Fail Mermaid Quoting Rule:** 
   - Checks that every node label containing special characters (`()`, `[]`, `{}`, `:`, `/`, `-`) is strictly wrapped in double quotes: `node["Label (Details): Info"]`.
 - **Diagram Syntax & Archetype Validation:**
@@ -69,7 +73,12 @@ flowchart TD
   - Ensures subgraphs are properly paired with `end` statements and not nested deeper than 2 levels.
 - **Enterprise Palette Conformance:**
   - Flags default unstyled neon colors; validates presence of standardized pastel `classDef` tokens (`primary`, `service`, `gateway`, `storage`, `queue`, `danger`, `external`).
-- **Responsive Layout:** Verifies diagrams and tables are wrapped in fluid/responsive containers (`overflow-x: auto; max-width: 100%`).
+- **Raw Mermaid in HTML Check (🔴 BLOCK):** If the candidate is `.html` and contains `<pre class="mermaid">` or a raw ```` ```mermaid ```` fence without a static rendered SVG representation, **BLOCK**. Mermaid remains valid for inline chat and pure Markdown when its syntax is safe.
+- **Horizontal Scroll Check (🔴 BLOCK):** If a diagram card enforces `overflow-x: scroll` or `overflow-x: auto` on the primary overview, **BLOCK**. Detail-only pan or scroll inside a bounded Viewport Lightbox is allowed.
+- **SVG Security & ID Hygiene Check (🔴 BLOCK):** If inline SVG contains `<script>`, `<foreignObject>`, `on*` event handlers, `javascript:` URLs, external URLs/assets, external `url()`, or colliding/unnamespaced IDs, **BLOCK**. Reusable resources must use unique per-diagram IDs such as `id="diag1-..."`.
+- **Complex Diagram Lightbox Check (🟡 WARN):** If a diagram is complex (more than 12 nodes) and lacks an Expand Detail / Viewport Lightbox trigger, **WARN** and route it for remediation.
+- **Fit-First & Accessible Lightbox Standard (🟢 PASS):** The overview is 100% responsive fit, readable, and provides an accessible native `<dialog>` lightbox for detail inspection when supported. No-JavaScript fallback remains a sanitized static fit.
+- **Responsive Layout:** Verifies primary diagram cards use `max-width: 100%` and `overflow: hidden`. Tables may use a bounded responsive wrapper when necessary, but table behavior must never turn the primary diagram overview into a horizontal scroll surface.
 
 ---
 
@@ -126,7 +135,7 @@ After completing the 5-dimension scan, `artifact-audit` generates a structured s
 Target: docs/reports/system-architecture.html (Candidate for: codex/private/system-arch)
 ================================================================================
 [1] ✍️ Linguistic Quality (Thai Prose):       🟡 WARN (2 robot translation clichés found)
-[2] 📊 Visual & Mermaid Syntax:              🟢 PASS (All labels double-quoted, enterprise palette)
+[2] 📊 Visual & Diagrammatic Integrity:      🟢 PASS (Static SVG fit-first, safe IDs, Mermaid rules)
 [3] 📑 Presentation & Layout:                🟢 PASS (3-tier structure, valid [!IMPORTANT] alert)
 [4] 🔍 Parity & Link Integrity:              🟢 PASS (All internal anchors verified)
 [5] 🔒 Security & Privacy Hygiene:           🟢 PASS (Zero secrets / clean environment)
@@ -139,9 +148,9 @@ VERDICT: 🟡 READY WITH WARNINGS (Recommended to clean prose before publish)
 
 | Verdict | Status | Policy | Agent Action |
 |:---:|:---:|---|---|
-| 🟢 **PASS** | 100% Clean | All 5 dimensions passed with zero defects | Proceed immediately to `artifact_sftp.publish` or complete groom |
-| 🟡 **WARN** | Minor Issues | Non-breaking quality warnings (e.g. minor slop, missing table) | Suggest quick remediation via specialized skill, but permit publish if user approves |
-| 🔴 **BLOCK** | Critical Flaws | Secret detected, broken Mermaid syntax, or dead links | **HALT PUBLISH.** Must invoke remediation skill and re-audit before upload |
+| 🟢 **PASS** | 100% Clean | All 5 dimensions pass; HTML rich diagrams are static sanitized inline SVG, fit-first, and have accessible detail support when needed | Proceed immediately to `artifact_sftp.publish` or complete groom |
+| 🟡 **WARN** | Minor Issues | Non-breaking quality warnings, including a complex diagram over 12 nodes without an Expand Detail / Viewport Lightbox trigger | Show every warning, then follow the visibility approval policy or remediate and re-audit |
+| 🔴 **BLOCK** | Critical Flaws | Secret/dead link, raw Mermaid in HTML without static SVG, primary overview horizontal scroll, unsafe SVG content, or colliding/unnamespaced IDs | **HALT PUBLISH.** Route to remediation and re-audit before upload |
 
 ---
 
@@ -153,6 +162,10 @@ When an audit surfaces issues, route the artifact to the specialized skill for a
 |---|---|---|
 | Robot clichés, passive verb bloat, unnatural Thai | `thai-prose-craft` | Run Anti-Slop rewrite on identified paragraphs |
 | Broken Mermaid syntax, unquoted labels, missing chart | `visual-illustrator` | Wrap labels in `""`, inject diagram or classDef tokens |
+| Raw Mermaid in HTML without a static rendered SVG | `visual-illustrator` | Replace the HTML Mermaid block with sanitized semantic inline SVG; keep Mermaid only for chat/Markdown |
+| Primary diagram overview uses `overflow-x: scroll` or `overflow-x: auto` | `visual-illustrator` | Apply the 100% fit-first container (`max-width: 100%`, `overflow: hidden`) and move detail navigation into the lightbox |
+| Unsafe SVG element/attribute, external URL, or colliding ID | `visual-illustrator` | Remove executable/external content and regenerate namespaced IDs such as `diag1-...` |
+| Complex diagram lacks an Expand Detail / Viewport Lightbox trigger | `visual-illustrator` | Add the accessible native `<dialog>` component or document the intentional low-complexity exception |
 | Wall-of-text, missing summary, unformatted tables | `artifact-curator` | Refactor into 3-tier layout, insert GitHub alerts & tables |
 | Dead links, outdated CLI flags, version mismatch | `doc-synchronizer` | Fix anchors and synchronize with current repository state |
 | Hardcoded secrets, private keys | *Self-Remediation* | Strip secret string immediately, replace with env placeholder |

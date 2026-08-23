@@ -95,6 +95,20 @@ visual walkthrough:
    visuals and few words per the posture above. The publisher adds the approved
    Sarabun stylesheet for Thai text; add no other external CDN dependency.
 
+   **Published rich-diagram contract:** Rich diagrams in this HTML MUST follow
+   **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized,
+   responsive inline SVG. The primary overview MUST fit
+   `100%` of its container with `max-width: 100%` and `overflow: hidden`; it
+   MUST NOT use horizontal scrolling. Provide the accessible **Viewport
+   Lightbox / Expand Detail** modal using native `<dialog>` and
+   `showModal()` for detail inspection when supported. Do not leave raw Mermaid
+   source in HTML as a substitute for the SVG representation. Keep SVG IDs
+   namespaced and keep executable JavaScript outside the SVG node.
+
+   Inline chat responses retain the lightweight formats that suit a quick
+   explanation: Mermaid, pseudocode, diffs, and file trees. Do not build a
+   standalone artifact merely to replace a small inline view.
+
 2. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception,
    and no "it's just a picture" path around it.** Render its gate table to the user
    and act on the verdict:

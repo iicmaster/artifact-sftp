@@ -35,7 +35,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     adapter = service or ArtifactSftpService()
     server = MCPServer(
         "Artifact SFTP",
-        version="0.17.3",
+        version="0.18.0",
         description="MCP-only AI-agent publishing and local read-back for HTML artifacts through an existing pinned SFTP configuration.",
         instructions=(
             "This is the only Artifact SFTP execution surface for AI agents. Use setup_status before a first "
