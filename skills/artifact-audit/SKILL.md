@@ -76,8 +76,12 @@ inline chat and pure Markdown.
 - **Raw Mermaid in HTML Check (🔴 BLOCK):** If the candidate is `.html` and contains `<pre class="mermaid">` or a raw ```` ```mermaid ```` fence without a static rendered SVG representation, **BLOCK**. Mermaid remains valid for inline chat and pure Markdown when its syntax is safe.
 - **Horizontal Scroll Check (🔴 BLOCK):** If a diagram card enforces `overflow-x: scroll` or `overflow-x: auto` on the primary overview, **BLOCK**. Detail-only pan or scroll inside a bounded Viewport Lightbox is allowed.
 - **SVG Security & ID Hygiene Check (🔴 BLOCK):** If inline SVG contains `<script>`, `<foreignObject>`, `on*` event handlers, `javascript:` URLs, external URLs/assets, external `url()`, or colliding/unnamespaced IDs, **BLOCK**. Reusable resources must use unique per-diagram IDs such as `id="diag1-..."`.
+- **Diagram Collision & Overlap Check (🔴 BLOCK):**
+  - **Unbadged Edge Labels:** If text labels along connection paths are not backed by a background `<rect>` badge and hover bare over lines, **BLOCK**.
+  - **Node Bounding Box Intersection:** If diagram nodes overlap each other without clearance ($\text{gap} < 40\text{px}$), **BLOCK**.
+  - **Collinear Path Collisions:** If multiple connection lines share identical coordinates or slice through node centers, **BLOCK**.
 - **Complex Diagram Lightbox Check (🟡 WARN):** If a diagram is complex (more than 12 nodes) and lacks an Expand Detail / Viewport Lightbox trigger, **WARN** and route it for remediation.
-- **Fit-First & Accessible Lightbox Standard (🟢 PASS):** The overview is 100% responsive fit, readable, and provides an accessible native `<dialog>` lightbox for detail inspection when supported. No-JavaScript fallback remains a sanitized static fit.
+- **Fit-First & Accessible Lightbox Standard (🟢 PASS):** The overview is 100% responsive fit, readable, free of visual collisions, and provides an accessible native `<dialog>` lightbox for detail inspection when supported. No-JavaScript fallback remains a sanitized static fit.
 - **Responsive Layout:** Verifies primary diagram cards use `max-width: 100%` and `overflow: hidden`. Tables may use a bounded responsive wrapper when necessary, but table behavior must never turn the primary diagram overview into a horizontal scroll surface.
 
 ---
@@ -150,7 +154,7 @@ VERDICT: 🟡 READY WITH WARNINGS (Recommended to clean prose before publish)
 |:---:|:---:|---|---|
 | 🟢 **PASS** | 100% Clean | All 5 dimensions pass; HTML rich diagrams are static sanitized inline SVG, fit-first, and have accessible detail support when needed | Proceed immediately to `artifact_sftp.publish` or complete groom |
 | 🟡 **WARN** | Minor Issues | Non-breaking quality warnings, including a complex diagram over 12 nodes without an Expand Detail / Viewport Lightbox trigger | Show every warning, then follow the visibility approval policy or remediate and re-audit |
-| 🔴 **BLOCK** | Critical Flaws | Secret/dead link, raw Mermaid in HTML without static SVG, primary overview horizontal scroll, unsafe SVG content, or colliding/unnamespaced IDs | **HALT PUBLISH.** Route to remediation and re-audit before upload |
+| 🔴 **BLOCK** | Critical Flaws | Secret/dead link, raw Mermaid in HTML without static SVG, primary overview horizontal scroll, unsafe SVG content, colliding/unnamespaced IDs, or unbadged text collisions and overlapping paths | **HALT PUBLISH.** Route to remediation and re-audit before upload |
 
 ---
 

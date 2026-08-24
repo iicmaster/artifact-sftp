@@ -122,6 +122,27 @@ or inline `on*` event-handler attributes such as `onclick` or `onload` inside an
 inline SVG. The lightbox JavaScript belongs in the surrounding HTML component
 and must never be embedded inside the SVG node.
 
+### Rule: Zero-Collision Geometry & Routing (Anti-Overlap Invariants)
+
+To ensure diagrams remain crisp, legible, and completely free of overlapping lines or text collisions:
+
+1. **Mandatory Text Pill Badges:**
+   - Every text label along a connection path (`<text>`) MUST be wrapped in a `<g>` with a background `<rect>` badge (e.g. `<rect fill="#0b1120" stroke="#334155" rx="3" .../>`) positioned directly behind the text.
+   - Text elements must never sit bare over path lines where lines slice through glyphs.
+
+2. **Orthogonal Channel Routing (Manhattan Routing):**
+   - Routing paths must use 90-degree step angles (`M ... L ... L ...`) rather than diagonal cuts crossing through foreign nodes.
+   - Parallel paths sharing the same corridor MUST maintain a minimum of **20px dedicated Y-axis or X-axis clearance** (no collinear line overlap).
+
+3. **Node Bounding Box Safety Clearance:**
+   - Maintain minimum horizontal gap $\ge 60\text{px}$ and vertical gap $\ge 40\text{px}$ between adjacent node rectangles.
+   - Node bounding boxes must never intersect or touch.
+
+4. **Port Isolation on Nodes:**
+   - Incoming and outgoing arrows must connect to distinct anchor points (ports) on a node rather than colliding into a single point.
+
+---
+
 ### Rule: Viewport Lightbox Component (`<dialog>`)
 
 Use this copy-pasteable Tier A component for deep-dive inspection. It keeps one
