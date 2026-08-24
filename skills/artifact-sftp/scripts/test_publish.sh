@@ -210,6 +210,9 @@ grep -qE 'ok--1--[0-9]{8}T[0-9]{6}Z\.html' "$MOCK_LOG" \
 grep -q 'data-artifact-meta' "$MOCK_LAST_PUT" && grep -q 'created' "$MOCK_LAST_PUT" \
   && echo "PASS timestamp footer stamped into artifact" \
   || { echo "FAIL: timestamp footer not stamped"; fails=$((fails+1)); }
+grep -qE 'artifact-sftp v[0-9]+\.[0-9]+\.[0-9]+' "$MOCK_LAST_PUT" \
+  && echo "PASS plugin version stamped in footer" \
+  || { echo "FAIL: plugin version missing in footer"; fails=$((fails+1)); }
 # The source (no head/html) must still get a UTF-8 declaration before the readable footer.
 grep -q '<head>' "$MOCK_LAST_PUT" && grep -q '<meta charset="utf-8">' "$MOCK_LAST_PUT" \
   && echo "PASS UTF-8 charset declared when source has no head" \

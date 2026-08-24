@@ -486,7 +486,24 @@ DEFOOTED=''
 
 STAMPED=$(mktemp)
 TS_HUMAN=$(TZ="$TZ_NAME" date '+%Y-%m-%d %H:%M %Z' 2>/dev/null) || TS_HUMAN=$(date -u '+%Y-%m-%d %H:%M UTC')
-FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666\">artifact: ${SLUG} · v${VER} · created ${TS_HUMAN}</footer>"
+
+PLUGIN_ROOT_DIR="${ARTIFACT_SFTP_PLUGIN_ROOT:-}"
+if [ -z "$PLUGIN_ROOT_DIR" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+  PLUGIN_ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." 2>/dev/null && pwd)"
+fi
+
+PLUGIN_VER=''
+if [ -n "$PLUGIN_ROOT_DIR" ] && [ -f "$PLUGIN_ROOT_DIR/plugin.json" ]; then
+  PLUGIN_VER=$(awk -F'"' '/"version"[[:space:]]*:/ {print $4; exit}' "$PLUGIN_ROOT_DIR/plugin.json" 2>/dev/null || true)
+fi
+
+PLUGIN_LABEL=''
+if [ -n "$PLUGIN_VER" ]; then
+  PLUGIN_LABEL=" · artifact-sftp v${PLUGIN_VER}"
+fi
+
+FOOT="<footer data-artifact-meta style=\"max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666\">artifact: ${SLUG} · v${VER}${PLUGIN_LABEL} · created ${TS_HUMAN}</footer>"
 # Target the final literal closing body tag, not an earlier occurrence inside an
 # inlined script string. Keep this in awk so key-auth publishes do not gain a
 # Python runtime dependency.
