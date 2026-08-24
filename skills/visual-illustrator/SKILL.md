@@ -146,27 +146,51 @@ resource IDs remain unique. The component provides the standard trigger,
   }
 
   .diagram-lightbox {
-    width: min(95vw, 1200px);
-    max-width: 95vw;
-    max-height: 90vh;
-    padding: 1rem;
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    margin: 0;
+    padding: 0;
     border: 0;
-    border-radius: 0.75rem;
+    border-radius: 0;
+    background: #060911;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .diagram-lightbox::backdrop {
-    background: rgb(15 23 42 / 70%);
+    background: rgb(3 7 18 / 90%);
+  }
+
+  .diagram-lightbox__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 1.25rem;
+    background: #101726;
+    border-bottom: 1px solid #24324f;
+    flex-shrink: 0;
   }
 
   .diagram-lightbox__detail {
-    max-width: 100%;
-    max-height: 72vh;
-    overflow: auto;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .diagram-lightbox__detail > svg {
     display: block;
     width: 100%;
+    max-width: 1200px;
     height: auto;
     transform-origin: center;
   }
@@ -221,16 +245,16 @@ resource IDs remain unique. The component provides the standard trigger,
 <dialog class="diagram-lightbox"
         id="diag-auth-dialog"
         aria-labelledby="diag-auth-dialog-title">
-  <div>
+  <div class="diagram-lightbox__header">
     <h2 id="diag-auth-dialog-title">Authentication request flow</h2>
-    <button type="button" id="diag-auth-close">✕ Close</button>
+    <div role="group" aria-label="Diagram zoom controls">
+      <button type="button" id="diag-auth-zoom-in" data-zoom="in" aria-label="Zoom In">+</button>
+      <button type="button" id="diag-auth-zoom-out" data-zoom="out" aria-label="Zoom Out">-</button>
+      <button type="button" id="diag-auth-zoom-reset" data-zoom="reset" aria-label="Reset">↺</button>
+      <button type="button" id="diag-auth-close">✕ Close (Esc)</button>
+    </div>
   </div>
   <div class="diagram-lightbox__detail" id="diag-auth-detail"></div>
-  <div role="group" aria-label="Diagram zoom controls">
-    <button type="button" id="diag-auth-zoom-in" data-zoom="in" aria-label="Zoom In">+</button>
-    <button type="button" id="diag-auth-zoom-out" data-zoom="out" aria-label="Zoom Out">-</button>
-    <button type="button" id="diag-auth-zoom-reset" data-zoom="reset" aria-label="Reset">↺</button>
-  </div>
 </dialog>
 
 <script>

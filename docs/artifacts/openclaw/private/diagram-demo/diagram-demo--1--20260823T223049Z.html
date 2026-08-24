@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="th">
+<head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สาธิตมาตรฐานไดอะแกรมใหม่: 100% Fit-First & Viewport Lightbox (v0.18.0)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-sans: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+      
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #1e293b;
+      --bg-card-header: #334155;
+      --bg-card-hover: #2d3748;
+      
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --border-color: #334155;
+      --border-focus: #38bdf8;
+      
+      --accent-primary: #38bdf8;
+      --accent-success: #4ade80;
+      --accent-warning: #fbbf24;
+      --accent-danger: #f87171;
+      --accent-purple: #c084fc;
+      
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    /* Header & Badge */
+    .header-section {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 9999px;
+      color: var(--accent-primary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      letter-spacing: 0.025em;
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(to right, #f8fafc, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* 3-Tier Info Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent-primary);
+    }
+
+    .stat-card .label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .stat-card .val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .stat-card .desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Core Diagram Card */
+    .diagram-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+    }
+
+    .diagram-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: rgba(30, 41, 59, 0.8);
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(8px);
+    }
+
+    .diagram-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .expand-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--accent-primary);
+      border-radius: var(--radius-sm);
+      color: var(--accent-primary);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 36px;
+    }
+
+    .expand-btn:hover {
+      background: var(--accent-primary);
+      color: #0f172a;
+      transform: translateY(-1px);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .expand-btn:focus-visible {
+      outline: 2px solid #38bdf8;
+      outline-offset: 2px;
+    }
+
+    /* Diagram Overview Area (Strictly Fit-First, No Horizontal Scroll) */
+    .diagram-body {
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden; /* STRICT: No horizontal scrollbar on main overview */
+      background: #0b1120;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .diagram-svg-container {
+      width: 100%;
+      max-width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .responsive-svg {
+      width: 100%;
+      height: auto;
+      max-height: 480px;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Diagram Legend */
+    .diagram-footer {
+      padding: 1rem 1.5rem;
+      background: rgba(15, 23, 42, 0.6);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid;
+    }
+
+    /* Comparison Table Section */
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .section-card h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      margin-top: 1rem;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .comparison-table th {
+      background: rgba(51, 65, 85, 0.5);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .comparison-table .old-way {
+      color: var(--accent-danger);
+    }
+
+    .comparison-table .new-way {
+      color: var(--accent-success);
+      font-weight: 600;
+    }
+
+    /* Viewport Lightbox / Expand Detail Modal (Native <dialog>) */
+    .lightbox-dialog {
+      position: fixed;
+      inset: 0;
+      width: 95vw;
+      max-width: 1400px;
+      height: 90vh;
+      max-height: 90vh;
+      margin: auto;
+      background: #0b1120;
+      color: var(--text-primary);
+      border: 1px solid var(--border-focus);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.2);
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 9999;
+    }
+
+    .lightbox-dialog:not([open]) {
+      display: none;
+    }
+
+    .lightbox-dialog::backdrop {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+    }
+
+    .lightbox-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: #1e293b;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .lightbox-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .lightbox-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toolbar-btn {
+      background: #334155;
+      border: 1px solid #475569;
+      color: var(--text-primary);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+
+    .toolbar-btn:hover {
+      background: #475569;
+      color: #fff;
+    }
+
+    .close-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-danger);
+      color: var(--accent-danger);
+      margin-left: 0.5rem;
+    }
+
+    .close-btn:hover {
+      background: var(--accent-danger);
+      color: #fff;
+    }
+
+    .lightbox-body {
+      flex: 1;
+      overflow: auto; /* Scrollable inside detail modal only */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      cursor: grab;
+      user-select: none;
+      background: radial-gradient(circle, rgba(30,41,59,0.5) 0%, rgba(11,17,32,1) 100%);
+    }
+
+    .lightbox-body:active {
+      cursor: grabbing;
+    }
+
+    .lightbox-zoom-target {
+      transform-origin: center center;
+      transition: transform 0.15s ease-out;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .lightbox-zoom-target svg {
+      width: 100%;
+      height: auto;
+      max-width: 1200px;
+    }
+
+    .lightbox-footer {
+      padding: 0.75rem 1.5rem;
+      background: #1e293b;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header-section">
+      <div class="badge">✨ Artifact SFTP v0.18.0 Standard</div>
+      <h1>ตัวอย่างระบบไดอะแกรมสถาปัตยกรรม (Fit-First & Lightbox)</h1>
+      <p class="subtitle">แสดงผลภาพรวม 100% พอดีสายตาโดยไม่มี Scrollbar แนวนอน พร้อมระบบขยายดูรายละเอียดผ่าน Viewport Lightbox</p>
+    </header>
+
+    <!-- Tier 1: Executive Invariants -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">📐 Layout Ergonomics</div>
+        <div class="val">100% Fit-First</div>
+        <div class="desc">ไม่มี Scrollbar แนวนอนบนหน้าหลัก ลด Cognitive Load</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">🛡️ Security & Delivery</div>
+        <div class="val">Static SVG (Opt 4)</div>
+        <div class="desc">ปลอดภัย ไร้ Script/CDN โหลดเร็วทันที 0ms</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">🔍 Progressive Detail</div>
+        <div class="val">Native &lt;dialog&gt;</div>
+        <div class="desc">ซูม/เลื่อนดูรายละเอียดระดับลึก รองรับ Keyboard & ARIA</div>
+      </div>
+    </div>
+
+    <!-- Tier 2: The Core Interactive Diagram Card -->
+    <section class="diagram-card">
+      <div class="diagram-header">
+        <div class="diagram-title">
+          <span>🏛️</span>
+          <span>สถาปัตยกรรมระบบชำระเงินและประมวลผลคำสั่งซื้อ (Distributed Event-Driven)</span>
+        </div>
+        <button id="btnOpenLightbox" class="expand-btn" aria-haspopup="dialog" aria-controls="diagramLightbox">
+          <span>🔍 ขยายดูรายละเอียด (Expand / View Detail)</span>
+        </button>
+      </div>
+
+      <div class="diagram-body">
+        <div class="diagram-svg-container">
+          <!-- Sanitized, Semantic Responsive Inline SVG (Option 4) -->
+          <svg id="mainArchitectureSvg" class="responsive-svg" viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="svgTitle svgDesc">
+            <title id="svgTitle">Distributed Payment & Order Architecture</title>
+            <desc id="svgDesc">แสดงขั้นตอนการทำงานระหว่าง Client, API Gateway, Auth, Order Service, Kafka และ Database Cluster</desc>
+
+            <defs>
+              <!-- Namespaced Gradients and Markers -->
+              <linearGradient id="diag1-grad-client" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0284c7" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#0369a1" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="diag1-grad-gw" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#d97706" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#b45309" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="diag1-grad-svc" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#9333ea" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#7e22ce" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="diag1-grad-db" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#16a34a" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#15803d" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="diag1-grad-queue" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ea580c" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#c2410c" stop-opacity="0.05"/>
+              </linearGradient>
+
+              <!-- Arrow Markers -->
+              <marker id="diag1-arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#38bdf8" />
+              </marker>
+              <marker id="diag1-arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#c084fc" />
+              </marker>
+              <marker id="diag1-arrow-orange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#fb923c" />
+              </marker>
+              <marker id="diag1-arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#4ade80" />
+              </marker>
+            </defs>
+
+            <!-- Background Grid Accent -->
+            <rect width="1000" height="480" fill="#0b1120" rx="12"/>
+
+            <!-- Layer Zones (Frames) -->
+            <!-- Zone 1: Client & Ingress -->
+            <rect x="30" y="30" width="220" height="420" rx="8" fill="#1e293b" fill-opacity="0.5" stroke="#334155" stroke-dasharray="4 4"/>
+            <text x="45" y="55" fill="#94a3b8" font-family="Sarabun, sans-serif" font-size="13" font-weight="600">🌐 1. Client & Ingress Layer</text>
+
+            <!-- Zone 2: Core Microservices -->
+            <rect x="280" y="30" width="340" height="420" rx="8" fill="#1e293b" fill-opacity="0.5" stroke="#334155" stroke-dasharray="4 4"/>
+            <text x="295" y="55" fill="#94a3b8" font-family="Sarabun, sans-serif" font-size="13" font-weight="600">⚙️ 2. Core Microservices</text>
+
+            <!-- Zone 3: Event & Persistence -->
+            <rect x="650" y="30" width="320" height="420" rx="8" fill="#1e293b" fill-opacity="0.5" stroke="#334155" stroke-dasharray="4 4"/>
+            <text x="665" y="55" fill="#94a3b8" font-family="Sarabun, sans-serif" font-size="13" font-weight="600">💾 3. Event & Data Tier</text>
+
+            <!-- NODES -->
+            <!-- Node: Web App -->
+            <g id="node-web">
+              <rect x="50" y="90" width="180" height="60" rx="6" fill="url(#diag1-grad-client)" stroke="#0284c7" stroke-width="1.5"/>
+              <text x="140" y="118" fill="#e0f2fe" font-family="Sarabun, sans-serif" font-size="14" font-weight="600" text-anchor="middle">Web & Mobile Apps</text>
+              <text x="140" y="136" fill="#7dd3fc" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">HTTPS / Next.js SPA</text>
+            </g>
+
+            <!-- Node: API Gateway -->
+            <g id="node-gateway">
+              <rect x="50" y="240" width="180" height="75" rx="6" fill="url(#diag1-grad-gw)" stroke="#d97706" stroke-width="1.5"/>
+              <text x="140" y="268" fill="#fef3c7" font-family="Sarabun, sans-serif" font-size="14" font-weight="600" text-anchor="middle">🛡️ Envoy API Gateway</text>
+              <text x="140" y="288" fill="#fde68a" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Rate Limit & WAF</text>
+              <text x="140" y="304" fill="#d97706" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">Port: 443 / TLS 1.3</text>
+            </g>
+
+            <!-- Node: Auth Service -->
+            <g id="node-auth">
+              <rect x="300" y="90" width="140" height="65" rx="6" fill="url(#diag1-grad-svc)" stroke="#9333ea" stroke-width="1.5"/>
+              <text x="370" y="118" fill="#f3e8ff" font-family="Sarabun, sans-serif" font-size="13" font-weight="600" text-anchor="middle">🔐 Auth Service</text>
+              <text x="370" y="136" fill="#d8b4fe" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">OIDC / JWT Introspect</text>
+            </g>
+
+            <!-- Node: Order Service -->
+            <g id="node-order">
+              <rect x="300" y="240" width="140" height="75" rx="6" fill="url(#diag1-grad-svc)" stroke="#9333ea" stroke-width="1.5"/>
+              <text x="370" y="268" fill="#f3e8ff" font-family="Sarabun, sans-serif" font-size="13" font-weight="600" text-anchor="middle">📦 Order Service</text>
+              <text x="370" y="288" fill="#d8b4fe" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Go / gRPC Server</text>
+              <text x="370" y="304" fill="#a855f7" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">Port: 50051</text>
+            </g>
+
+            <!-- Node: Payment Service -->
+            <g id="node-payment">
+              <rect x="460" y="240" width="140" height="75" rx="6" fill="url(#diag1-grad-svc)" stroke="#9333ea" stroke-width="1.5"/>
+              <text x="530" y="268" fill="#f3e8ff" font-family="Sarabun, sans-serif" font-size="13" font-weight="600" text-anchor="middle">💳 Payment Svc</text>
+              <text x="530" y="288" fill="#d8b4fe" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Stripe / PromptPay</text>
+              <text x="530" y="304" fill="#a855f7" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">Idempotent Worker</text>
+            </g>
+
+            <!-- Node: Kafka Event Bus -->
+            <g id="node-kafka">
+              <rect x="670" y="90" width="280" height="65" rx="6" fill="url(#diag1-grad-queue)" stroke="#ea580c" stroke-width="1.5"/>
+              <text x="810" y="118" fill="#ffedd5" font-family="Sarabun, sans-serif" font-size="14" font-weight="600" text-anchor="middle">📨 Kafka Event Bus Cluster</text>
+              <text x="810" y="136" fill="#fdba74" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Topic: orders.created (3 Replicas)</text>
+            </g>
+
+            <!-- Node: PostgreSQL Cluster -->
+            <g id="node-postgres">
+              <rect x="670" y="220" width="280" height="95" rx="6" fill="url(#diag1-grad-db)" stroke="#16a34a" stroke-width="1.5"/>
+              <text x="810" y="248" fill="#dcfce7" font-family="Sarabun, sans-serif" font-size="14" font-weight="600" text-anchor="middle">💾 PostgreSQL 16 Distributed</text>
+              <text x="810" y="270" fill="#86efac" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Primary + Read Replica (Sync Rep)</text>
+              <text x="810" y="290" fill="#4ade80" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">ACID Transactional Isolation</text>
+            </g>
+
+            <!-- Node: Redis Session Store -->
+            <g id="node-redis">
+              <rect x="670" y="345" width="280" height="65" rx="6" fill="url(#diag1-grad-db)" stroke="#16a34a" stroke-width="1.5"/>
+              <text x="810" y="373" fill="#dcfce7" font-family="Sarabun, sans-serif" font-size="13" font-weight="600" text-anchor="middle">⚡ Redis Cluster (Cache & Lock)</text>
+              <text x="810" y="393" fill="#86efac" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Distributed Locks / Sub-ms latency</text>
+            </g>
+
+            <!-- CONNECTING EDGES -->
+            <!-- Client -> Gateway -->
+            <path d="M 140 150 L 140 240" fill="none" stroke="#38bdf8" stroke-width="2" marker-end="url(#diag1-arrow-blue)"/>
+            <text x="148" y="195" fill="#7dd3fc" font-family="Sarabun, sans-serif" font-size="11">TLS Handshake</text>
+
+            <!-- Gateway -> Auth -->
+            <path d="M 230 255 L 265 255 L 265 125 L 300 125" fill="none" stroke="#c084fc" stroke-width="1.5" marker-end="url(#diag1-arrow-purple)"/>
+            <text x="270" y="190" fill="#d8b4fe" font-family="Sarabun, sans-serif" font-size="10" text-anchor="middle">Verify Token</text>
+
+            <!-- Gateway -> Order -->
+            <path d="M 230 275 L 300 275" fill="none" stroke="#c084fc" stroke-width="2" marker-end="url(#diag1-arrow-purple)"/>
+            <text x="265" y="270" fill="#d8b4fe" font-family="Sarabun, sans-serif" font-size="10" text-anchor="middle">gRPC</text>
+
+            <!-- Order -> Payment -->
+            <path d="M 440 275 L 460 275" fill="none" stroke="#c084fc" stroke-width="1.5" marker-end="url(#diag1-arrow-purple)"/>
+
+            <!-- Order -> Kafka -->
+            <path d="M 370 240 L 370 125 L 670 125" fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#diag1-arrow-orange)"/>
+            <text x="510" y="115" fill="#fdba74" font-family="Sarabun, sans-serif" font-size="10" text-anchor="middle">Publish "order.created"</text>
+
+            <!-- Order -> PostgreSQL -->
+            <path d="M 440 295 L 670 295" fill="none" stroke="#4ade80" stroke-width="1.5" marker-end="url(#diag1-arrow-green)"/>
+            <text x="550" y="312" fill="#86efac" font-family="Sarabun, sans-serif" font-size="10" text-anchor="middle">Write Order State</text>
+
+            <!-- Payment -> Redis -->
+            <path d="M 530 315 L 530 380 L 670 380" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#diag1-arrow-green)"/>
+            <text x="600" y="370" fill="#86efac" font-family="Sarabun, sans-serif" font-size="10" text-anchor="middle">Acquire Lock</text>
+
+          </svg>
+        </div>
+      </div>
+
+      <div class="diagram-footer">
+        <div class="legend-item">
+          <span class="legend-color" style="background:#0284c7; border-color:#38bdf8;"></span>
+          <span>Client / Ingress</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#d97706; border-color:#fbbf24;"></span>
+          <span>Edge Gateway / WAF</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#9333ea; border-color:#c084fc;"></span>
+          <span>Core Microservices (gRPC)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#ea580c; border-color:#fb923c;"></span>
+          <span>Event Streaming (Kafka)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#16a34a; border-color:#4ade80;"></span>
+          <span>Storage & Cache Tier</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tier 3: Comparison & Architecture Explanations -->
+    <section class="section-card">
+      <h2>⚖️ ตารางเปรียบเทียบมาตรฐานไดอะแกรม (ก่อน vs หลัง v0.18.0)</h2>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>มิติการประเมิน</th>
+            <th>❌ รูปแบบเดิม (ก่อน v0.18.0)</th>
+            <th>✅ มาตรฐานใหม่ (v0.18.0)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>User Experience (ภาพรวม)</strong></td>
+            <td class="old-way">เกิด Scrollbar แนวนอน ต้องเลื่อนซ้ายขวา เสียบริบทภาพรวม</td>
+            <td class="new-way">100% Fit-First พอดีหน้าจอ เห็นภาพรวมทั้งระบบในสายตาเดียว</td>
+          </tr>
+          <tr>
+            <td><strong>การดูรายละเอียดเชิงลึก</strong></td>
+            <td class="old-way">ไม่มีตัวช่วยขยาย หรือขยายแล้วหน้าเว็บพัง</td>
+            <td class="new-way">ปุ่ม Viewport Lightbox (&lt;dialog&gt;) ซูม/แพน และเลื่อนดูได้ลึกตามต้องการ</td>
+          </tr>
+          <tr>
+            <td><strong>การเรนเดอร์ใน Browser</strong></td>
+            <td class="old-way">ใช้ Mermaid ดิบแต่ไม่มี Renderer ส่งผลให้ผู้ใช้เห็นเป็น Raw Text โค้ด</td>
+            <td class="new-way">Static Sanitized Inline SVG โหลดทันที 0ms ปลอดภัย 100% ไร้ CDN</td>
+          </tr>
+          <tr>
+            <td><strong>Audit Gate Severity</strong></td>
+            <td class="old-way">ปล่อยผ่าน Silent Failure โดยไม่ตรวจการเรนเดอร์จริง</td>
+            <td class="new-way">🔴 BLOCK ทันทีเมื่อพบ Raw Mermaid หรือบังคับ Scroll แนวนอนบนการ์ดหลัก</td>
+          </tr>
+          <tr>
+            <td><strong>Accessibility (WAI-ARIA)</strong></td>
+            <td class="old-way">ไม่รองรับ Screen Reader หรือ Keyboard Control</td>
+            <td class="new-way">รองรับ Esc ปิด Modal, คืน Focus, Focus Trap, และ SVG Title/Desc ครบถ้วน</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- NATIVE VIEWPORT LIGHTBOX MODAL (<dialog>) -->
+  <dialog id="diagramLightbox" class="lightbox-dialog" aria-labelledby="lightboxTitle">
+    <div class="lightbox-header">
+      <div id="lightboxTitle" class="lightbox-title">
+        <span>🔍</span>
+        <span>ขยายดูรายละเอียด: สถาปัตยกรรมระบบชำระเงินและคำสั่งซื้อ</span>
+      </div>
+      <div class="lightbox-toolbar">
+        <button id="btnZoomIn" class="toolbar-btn" title="ซูมเข้า">➕ ซูมเข้า</button>
+        <button id="btnZoomOut" class="toolbar-btn" title="ซูมออก">➖ ซูมออก</button>
+        <button id="btnZoomReset" class="toolbar-btn" title="รีเซ็ตขนาด">↺ รีเซ็ต</button>
+        <button id="btnCloseLightbox" class="toolbar-btn close-btn" title="ปิดหน้าต่างขยาย">✕ ปิด (Esc)</button>
+      </div>
+    </div>
+
+    <div id="lightboxBody" class="lightbox-body">
+      <div id="lightboxZoomTarget" class="lightbox-zoom-target">
+        <!-- SVG will be dynamically rendered or mirrored here -->
+      </div>
+    </div>
+
+    <div class="lightbox-footer">
+      <span>💡 เคล็ดลับ: สามารถคลิกลาก (Drag) เพื่อเลื่อนดูส่วนต่างๆ หรือใช้ปุ่ม Zoom ด้านบน | กดปุ่ม Esc เพื่อปิด</span>
+      <span id="zoomLevelIndicator">สเกล: 100%</span>
+    </div>
+  </dialog>
+
+  <!-- SCRIPT FOR LIGHTBOX INTERACTION (Standard Vanilla JS Component) -->
+  <script>
+    (function() {
+      const dialog = document.getElementById('diagramLightbox');
+      const btnOpen = document.getElementById('btnOpenLightbox');
+      const btnClose = document.getElementById('btnCloseLightbox');
+      const btnZoomIn = document.getElementById('btnZoomIn');
+      const btnZoomOut = document.getElementById('btnZoomOut');
+      const btnZoomReset = document.getElementById('btnZoomReset');
+      const zoomTarget = document.getElementById('lightboxZoomTarget');
+      const zoomIndicator = document.getElementById('zoomLevelIndicator');
+      const sourceSvg = document.getElementById('mainArchitectureSvg');
+
+      let currentScale = 1.0;
+      let isDragging = false;
+      let startX, startY, scrollLeft, scrollTop;
+      const lightboxBody = document.getElementById('lightboxBody');
+
+      function updateZoom() {
+        zoomTarget.style.transform = `scale(${currentScale})`;
+        zoomIndicator.textContent = `สเกล: ${Math.round(currentScale * 100)}%`;
+      }
+
+      function openModal() {
+        // Clone or mirror the SVG content into the lightbox
+        zoomTarget.innerHTML = '';
+        const clonedSvg = sourceSvg.cloneNode(true);
+        clonedSvg.removeAttribute('id');
+        clonedSvg.style.maxHeight = 'none';
+        clonedSvg.style.width = '1200px'; // Render in high-res fidelity inside modal
+        zoomTarget.appendChild(clonedSvg);
+
+        currentScale = 1.0;
+        updateZoom();
+
+        if (typeof dialog.showModal === 'function') {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute('open', '');
+        }
+      }
+
+      function closeModal() {
+        if (typeof dialog.close === 'function') {
+          dialog.close();
+        } else {
+          dialog.removeAttribute('open');
+        }
+        btnOpen.focus(); // Restore focus to trigger
+      }
+
+      // Event Listeners
+      btnOpen.addEventListener('click', openModal);
+      btnClose.addEventListener('click', closeModal);
+
+      // Close on backdrop click
+      dialog.addEventListener('click', (e) => {
+        const rect = dialog.getBoundingClientRect();
+        const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+        if (!isInDialog) {
+          closeModal();
+        }
+      });
+
+      // Zoom Controls
+      btnZoomIn.addEventListener('click', () => {
+        if (currentScale < 3.0) {
+          currentScale += 0.25;
+          updateZoom();
+        }
+      });
+
+      btnZoomOut.addEventListener('click', () => {
+        if (currentScale > 0.5) {
+          currentScale -= 0.25;
+          updateZoom();
+        }
+      });
+
+      btnZoomReset.addEventListener('click', () => {
+        currentScale = 1.0;
+        updateZoom();
+        lightboxBody.scrollLeft = 0;
+        lightboxBody.scrollTop = 0;
+      });
+
+      // Drag to Pan in Modal
+      lightboxBody.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX - lightboxBody.offsetLeft;
+        startY = e.pageY - lightboxBody.offsetTop;
+        scrollLeft = lightboxBody.scrollLeft;
+        scrollTop = lightboxBody.scrollTop;
+      });
+
+      lightboxBody.addEventListener('mouseleave', () => isDragging = false);
+      lightboxBody.addEventListener('mouseup', () => isDragging = false);
+
+      lightboxBody.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const x = e.pageX - lightboxBody.offsetLeft;
+        const y = e.pageY - lightboxBody.offsetTop;
+        const walkX = (x - startX) * 1.5;
+        const walkY = (y - startY) * 1.5;
+        lightboxBody.scrollLeft = scrollLeft - walkX;
+        lightboxBody.scrollTop = scrollTop - walkY;
+      });
+    })();
+  </script>
+<footer data-artifact-meta style="max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666">artifact: diagram-demo · v1 · created 2026-08-24 05:30 +07</footer></body>
+</html>
