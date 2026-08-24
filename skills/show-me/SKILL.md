@@ -1,40 +1,88 @@
 ---
 name: show-me
-description: "Explain the current topic with the smallest picture that makes it understood — pseudocode, a call tree, a file tree, a Mermaid diagram, a diff, or one focused HTML page audited by artifact-audit then published through artifact_sftp. Comprehension first: assume the reader knows nothing, and go deeper only when asked. Use when the user asks what something does, how a change moves through the system, where a file's responsibility sits, or says show me / draw it / explain simply / eli5 / วาดให้ดู / ขอภาพ / อธิบายแบบง่าย ๆ. Do not use to decorate an answer a sentence already settles."
+description: "Explain the current topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Pick the smallest view that makes the point — pseudocode, call tree, shallow file tree, Mermaid, diff, or an audited HTML artifact published through artifact_sftp. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
 ---
 
-# Show me
+# Show Me
 
-Show the current topic visually. Skip the preamble, keep prose short, pick the
-**smallest** view that makes the point.
+Explain any system, change, workflow, architecture, or codebase topic visually with instant clarity, plain language, and verifiable receipts.
 
-## Comprehension first
+---
 
-The job is not to be complete. The job is to make someone who knows nothing about
-this topic understand it — a big picture and few words. Depth is a follow-up, never
-the default: when the reader wants full detail or a real technical document, they
-ask, and *that* is the moment to go deeper or to build a separate artifact for it.
+## 1. The 3 Mandatory Pillars (The Triad of Trust)
 
-This posture is adapted from the `eli5` skill
-(<https://github.com/anthropics/claude-plugins-community/tree/main/eli5>, MIT).
+Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output (whether a concise inline response or a published HTML artifact) **MUST satisfy all three pillars simultaneously**:
 
-Simplify by **leaving things out**, never by **renaming things**:
+```text
+       ┌────────────────────────────────────────────────────────┐
+       │             THE 3 PILLARS OF SHOW-ME                   │
+       └────────────────────────────────────────────────────────┘
+                                 ▲
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+  ┌─────┴──────────┐   ┌─────────┴──────────┐   ┌─────────┴──────────┐
+  │ 1. VISUAL      │   │ 2. PLAIN           │   │ 3. CHECKABLE       │
+  │    DIAGRAM     │   │    LANGUAGE        │   │    SOURCES         │
+  ├────────────────┤   ├────────────────────┤   ├────────────────────┤
+  │ Topic-specific │   │ Human, punchy,     │   │ Inspectable trail  │
+  │ visual map     │   │ anti-slop prose    │   │ and receipts       │
+  │ (SVG, Mermaid, │   │ with real-world    │   │ (Clickable files,  │
+  │  Tree, Diff)   │   │ analogies          │   │  lines & specs)    │
+  └────────────────┘   └────────────────────┘   └────────────────────┘
+```
 
-- ✅ `artifact_sftp.publish` ทำหน้าที่เหมือนบุรุษไปรษณีย์ — รับของ ส่ง แล้วยืนยันว่าถึงมือ
-- ❌ บุรุษไปรษณีย์รับไฟล์ไปส่งให้ตู้ปลายทาง
+1. **🖼️ VISUAL DIAGRAM (แผนภาพประกอบที่ตรงเป้า):**
+   - Must contain a visual representation matched to the depth tier: pseudocode, call tree, shallow file tree, Mermaid sequence/flowchart, diff block, or an audited responsive SVG with Viewport Lightbox.
+2. **✍️ PLAIN LANGUAGE (ภาษาธรรมชาติ กระชับ เข้าใจง่าย):**
+   - Explain with human, punchy, anti-slop prose.
+   - **Analogy Sits Beside Real Name:** Everyday comparisons sit *beside* real technical names; they never replace them.
+     - ✅ `artifact_sftp.publish` ทำหน้าที่เหมือนบุรุษไปรษณีย์ — รับของ ส่ง แล้วยืนยันว่าถึงมือ
+     - ❌ บุรุษไปรษณีย์รับไฟล์ไปส่งให้ตู้ปลายทาง
+3. **🔗 CHECKABLE SOURCES / THE RECEIPTS (แหล่งอ้างอิงที่คลิกตรวจได้จริง):**
+   - The answer must provide an inspectable evidence trail. Include exact clickable markdown links with line ranges to real source files (e.g. [`server.py:L35-L48`](file:///Users/ngs/agent-skills/plugins/artifact-sftp/src/artifact_sftp_mcp/server.py#L35-L48)), configuration keys, commit hashes, or official RFC/spec references.
 
-An analogy sits **beside** the real name; it never replaces it. A reader who greps
-for a word you invented finds nothing, which is worse than not explaining at all.
-*Never invent a label*, under **Rules**, binds here too.
+---
 
-**Source.** The seven forms below are adapted from humanlayer's `show-me` skill,
-MIT-licensed: <https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md>.
-The examples and the rules after them are this repository's.
+## 2. One Idea, Four Depths (Official ELI5.cc Tiers)
 
-## The forms
+The underlying topic can be viewed at four distinct depths. Start with intuition, and move toward technical precision without starting over:
 
-Logic or an algorithm — pseudocode:
+| Tier | Level Name | Target Audience | Focus & Visual Characteristics |
+|:---:|:---|:---|:---|
+| **Level 1** | **`ELI5`** *(Default)* | Beginners, Stakeholders, High-level view | **"Build the basic mental picture with plain language and familiar comparisons."**<br>• 3–4 core boxes max, zero jargon barrier.<br>• Relatable everyday analogy alongside real system names.<br>• 1–2 primary entrypoint source links. |
+| **Level 2** | **`ELI10`** | Junior Devs, Casual Learners | **"Add the important context and explain how the pieces fit together."**<br>• 4–6 boxes showing Input ➔ Processing ➔ Output pipeline.<br>• Clear cause-and-effect and data movement flow.<br>• Key controller/router/service source links. |
+| **Level 3** | **`ELI15`** | Developers, QA, Integration Engineers | **"Introduce useful terminology, mechanisms and more precise relationships."**<br>• Sequence diagrams, API endpoints, HTTP methods, and status codes.<br>• Data schemas, payload models, and state transitions.<br>• Exact function signatures and handler file/line links. |
+| **Level 4** | **`Expert`** | Staff / Lead Architects, DevOps | **"Give a compact, technically precise view for readers ready to go deeper."**<br>• Full multi-tier architecture, network boundaries, and failover topologies.<br>• Invariants, concurrency, race conditions, failure modes, cache invalidation.<br>• Complete source audit trail, security boundaries, and test suites. |
 
+---
+
+## 3. Invocation Syntax & Depth Controls
+
+### A. Explicit Flag Syntax
+Specify the exact depth using `--depth <tier>` or `--depth <1..4>`:
+```text
+/show-me --depth eli5 <topic>      # Level 1 (Default)
+/show-me --depth eli10 <topic>     # Level 2
+/show-me --depth eli15 <topic>     # Level 3
+/show-me --depth expert <topic>    # Level 4
+```
+
+### B. Natural Language Intent Routing
+- **`ELI5` (Default if unspecified):** *"show me ...", "วาดภาพให้ดูหน่อย", "อธิบายแบบง่ายๆ", "เด็ก 5 ขวบ"*
+- **`ELI10`:** *"ขอแบบ ELI10 / เด็ก 10 ขวบ", "สรุป flow การเชื่อมต่อแบบเห็นภาพรวม"*
+- **`ELI15`:** *"ขอแบบ ELI15", "แสดงกลไก API interaction และ data flow"*
+- **`Expert`:** *"ขอแบบ Expert / Deep-Dive", "วิเคราะห์สถาปัตยกรรม, failure modes และ invariants"*
+
+### C. Progressive Deepening
+When a reader reviews an `ELI5` explanation and asks a follow-up (*"Go deeper on Auth"*, *"ขอเจาะลึกตรง Gateway"*), smoothly step up to `ELI10`, `ELI15`, or `Expert` for that specific component without repeating the basic introduction.
+
+---
+
+## 4. The Visual Forms
+
+Choose the **smallest** form that settles the question:
+
+Logic or an algorithm — **Pseudocode**:
 ```text
 on(publish)
   if the file is not one regular .html under project_path
@@ -43,8 +91,7 @@ on(publish)
   return the read-back path, never the viewer URL
 ```
 
-Runtime control flow — a call tree:
-
+Runtime control flow — **Call Tree**:
 ```text
 artifact_sftp.publish
   readiness check          # resolved against a real interpreter
@@ -52,8 +99,7 @@ artifact_sftp.publish
   archive + read-back
 ```
 
-File responsibility or a refactor — a shallow file tree:
-
+File responsibility or layout — **Shallow File Tree**:
 ```text
 src/artifact_sftp_mcp/
 ├── server.py     # the MCP surface, and the only one
@@ -61,8 +107,7 @@ src/artifact_sftp_mcp/
 └── models.py     # what a tool may return
 ```
 
-Interaction over time — Mermaid:
-
+Interaction over time — **Mermaid**:
 ```mermaid
 sequenceDiagram
     participant Agent
@@ -73,94 +118,35 @@ sequenceDiagram
     MCP-->>Agent: read-back path (not the viewer URL)
 ```
 
-What CHANGES, when the surrounding shape already exists — a diff, in whatever
-shape the topic is:
-
+System change — **Diff**:
 ```diff
  environment = minimal, allowlisted
  environment["PATH"] = inherited
 +environment["PATH"] = without this adapter's own venv
 ```
 
-The whole block when most of it is new, or when the reader needs a copyable
-target shape — plain code.
+---
 
-## The primary output: an audited, published HTML artifact
+## 5. The Primary Output: Audited, Published HTML Artifact
 
-For any rich diagram, architectural layout, state comparison, UI wireframe, or
-visual walkthrough:
+For any rich diagram, architectural layout, state comparison, UI wireframe, or visual walkthrough:
 
-1. **Write one focused, standalone HTML page** into the selected absolute
-   `project_path` — inline CSS, JavaScript and assets, responsive layout, large
-   visuals and few words per the posture above. The publisher adds the approved
-   Sarabun stylesheet for Thai text; add no other external CDN dependency.
+1. **Write one focused, standalone HTML page** into the selected absolute `project_path` — inline CSS, JavaScript and assets, responsive layout, large visuals, and few words per the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
+2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform.
+3. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception:**
+   - 🟢 **PASS & private:** Call `artifact_sftp.publish` immediately (pre-authorized).
+   - 🟡 **WARN:** Present warnings for user confirmation before publish.
+   - 🔴 **BLOCK:** **Halt.** Route to remediation skill, repair source, re-audit. Never publish a BLOCK.
+4. **Report the published URL, local read-back reference, and checkable source links.**
 
-   **Published rich-diagram contract:** Rich diagrams in this HTML MUST follow
-   **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized,
-   responsive inline SVG. The primary overview MUST fit
-   `100%` of its container with `max-width: 100%` and `overflow: hidden`; it
-   MUST NOT use horizontal scrolling. Provide the accessible **Viewport
-   Lightbox / Expand Detail** modal using native `<dialog>` and
-   `showModal()` for detail inspection when supported. Do not leave raw Mermaid
-   source in HTML as a substitute for the SVG representation. Keep SVG IDs
-   namespaced and keep executable JavaScript outside the SVG node.
+---
 
-   Inline chat responses retain the lightweight formats that suit a quick
-   explanation: Mermaid, pseudocode, diffs, and file trees. Do not build a
-   standalone artifact merely to replace a small inline view.
+## 6. Core Rules & Invariants
 
-2. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception,
-   and no "it's just a picture" path around it.** Render its gate table to the user
-   and act on the verdict:
-
-   | Verdict | What happens next |
-   |:---:|---|
-   | 🟢 **PASS** | continue to step 3 |
-   | 🟡 **WARN** | show every warning, then continue to step 3 |
-   | 🔴 **BLOCK** | **halt.** Route to the named remediation skill (`thai-prose-craft`, `visual-illustrator`, `artifact-curator`, `doc-synchronizer`), repair the source, re-audit. Never publish a BLOCK. |
-
-3. **Publish through `artifact_sftp.publish`.**
-
-   - **🟢 PASS and `private` — publish immediately, do not ask.** Call
-     `artifact_sftp.publish` with `confirm: true` and a clean `slug`, and report the
-     result. Approval for this case is granted **in advance, here in this skill**, by
-     the repository owner; it is a standing authorization, not a skipped one. A user
-     who wants to be asked says so in the turn, and that overrides this line for the turn.
-   - **🟡 WARN** — publish only after the user explicitly acknowledges the warnings,
-     or remediate first and re-audit to 🟢 PASS.
-   - **`public` — never automatic, at any verdict.** Public publishing always needs
-     explicit public-sharing approval in the turn, plus `confirm_public: true`.
-
-4. **Report the published URL and the local read-back reference** (e.g.
-   `docs/artifacts/<tool>/<visibility>/<slug>/...`) and end the turn. Do NOT perform
-   redundant post-publish verification — no `artifact_sftp.read`, no browser fetch.
-   `publish` has already scanned the source for secrets, archived the bytes locally,
-   uploaded them, and probed the URL anonymously to prove a private artifact is not
-   exposed. **Report its `verification` field as it comes back, and never upgrade it.**
-   A private publish with no Cloudflare service token returns
-   `content: not_independently_byte_verified` — that is an unverified upload, not a
-   byte match, and calling it one is the exact overstatement this skill exists to avoid.
-
-*For simple inline code, call trees, diffs, or quick Mermaid diagrams, an inline
-snippet is the whole answer — no artifact, no gate, no publish.*
-
-## Rules
-
-- **A number is not a picture, and a picture is not a measurement.** A diagram
-  proves a shape and cannot prove a quantity; a measurement proves a quantity and
-  cannot prove a shape. If the answer turns on both, show both, and say which
-  claim rests on which.
-- **Draw what IS, not what was planned.** Read the code before drawing it. A
-  picture of the intended design, presented as the system, is believed and not
-  checked — the most expensive kind of wrong.
-- **Simple is not the same as approximately true.** Comprehension first buys you
-  fewer boxes and fewer words. It does not buy you a wrong arrow, a renamed tool,
-  or a step that does not exist.
-- **Say what the picture leaves out.** Every form above is a reduction, and this
-  skill reduces harder than most. Name what you dropped when dropping it could
-  change the reader's decision.
-- **Never invent a label.** Tools, scripts and fields have names here; use them
-  exactly, or a reader goes looking for something that does not exist.
-- **One view, usually.** Several only when they answer different questions.
-- **Never draw a secret.** Config paths, key locations and endpoints appear in
-  this system's diagrams; the values behind them never do.
+- **A number is not a picture, and a picture is not a measurement.** A diagram proves a shape; a measurement proves a quantity. Show both when needed.
+- **Draw what IS, not what was planned.** Read the actual source code before drawing.
+- **Simple is not the same as approximately true.** Reduction buys you fewer boxes and fewer words. It never buys a wrong arrow, a renamed tool, or a fictional step.
+- **Say what the picture leaves out.** Name what was dropped when it could affect a decision.
+- **Never invent a label.** Use exact codebase symbols and file paths.
+- **Never draw a secret.** Config paths and key locations can appear; credentials never do.
+- **Always provide Checkable Sources.** Attach the evidence trail so the reader can verify the facts.
