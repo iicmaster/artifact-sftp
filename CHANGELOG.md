@@ -2,6 +2,14 @@
  
 All notable changes to this project are documented here.
  
+## [0.19.1] - 2026-08-25
+
+- **Thai Typography & Line-Height Standards (`line-height >= 1.5`):**
+  - Mandated `line-height >= 1.5` (recommended `1.6`–`1.7`) for all Thai prose, paragraphs, list items, tables, and callouts in `thai-prose-craft` and `artifact-curator` to prevent vertical collisions between lower vowels (สระล่าง `ุ, ู`) of line $N$ and upper vowels/tone marks (สระบน/วรรณยุกต์ `ิ, ี, ่, ้`) of line $N+1$.
+  - Mandated multiline SVG `<text>` vertical step $\text{dy} \ge 1.5\text{em}$ (or $\ge 1.5 \times \text{font-size}$) and node bounding box height clearance in `visual-illustrator`.
+  - Added strict audit gates in `artifact-audit`: Dimension 1 (🔴 **BLOCK** for `line-height < 1.3`, 🟡 **WARN** for $< 1.5$) and Dimension 2 (🔴 **BLOCK** for SVG `<tspan dy>` step $< 1.3 \times \text{font-size}$).
+  - Added unit test suite in `tests/test_diagram_audit_collision.py` (`test_thai_line_height_gates`, `test_thai_svg_multiline_step_gate`) with full suite passing 100%.
+
 ## [0.19.0] - 2026-08-24
 
 - **Mandatory Agent Plugins 1.0.0 Pre-Publish Hard Gate:** Added Dimension 4 check in `artifact-audit` to 🔴 **BLOCK** any manifest schema, MCP configuration, skill frontmatter, or leaked internal script violation. Integrated all 5 conformance checks into first-class pytest test cases (`test_manifest_conformance`, `test_mcp_conformance`, `test_claude_mcp_compatibility_conformance`, `test_skills_conformance`, `test_mcp_only_agent_routing_conformance`).
