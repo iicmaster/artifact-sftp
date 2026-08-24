@@ -1,6 +1,6 @@
 {
   "name": "artifact-sftp",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "MCP-only AI-agent publishing and local read-back for HTML artifacts on your SFTP web host, with Sarabun as the Thai font default.",
   "author": {
     "name": "NGS"

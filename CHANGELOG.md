@@ -2,6 +2,18 @@
  
 All notable changes to this project are documented here.
  
+## [0.18.1] - 2026-08-24
+
+- **100% Borderless Fullscreen Viewport Lightbox:** Upgraded the diagram `<dialog>` lightbox component to a true `100vw × 100vh` borderless Zen canvas, eliminating floating card borders and removing footer waste for maximum vertical viewing space.
+- **Interactive Canvas Pan & Zoom Engine:** Implemented CSS transform-based pan-and-zoom (`translate(x, y) scale(s)`) with smooth mouse dragging, mouse wheel zooming centered at the cursor, touch support for mobile, and integrated zoom toolbar (`➕ / ➖ / ↺` + scale indicator badge).
+- **Zero-Collision Geometry & Orthogonal Channel Routing:** Established strict layout rules in `visual-illustrator`:
+  - Mandatory background `<rect>` pill badges behind all connection label texts to prevent path slicing through text glyphs.
+  - Manhattan orthogonal channel routing with dedicated Y-offsets and minimum 20px clearance between parallel lines.
+  - Bounding box safety clearances ($\ge 60\text{px}$ horizontal, $\ge 40\text{px}$ vertical).
+- **artifact-audit Zero-Collision Gate:** Added Dimension 2 checks that 🔴 **BLOCK** unbadged connection labels, overlapping node bounding boxes, or collinear path collisions.
+- **Collision Test Suite:** Added `tests/test_diagram_audit_collision.py` covering clean diagrams, unbadged label blocking, and raw Mermaid blocking.
+- **Antigravity Global MCP Registration:** Configured `artifact-sftp` MCP server across Antigravity configuration paths (`~/.gemini/config/mcp_config.json`, `~/.gemini/antigravity/mcp_config.json`, `~/.gemini/antigravity-ide/mcp_config.json`).
+
 ## [0.18.0] - 2026-08-24
 
 - Adopt **Option 4 (Static Sanitized Inline SVG Delivery)** for published HTML artifacts, resolving the Mermaid renderer paradox (Issue #21). Mermaid remains the lightweight authoring format for inline chat and pure Markdown documents, while published HTML requires self-contained, sanitized inline SVG.
