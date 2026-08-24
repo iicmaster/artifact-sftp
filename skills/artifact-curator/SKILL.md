@@ -415,4 +415,5 @@ Before presenting or publishing any artifact, run through this quality gate:
 - [ ] **Data Table Hygiene:** Are multi-dimensional attributes presented in formatted tables with clear column alignments?
 - [ ] **Code Block Completeness:** Does every single code fence have an explicit language tag (`ts`, `json`, `diff`, `yaml`, etc.)?
 - [ ] **Link Integrity:** Are all referenced files linked with proper absolute paths: `[file.ext](file:///path/to/file)`?
+- [ ] **Thai Typography & Line-Height:** For Thai documents, is CSS `line-height` at least `1.5` (recommended `1.6`–`1.7`) to prevent vowel and tone mark overlap?
 - [ ] **Tone & Focus:** Has all conversational AI filler ("Sure! Here is the document...") been stripped away?

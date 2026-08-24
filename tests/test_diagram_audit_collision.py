@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def audit_svg_collisions(html_content: str) -> dict:
-    """Simulates artifact-audit Dimension 2 collision and overlap analysis on SVG content."""
+    """Simulates artifact-audit Dimensions 1 & 2 collision, typography, and overlap analysis."""
     findings = []
     
     # 1. Detect raw Mermaid in HTML
@@ -13,18 +13,41 @@ def audit_svg_collisions(html_content: str) -> dict:
         if not re.search(r'<svg[\s>]', html_content, re.IGNORECASE):
             findings.append({"level": "BLOCK", "rule": "raw_mermaid_in_html", "msg": "Raw Mermaid code block found in HTML without static SVG rendering."})
 
-    # 2. Extract inline SVGs
+    # 2. Check Thai Typography & CSS Line-Height in Thai text blocks
+    has_thai = bool(re.search(r'[\u0e00-\u0e7f]', html_content))
+    if has_thai:
+        # Check for explicit line-height declarations in CSS / style tags
+        lh_matches = re.findall(r'line-height\s*:\s*([0-9.]+)(px|em|rem|%)?', html_content, re.IGNORECASE)
+        for val_str, unit in lh_matches:
+            try:
+                val = float(val_str)
+                # If unitless, em, or rem:
+                if unit in ("", "em", "rem"):
+                    if val < 1.3:
+                        findings.append({
+                            "level": "BLOCK",
+                            "rule": "thai_line_height_critical",
+                            "msg": f"Thai text line-height ({val}) is below 1.3, causing severe vowel/tone-mark overlap."
+                        })
+                    elif val < 1.5:
+                        findings.append({
+                            "level": "WARN",
+                            "rule": "thai_line_height_tight",
+                            "msg": f"Thai text line-height ({val}) is below recommended 1.5 baseline."
+                        })
+            except ValueError:
+                pass
+
+    # 3. Extract inline SVGs
     svg_matches = re.findall(r'<svg[\s\S]*?</svg>', html_content, re.IGNORECASE)
     for idx, svg in enumerate(svg_matches, 1):
-        # 3. Check for unbadged text labels over connection lines
-        # Detect <g> groups containing text along connections
+        # 4. Check for unbadged text labels over connection lines
         groups = re.findall(r'<g[\s\S]*?</g>', svg, re.IGNORECASE)
         for g in groups:
             has_text = bool(re.search(r'<text[\s\S]*?</text>', g, re.IGNORECASE))
             has_path_marker = bool(re.search(r'marker-end=', g, re.IGNORECASE))
             has_rect_badge = bool(re.search(r'<rect[\s\S]*?/>', g, re.IGNORECASE))
             
-            # If a group has text along a connection line or marker without a rect badge
             if has_text and has_path_marker and not has_rect_badge:
                 findings.append({
                     "level": "BLOCK",
@@ -32,7 +55,30 @@ def audit_svg_collisions(html_content: str) -> dict:
                     "msg": f"SVG #{idx}: Edge label <text> is directly placed on <path> without background <rect> pill badge."
                 })
 
-        # 4. Check for hardcoded horizontal scroll on diagram cards
+        # 5. Check Thai multiline text vertical step (dy) in SVG
+        if has_thai:
+            tspan_matches = re.findall(r'<tspan[^>]*\s+dy=["\']([0-9.]+)(em|px)?["\'][^>]*>([\s\S]*?)</tspan>', svg, re.IGNORECASE)
+            for dy_str, unit, tspan_text in tspan_matches:
+                if re.search(r'[\u0e00-\u0e7f]', tspan_text):
+                    try:
+                        dy_val = float(dy_str)
+                        if dy_val > 0 and (unit == "em" or unit == ""):
+                            if dy_val < 1.3:
+                                findings.append({
+                                    "level": "BLOCK",
+                                    "rule": "thai_svg_multiline_overlap",
+                                    "msg": f"SVG #{idx}: Thai <tspan> dy step ({dy_val}em) < 1.3em causes tone mark collision."
+                                })
+                            elif dy_val < 1.5:
+                                findings.append({
+                                    "level": "WARN",
+                                    "rule": "thai_svg_multiline_tight",
+                                    "msg": f"SVG #{idx}: Thai <tspan> dy step ({dy_val}em) < 1.5em."
+                                })
+                    except ValueError:
+                        pass
+
+        # 6. Check for hardcoded horizontal scroll on diagram cards
         if re.search(r'class=["\'][^"\']*diagram-card[^"\']*["\'][^>]*style=["\'][^"\']*overflow-x:\s*(?:scroll|auto)', html_content, re.IGNORECASE):
             findings.append({
                 "level": "BLOCK",
@@ -95,3 +141,65 @@ def test_raw_mermaid_in_html_is_blocked():
     result = audit_svg_collisions(raw_mermaid_html)
     assert result["verdict"] == "BLOCK"
     assert any(f["rule"] == "raw_mermaid_in_html" for f in result["findings"])
+
+
+def test_thai_line_height_gates():
+    """Verify that Thai text with line-height < 1.3 is blocked and < 1.5 is warned."""
+    critical_thai_html = """
+    <html>
+      <head><style>p { line-height: 1.1; font-family: Sarabun; }</style></head>
+      <body><p>การทำงานของระบบประมวลผลคำสั่งซื้อ</p></body>
+    </html>
+    """
+    res1 = audit_svg_collisions(critical_thai_html)
+    assert res1["verdict"] == "BLOCK"
+    assert any(f["rule"] == "thai_line_height_critical" for f in res1["findings"])
+
+    warn_thai_html = """
+    <html>
+      <head><style>p { line-height: 1.4; font-family: Sarabun; }</style></head>
+      <body><p>การทำงานของระบบประมวลผลคำสั่งซื้อ</p></body>
+    </html>
+    """
+    res2 = audit_svg_collisions(warn_thai_html)
+    assert res2["verdict"] == "WARN"
+    assert any(f["rule"] == "thai_line_height_tight" for f in res2["findings"])
+
+    good_thai_html = """
+    <html>
+      <head><style>p { line-height: 1.6; font-family: Sarabun; }</style></head>
+      <body><p>การทำงานของระบบประมวลผลคำสั่งซื้อ</p></body>
+    </html>
+    """
+    res3 = audit_svg_collisions(good_thai_html)
+    assert res3["verdict"] == "PASS"
+
+
+def test_thai_svg_multiline_step_gate():
+    """Verify that Thai multiline <tspan dy> in SVG with dy < 1.3em is blocked."""
+    bad_svg = """
+    <div class="diagram-card">
+      <svg viewBox="0 0 400 200">
+        <text x="20" y="30">
+          <tspan x="20" dy="0">ระบบประมวลผลข้อมูลหลัก</tspan>
+          <tspan x="20" dy="1.1em">เชื่อมต่อฐานข้อมูลคำสั่งซื้อ</tspan>
+        </text>
+      </svg>
+    </div>
+    """
+    result = audit_svg_collisions(bad_svg)
+    assert result["verdict"] == "BLOCK"
+    assert any(f["rule"] == "thai_svg_multiline_overlap" for f in result["findings"])
+
+    good_svg = """
+    <div class="diagram-card">
+      <svg viewBox="0 0 400 200">
+        <text x="20" y="30">
+          <tspan x="20" dy="0">ระบบประมวลผลข้อมูลหลัก</tspan>
+          <tspan x="20" dy="1.6em">เชื่อมต่อฐานข้อมูลคำสั่งซื้อ</tspan>
+        </text>
+      </svg>
+    </div>
+    """
+    good_res = audit_svg_collisions(good_svg)
+    assert good_res["verdict"] == "PASS"

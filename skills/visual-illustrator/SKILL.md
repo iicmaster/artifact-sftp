@@ -141,6 +141,12 @@ To ensure diagrams remain crisp, legible, and completely free of overlapping lin
 4. **Port Isolation on Nodes:**
    - Incoming and outgoing arrows must connect to distinct anchor points (ports) on a node rather than colliding into a single point.
 
+5. **Thai Typography & Multiline Line-Height in SVG (`line-height >= 1.5`):**
+   - In Thai script, stacked vowels (สระบน `ิ, ี, ึ, ื`), tone marks (วรรณยุกต์ `่, ้, ๊, ๋`, `็`, `์`), and below-vowels (สระล่าง `ุ, ู`) require strict vertical clearance.
+   - For multiline SVG `<text>` using `<tspan x="..." dy="...">`, the vertical step `dy` MUST be **$\ge 1.5\text{em}$ or $\ge 1.5 \times \text{font-size}$** (e.g. for 12px font, `dy >= 18px`; for 14px font, `dy >= 21px`). Never use tight line-heights ($< 1.5$) which cause direct collisions between lower vowels of line $N$ and upper vowels/tone marks of line $N+1$.
+   - Node bounding box height for Thai text must be at least $\ge 44\text{px}$ for single-line, and $+20\text{px}$ per additional line to prevent top/bottom tone marks from being clipped by node boundary borders.
+   - Label pill `<rect>` height must be $\ge 1.6 \times \text{font-size}$ centered vertically around the text.
+
 ---
 
 ### Rule: Viewport Lightbox Component (`<dialog>`)

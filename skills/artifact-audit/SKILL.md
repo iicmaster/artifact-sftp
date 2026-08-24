@@ -50,6 +50,10 @@ flowchart TD
   - ❌ *"ในยุคดิจิทัลปัจจุบัน"*, *"ถือเป็นสิ่งสำคัญอย่างยิ่ง"*, *"กุญแจสำคัญสู่ความสำเร็จ"*
   - ❌ *"เพื่อเพิ่มประสิทธิภาพและประสิทธิผล"*, *"ด้วยความมุ่งมั่นที่จะพัฒนา"*
 - **Active vs. Passive Bloat:** Flags repetitive passive constructions (e.g. *"ได้ถูกดำเนินการจัดทำขึ้นโดย"*) and replaces with active, direct verbs (*"ทีมงานจัดทำ..."*).
+- **Thai Typography & Line-Height Gate (🔴 BLOCK / 🟡 WARN):**
+  - Evaluates CSS `line-height` on Thai text containers (`body`, `p`, `li`, `td`, `.card`, `.callout`).
+  - 🔴 **BLOCK:** If `line-height < 1.3` on Thai prose, causing direct vertical collision where lower vowels (`ุ, ู`) clash into upper vowels/tone marks (`ิ, ี, ่, ้`) of the next line.
+  - 🟡 **WARN:** If `line-height < 1.5` (standard requires $\ge 1.5$, recommended `1.6`–`1.7` for readability).
 - **Tone & Register Alignment:** Verifies tone matches the document's intended audience:
   - **Executive / Board**: Punchy executive summaries, bottom-line upfront, zero conversational filler.
   - **Technical Spec / RFC**: Unambiguous invariants, precise terminology, RFC 2119 keywords (`MUST`, `SHOULD`).
@@ -80,6 +84,7 @@ inline chat and pure Markdown.
   - **Unbadged Edge Labels:** If text labels along connection paths are not backed by a background `<rect>` badge and hover bare over lines, **BLOCK**.
   - **Node Bounding Box Intersection:** If diagram nodes overlap each other without clearance ($\text{gap} < 40\text{px}$), **BLOCK**.
   - **Collinear Path Collisions:** If multiple connection lines share identical coordinates or slice through node centers, **BLOCK**.
+  - **Thai Multiline Text Step in SVG (`<tspan dy="...">`):** If multiline SVG text containing Thai characters sets vertical step $\text{dy} < 1.3 \times \text{font-size}$ (causing upper tone marks and lower vowels to collide between lines), **BLOCK**. If $1.3 \le \text{dy} < 1.5 \times \text{font-size}$, **WARN**.
 - **Complex Diagram Lightbox Check (🟡 WARN):** If a diagram is complex (more than 12 nodes) and lacks an Expand Detail / Viewport Lightbox trigger, **WARN** and route it for remediation.
 - **Fit-First & Accessible Lightbox Standard (🟢 PASS):** The overview is 100% responsive fit, readable, free of visual collisions, and provides an accessible native `<dialog>` lightbox for detail inspection when supported. No-JavaScript fallback remains a sanitized static fit.
 - **Responsive Layout:** Verifies primary diagram cards use `max-width: 100%` and `overflow: hidden`. Tables may use a bounded responsive wrapper when necessary, but table behavior must never turn the primary diagram overview into a horizontal scroll surface.
