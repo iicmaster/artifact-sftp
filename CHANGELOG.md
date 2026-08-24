@@ -2,6 +2,15 @@
  
 All notable changes to this project are documented here.
  
+## [0.19.0] - 2026-08-24
+
+- **Mandatory Agent Plugins 1.0.0 Pre-Publish Hard Gate:** Added Dimension 4 check in `artifact-audit` to 🔴 **BLOCK** any manifest schema, MCP configuration, skill frontmatter, or leaked internal script violation. Integrated all 5 conformance checks into first-class pytest test cases (`test_manifest_conformance`, `test_mcp_conformance`, `test_claude_mcp_compatibility_conformance`, `test_skills_conformance`, `test_mcp_only_agent_routing_conformance`).
+- **Dynamic Plugin Version Footer Stamping:** Upgraded `publish.sh` to dynamically resolve the plugin version from `plugin.json` and stamp `artifact-sftp vX.Y.Z` into the metadata footer (`<footer data-artifact-meta...>` -> `artifact: <slug> · v<ver> · artifact-sftp v<plugin_ver> · created <timestamp>`). Added publisher test assertion.
+- **`show-me` Skill Overhaul (3 Pillars & 4 Depths based on ELI5.cc):**
+  - **The 3 Mandatory Pillars (The Triad of Trust):** Every explanation must feature a **Visual Diagram** (SVG/Mermaid/Tree), **Plain Language** (anti-slop prose with analogies beside real names), and **Checkable Sources** (clickable `file:///...#Lxx` source links, configuration keys, or specs).
+  - **One Idea, Four Depths (Official ELI5.cc Tiers):** Supports 4 adjustable depth levels: `ELI5` (Level 1, Default — intuition and everyday comparisons), `ELI10` (Level 2 — structured cause-and-effect flow), `ELI15` (Level 3 — system mechanisms, sequence flows, API contracts), and `Expert` (Level 4 — full architecture, invariants, concurrency, failure modes).
+  - **Depth Controls:** Added CLI flags `--depth eli5|eli10|eli15|expert` (and `--depth 1..4`), natural language routing, and progressive deepening on follow-up questions.
+
 ## [0.18.1] - 2026-08-24
 
 - **100% Borderless Fullscreen Viewport Lightbox:** Upgraded the diagram `<dialog>` lightbox component to a true `100vw × 100vh` borderless Zen canvas, eliminating floating card borders and removing footer waste for maximum vertical viewing space.
