@@ -233,6 +233,26 @@ def check_mcp_only_agent_routing() -> None:
             fail(f"{skill_path.relative_to(ROOT)} must not teach direct internal scripts: {leaked}")
 
 
+def test_manifest_conformance() -> None:
+    check_manifest()
+
+
+def test_mcp_conformance() -> None:
+    check_mcp()
+
+
+def test_claude_mcp_compatibility_conformance() -> None:
+    check_claude_mcp_compatibility()
+
+
+def test_skills_conformance() -> None:
+    check_skills()
+
+
+def test_mcp_only_agent_routing_conformance() -> None:
+    check_mcp_only_agent_routing()
+
+
 def main() -> int:
     try:
         check_manifest()

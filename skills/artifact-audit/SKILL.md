@@ -104,10 +104,16 @@ inline chat and pure Markdown.
 
 ---
 
-### Dimension 4: 🔍 Code-to-Docs Parity & Link Integrity Audit
+### Dimension 4: 🔍 Code-to-Docs Parity & Agent Plugins 1.0.0 Conformance Audit
 
 *Powered by `doc-synchronizer` standards.*
 
+- **Agent Plugins 1.0.0 Conformance Gate (🔴 BLOCK):**
+  - **Manifest Schema:** Validates `plugin.json` against `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
+  - **MCP Schema:** Validates `mcp.json` against `https://agent-plugins.org/schemas/1.0.0/mcp.schema.json`.
+  - **Skill Frontmatter:** Ensures all skills in `skills/**/SKILL.md` have valid YAML frontmatter (`name` $\le 64$ chars matching directory, `description` $\le 1024$ chars, allowed standard fields).
+  - **MCP-Only Agent Routing:** Confirms `AGENTS.md` and skills mandate `artifact_sftp.*` MCP tools and never leak internal script names (`publish.sh`, `setup.sh`, etc.).
+  - **Automated Conformance Suite:** Executes `tests/test_agent_plugins.py` (or `pytest tests/test_agent_plugins.py`) to verify zero conformance drift.
 - **Broken Link & Anchor Verification:**
   - Scans all relative links (`./docs/guide.html`) and internal anchor hashes (`#section-3`) to confirm targets exist.
   - Verifies remote URLs are well-formed without trailing typos or bad query strings.
@@ -141,7 +147,7 @@ Target: docs/reports/system-architecture.html (Candidate for: codex/private/syst
 [1] ✍️ Linguistic Quality (Thai Prose):       🟡 WARN (2 robot translation clichés found)
 [2] 📊 Visual & Diagrammatic Integrity:      🟢 PASS (Static SVG fit-first, safe IDs, Mermaid rules)
 [3] 📑 Presentation & Layout:                🟢 PASS (3-tier structure, valid [!IMPORTANT] alert)
-[4] 🔍 Parity & Link Integrity:              🟢 PASS (All internal anchors verified)
+[4] 🔍 Parity & Plugin Conformance:        🟢 PASS (Agent Plugins 1.0.0 verified, anchors valid)
 [5] 🔒 Security & Privacy Hygiene:           🟢 PASS (Zero secrets / clean environment)
 --------------------------------------------------------------------------------
 VERDICT: 🟡 READY WITH WARNINGS (Recommended to clean prose before publish)
@@ -152,9 +158,9 @@ VERDICT: 🟡 READY WITH WARNINGS (Recommended to clean prose before publish)
 
 | Verdict | Status | Policy | Agent Action |
 |:---:|:---:|---|---|
-| 🟢 **PASS** | 100% Clean | All 5 dimensions pass; HTML rich diagrams are static sanitized inline SVG, fit-first, and have accessible detail support when needed | Proceed immediately to `artifact_sftp.publish` or complete groom |
+| 🟢 **PASS** | 100% Clean | All 5 dimensions pass; Agent Plugins 1.0.0 conformant; HTML rich diagrams are static sanitized inline SVG, fit-first, and have accessible detail support when needed | Proceed immediately to `artifact_sftp.publish` or complete groom |
 | 🟡 **WARN** | Minor Issues | Non-breaking quality warnings, including a complex diagram over 12 nodes without an Expand Detail / Viewport Lightbox trigger | Show every warning, then follow the visibility approval policy or remediate and re-audit |
-| 🔴 **BLOCK** | Critical Flaws | Secret/dead link, raw Mermaid in HTML without static SVG, primary overview horizontal scroll, unsafe SVG content, colliding/unnamespaced IDs, or unbadged text collisions and overlapping paths | **HALT PUBLISH.** Route to remediation and re-audit before upload |
+| 🔴 **BLOCK** | Critical Flaws | Secret/dead link, Agent Plugins 1.0.0 non-conformance (invalid schema, frontmatter violations, leaked internal scripts), raw Mermaid in HTML without static SVG, primary overview horizontal scroll, unsafe SVG content, colliding/unnamespaced IDs, or unbadged text collisions and overlapping paths | **HALT PUBLISH.** Route to remediation and re-audit before upload |
 
 ---
 
