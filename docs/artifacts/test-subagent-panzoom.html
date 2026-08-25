@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สถาปัตยกรรมระบบประมวลผลการชำระเงินแบบ 3 ชั้น (3-Tier Payment Processing Architecture)</title>
+  <style>
+    :root {
+      --font-sans: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+      
+      --bg-primary: #090d16;
+      --bg-secondary: #111827;
+      --bg-card: #162032;
+      --bg-card-header: #1e293b;
+      
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --border-color: #24324f;
+      --border-focus: #38bdf8;
+      
+      --accent-primary: #38bdf8;
+      --accent-success: #4ade80;
+      --accent-warning: #fbbf24;
+      --accent-danger: #f87171;
+      --accent-purple: #c084fc;
+      --accent-orange: #fb923c;
+      
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      
+      --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.65;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    /* Header Section */
+    .header-section {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1rem;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 9999px;
+      color: var(--accent-primary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      letter-spacing: 0.025em;
+      line-height: 1.5;
+    }
+
+    h1 {
+      font-size: 2.15rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(to right, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.5;
+    }
+
+    .subtitle {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 820px;
+      margin: 0 auto;
+      line-height: 1.65;
+    }
+
+    /* 3-Tier Summary Metric Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent-primary);
+      transform: translateY(-2px);
+    }
+
+    .stat-card .label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      line-height: 1.5;
+    }
+
+    .stat-card .val {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .stat-card .desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+      line-height: 1.55;
+    }
+
+    /* Core Diagram Card (Strict Fit-First, No Horizontal Scroll) */
+    .diagram-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+      max-width: 100%;
+    }
+
+    .diagram-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: var(--bg-card-header);
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .diagram-title {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .expand-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1.2rem;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.1));
+      border: 1px solid var(--accent-primary);
+      border-radius: var(--radius-sm);
+      color: var(--accent-primary);
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 38px;
+      line-height: 1.5;
+    }
+
+    .expand-btn:hover {
+      background: var(--accent-primary);
+      color: #090d16;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .expand-btn:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+    }
+
+    .diagram-body {
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      background: #060911;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .diagram-card > svg,
+    .diagram-body > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 100%;
+      max-height: 480px;
+    }
+
+    /* Diagram Footer / Legend */
+    .diagram-footer {
+      padding: 1rem 1.5rem;
+      background: rgba(10, 15, 26, 0.85);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      line-height: 1.5;
+    }
+
+    .legend-color {
+      width: 13px;
+      height: 13px;
+      border-radius: 3px;
+      border: 1px solid;
+    }
+
+    /* Section Cards & Content */
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .section-card h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .section-card h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 1.25rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent-primary);
+      line-height: 1.5;
+    }
+
+    .section-card p {
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+    }
+
+    .feature-list li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .feature-list li::before {
+      content: "•";
+      position: absolute;
+      left: 0.5rem;
+      color: var(--accent-primary);
+      font-weight: bold;
+    }
+
+    /* Comparison Table */
+    .table-container {
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.925rem;
+      line-height: 1.55;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 0.85rem 1.1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+      line-height: 1.55;
+    }
+
+    .comparison-table th {
+      background: rgba(30, 41, 59, 0.7);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-tier {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+
+    .tier-1 { background: rgba(2, 132, 199, 0.2); color: #38bdf8; border: 1px solid #0284c7; }
+    .tier-2 { background: rgba(147, 51, 234, 0.2); color: #c084fc; border: 1px solid #9333ea; }
+    .tier-3 { background: rgba(22, 163, 74, 0.2); color: #4ade80; border: 1px solid #16a34a; }
+
+    /* ==========================================================================
+       STANDARD 100% FULLSCREEN ZEN VIEWPORT LIGHTBOX COMPONENT (<dialog>)
+       ========================================================================== */
+    .diagram-lightbox {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      max-height: 100vh;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: #060911;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      color: var(--text-primary);
+      z-index: 99999;
+    }
+
+    .diagram-lightbox:not([open]) {
+      display: none;
+    }
+
+    .diagram-lightbox::backdrop {
+      background: rgba(3, 7, 18, 0.92);
+      backdrop-filter: blur(8px);
+    }
+
+    .diagram-lightbox__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      background: #101726;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+      gap: 1rem;
+    }
+
+    .diagram-lightbox__header h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.5;
+    }
+
+    .lightbox-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toolbar-btn {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #334155;
+      padding: 0.4rem 0.8rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      transition: background 0.15s, border-color 0.15s;
+      line-height: 1.5;
+    }
+
+    .toolbar-btn:hover {
+      background: #334155;
+      border-color: var(--accent-primary);
+    }
+
+    .scale-badge {
+      font-size: 0.8rem;
+      padding: 0.35rem 0.65rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #94a3b8;
+      min-width: 85px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      line-height: 1.5;
+    }
+
+    .close-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--accent-danger);
+      color: var(--accent-danger);
+    }
+
+    .close-btn:hover {
+      background: var(--accent-danger);
+      color: #ffffff;
+    }
+
+    /* TWO-TIER PAN & ZOOM VIEWPORT/CANVAS */
+    .lightbox-viewport {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, #10192d 0%, #060911 100%);
+      user-select: none;
+      touch-action: none;
+    }
+
+    .lightbox-viewport:active {
+      cursor: grabbing;
+    }
+
+    .lightbox-canvas {
+      position: absolute;
+      transform-origin: center center;
+      will-change: transform;
+      transition: transform 0.05s ease-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 1160px;
+    }
+
+    .lightbox-canvas > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6));
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header Section -->
+    <header class="header-section">
+      <div class="badge">🛡️ สถาปัตยกรรมระดับองค์กร (Enterprise Architecture)</div>
+      <h1>สถาปัตยกรรมระบบประมวลผลการชำระเงินแบบ 3 ชั้น</h1>
+      <p class="subtitle">
+        ผังแสดงการทำงานของระบบประมวลผลธุรกรรมทางการเงินความเร็วสูง (High-Throughput Payment Processing Engine)
+        พร้อมกลไกตรวจสอบความถูกต้อง การป้องกันทุจริต และระบบบัญชีแยกประเภทแบบ ACID
+      </p>
+    </header>
+
+    <!-- 3-Tier Summary Metrics -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">ชั้นที่ 1: Ingress &amp; Edge</div>
+        <div class="val">TLS &amp; Rate Limit</div>
+        <div class="desc">ตรวจสอบ JWT Token และป้องกันการโจมตี DDoS ด้วย Envoy Gateway</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">ชั้นที่ 2: Core Orchestration</div>
+        <div class="val">Saga &amp; Risk Engine</div>
+        <div class="desc">จัดการ State Machine แบบกระจายศูนย์ พร้อมวิเคราะห์ความเสี่ยงแบบเรียลไทม์</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">ชั้นที่ 3: Settlement &amp; Data</div>
+        <div class="val">ACID &amp; Idempotent</div>
+        <div class="desc">บันทึก Ledger ลง PostgreSQL และเชื่อมต่อเครือข่าย PromptPay / Visa</div>
+      </div>
+    </div>
+
+    <!-- Main Diagram Card -->
+    <figure class="diagram-card" id="diag-pay-card">
+      <div class="diagram-header">
+        <div class="diagram-title">
+          <span>💳</span> ผังสถาปัตยกรรมการประมวลผลการชำระเงินแบบ 3 ชั้น (3-Tier Payment Flow)
+        </div>
+        <button type="button"
+                id="diag-pay-open"
+                class="expand-btn"
+                aria-controls="diag-pay-dialog">
+          🔍 ขยายดูรายละเอียด (Interactive Lightbox)
+        </button>
+      </div>
+
+      <div class="diagram-body">
+        <svg id="diag-pay-svg"
+             viewBox="0 0 1160 650"
+             preserveAspectRatio="xMidYMid meet"
+             width="100%"
+             height="auto"
+             role="img"
+             aria-labelledby="diag-pay-title diag-pay-desc">
+          <title id="diag-pay-title">สถาปัตยกรรมระบบประมวลผลการชำระเงินแบบ 3 ชั้น</title>
+          <desc id="diag-pay-desc">ผังแสดงกระบวนการทำงานตั้งแต่คำขอจากไคลเอนต์ ผ่านเกตเวย์ ไปยังออร์เคสเตรเตอร์ ตรวจสอบความเสี่ยง จนถึงการบันทึกบัญชีแยกประเภทและส่งต่อสวิตช์ธนาคาร</desc>
+          
+          <defs>
+            <!-- Background & Card Gradients -->
+            <linearGradient id="diag-pay-grad-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#0b1120" />
+              <stop offset="100%" stop-color="#070a12" />
+            </linearGradient>
+
+            <linearGradient id="diag-pay-grad-tier1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(2, 132, 199, 0.08)" />
+              <stop offset="100%" stop-color="rgba(2, 132, 199, 0.02)" />
+            </linearGradient>
+
+            <linearGradient id="diag-pay-grad-tier2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(147, 51, 234, 0.08)" />
+              <stop offset="100%" stop-color="rgba(147, 51, 234, 0.02)" />
+            </linearGradient>
+
+            <linearGradient id="diag-pay-grad-tier3" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(22, 163, 74, 0.08)" />
+              <stop offset="100%" stop-color="rgba(22, 163, 74, 0.02)" />
+            </linearGradient>
+
+            <!-- Arrow Markers -->
+            <marker id="diag-pay-arrow-cyan" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#38bdf8" />
+            </marker>
+            <marker id="diag-pay-arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#c084fc" />
+            </marker>
+            <marker id="diag-pay-arrow-green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#4ade80" />
+            </marker>
+            <marker id="diag-pay-arrow-amber" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#fbbf24" />
+            </marker>
+            <marker id="diag-pay-arrow-rose" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#fb7185" />
+            </marker>
+            <marker id="diag-pay-arrow-orange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#fb923c" />
+            </marker>
+          </defs>
+
+          <!-- Overall Canvas Background -->
+          <rect x="0" y="0" width="1160" height="650" rx="14" fill="url(#diag-pay-grad-bg)" stroke="#1e293b" stroke-width="1.5" />
+
+          <!-- ============================================================
+               TIER 1: CLIENT & INGRESS LAYER
+               ============================================================ -->
+          <g id="diag-pay-tier1-group">
+            <rect x="30" y="24" width="1100" height="152" rx="10" fill="url(#diag-pay-grad-tier1)" stroke="#0284c7" stroke-width="1.2" stroke-dasharray="6 4" />
+            <text x="50" y="52" fill="#38bdf8" font-size="13" font-weight="700" letter-spacing="0.05em">ชั้นที่ 1: ไคลเอนต์และช่องทางเข้าถึง (Client &amp; Ingress Layer)</text>
+
+            <!-- Node 1.1: Web & Mobile App -->
+            <g id="diag-pay-node-client">
+              <rect x="70" y="74" width="210" height="74" rx="8" fill="#0f1d33" stroke="#0284c7" stroke-width="1.5" />
+              <text x="175" y="104" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="600">เว็บและแอปมือถือ</text>
+              <text x="175" y="128" text-anchor="middle" fill="#94a3b8" font-size="11">React Native / Web App</text>
+            </g>
+
+            <!-- Node 1.2: API Gateway & WAF -->
+            <g id="diag-pay-node-gateway">
+              <rect x="465" y="74" width="230" height="74" rx="8" fill="#241b10" stroke="#d97706" stroke-width="1.5" />
+              <text x="580" y="104" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="600">API Gateway &amp; WAF</text>
+              <text x="580" y="128" text-anchor="middle" fill="#94a3b8" font-size="11">Envoy Proxy / Rate Limiter</text>
+            </g>
+
+            <!-- Node 1.3: Auth & Security Service -->
+            <g id="diag-pay-node-auth">
+              <rect x="880" y="74" width="210" height="74" rx="8" fill="#211533" stroke="#9333ea" stroke-width="1.5" />
+              <text x="985" y="104" text-anchor="middle" fill="#c084fc" font-size="14" font-weight="600">ระบบยืนยันตัวตน</text>
+              <text x="985" y="128" text-anchor="middle" fill="#94a3b8" font-size="11">OAuth 2.0 / JWT Validator</text>
+            </g>
+
+            <!-- Tier 1 Orthogonal Channels with Pill Badges -->
+            <!-- 1.1 -> 1.2 -->
+            <path d="M280 111 L465 111" fill="none" stroke="#38bdf8" stroke-width="2" marker-end="url(#diag-pay-arrow-cyan)" />
+            <g>
+              <rect x="306" y="98" width="134" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="373" y="116" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="600">HTTPS / TLS (JSON)</text>
+            </g>
+
+            <!-- 1.2 -> 1.3 (Outbound Auth Check) -->
+            <path d="M695 96 L880 96" fill="none" stroke="#c084fc" stroke-width="2" marker-end="url(#diag-pay-arrow-purple)" />
+            <g>
+              <rect x="728" y="83" width="118" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="787" y="101" text-anchor="middle" fill="#c084fc" font-size="11" font-weight="600">1. ตรวจสอบสิทธิ์</text>
+            </g>
+
+            <!-- 1.3 -> 1.2 (Return Auth Result) -->
+            <path d="M880 126 L695 126" fill="none" stroke="#4ade80" stroke-width="2" marker-end="url(#diag-pay-arrow-green)" />
+            <g>
+              <rect x="728" y="113" width="118" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="787" y="131" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">2. Token ถูกต้อง</text>
+            </g>
+          </g>
+
+          <!-- ============================================================
+               TIER 2: CORE BUSINESS & ORCHESTRATION LAYER
+               ============================================================ -->
+          <g id="diag-pay-tier2-group">
+            <rect x="30" y="210" width="1100" height="176" rx="10" fill="url(#diag-pay-grad-tier2)" stroke="#9333ea" stroke-width="1.2" stroke-dasharray="6 4" />
+            <text x="50" y="238" fill="#c084fc" font-size="13" font-weight="700" letter-spacing="0.05em">ชั้นที่ 2: ระบบประมวลผลธุรกรรมหลัก (Core Business &amp; Orchestration Tier)</text>
+
+            <!-- Node 2.1: Fraud Detection Engine -->
+            <g id="diag-pay-node-fraud">
+              <rect x="70" y="260" width="240" height="96" rx="8" fill="#2a1219" stroke="#e11d48" stroke-width="1.5" />
+              <text x="190" y="292" text-anchor="middle" fill="#fb7185" font-size="14" font-weight="600">Fraud Detection Engine</text>
+              <text x="190" y="318" text-anchor="middle" fill="#cbd5e1" font-size="12">ระบบตรวจจับทุจริตเรียลไทม์</text>
+              <text x="190" y="340" text-anchor="middle" fill="#94a3b8" font-size="11">Risk Scoring &amp; Rules Engine</text>
+            </g>
+
+            <!-- Node 2.2: Payment Orchestrator -->
+            <g id="diag-pay-node-orchestrator">
+              <rect x="445" y="260" width="270" height="96" rx="8" fill="#211533" stroke="#a855f7" stroke-width="1.8" />
+              <text x="580" y="292" text-anchor="middle" fill="#d8b4fe" font-size="14" font-weight="700">Payment Orchestrator</text>
+              <text x="580" y="318" text-anchor="middle" fill="#cbd5e1" font-size="12">ตัวควบคุมขั้นตอนการชำระเงิน</text>
+              <text x="580" y="340" text-anchor="middle" fill="#94a3b8" font-size="11">Saga Pattern / Distributed State</text>
+            </g>
+
+            <!-- Node 2.3: Event Stream (Kafka) -->
+            <g id="diag-pay-node-kafka">
+              <rect x="850" y="260" width="240" height="96" rx="8" fill="#29190e" stroke="#ea580c" stroke-width="1.5" />
+              <text x="970" y="292" text-anchor="middle" fill="#fb923c" font-size="14" font-weight="600">Event Stream (Kafka)</text>
+              <text x="970" y="318" text-anchor="middle" fill="#cbd5e1" font-size="12">ศูนย์กระจายอีเวนต์ธุรกรรม</text>
+              <text x="970" y="340" text-anchor="middle" fill="#94a3b8" font-size="11">Topic: payment.events</text>
+            </g>
+
+            <!-- Tier 1 -> Tier 2 Ingress Route (1.2 -> 2.2) -->
+            <path d="M580 148 L580 260" fill="none" stroke="#38bdf8" stroke-width="2" marker-end="url(#diag-pay-arrow-cyan)" />
+            <g>
+              <rect x="495" y="188" width="170" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="580" y="206" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="600">3. gRPC: ProcessPayment</text>
+            </g>
+
+            <!-- 2.2 -> 2.1 (Fraud Risk Check) -->
+            <path d="M445 292 L310 292" fill="none" stroke="#fb7185" stroke-width="2" marker-end="url(#diag-pay-arrow-rose)" />
+            <g>
+              <rect x="326" y="279" width="104" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="378" y="297" text-anchor="middle" fill="#fb7185" font-size="11" font-weight="600">4. ประเมินความเสี่ยง</text>
+            </g>
+
+            <!-- 2.1 -> 2.2 (Fraud Risk OK) -->
+            <path d="M310 324 L445 324" fill="none" stroke="#4ade80" stroke-width="2" marker-end="url(#diag-pay-arrow-green)" />
+            <g>
+              <rect x="326" y="311" width="104" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="378" y="329" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">5. Risk Score ผ่าน</text>
+            </g>
+
+            <!-- 2.2 -> 2.3 (Publish Event) -->
+            <path d="M715 308 L850 308" fill="none" stroke="#fb923c" stroke-width="2" marker-end="url(#diag-pay-arrow-orange)" />
+            <g>
+              <rect x="730" y="295" width="104" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="782" y="313" text-anchor="middle" fill="#fb923c" font-size="11" font-weight="600">Publish: Events</text>
+            </g>
+          </g>
+
+          <!-- ============================================================
+               TIER 3: DATA PERSISTENCE & EXTERNAL SETTLEMENT LAYER
+               ============================================================ -->
+          <g id="diag-pay-tier3-group">
+            <rect x="30" y="420" width="1100" height="204" rx="10" fill="url(#diag-pay-grad-tier3)" stroke="#16a34a" stroke-width="1.2" stroke-dasharray="6 4" />
+            <text x="50" y="448" fill="#4ade80" font-size="13" font-weight="700" letter-spacing="0.05em">ชั้นที่ 3: ฐานข้อมูลและการเชื่อมต่อปลายทาง (Data &amp; External Settlement Tier)</text>
+
+            <!-- Node 3.1: Redis Distributed Cache -->
+            <g id="diag-pay-node-redis">
+              <rect x="70" y="490" width="240" height="106" rx="8" fill="#0e231d" stroke="#16a34a" stroke-width="1.5" />
+              <text x="190" y="522" text-anchor="middle" fill="#86efac" font-size="14" font-weight="600">Redis Cache Cluster</text>
+              <text x="190" y="548" text-anchor="middle" fill="#cbd5e1" font-size="12">ตรวจสอบ Idempotency Key</text>
+              <text x="190" y="570" text-anchor="middle" fill="#94a3b8" font-size="11">Session &amp; Distributed Lock</text>
+            </g>
+
+            <!-- Node 3.2: External Bank Switch -->
+            <g id="diag-pay-node-bank">
+              <rect x="460" y="490" width="240" height="106" rx="8" fill="#182338" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3" />
+              <text x="580" y="522" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="600">External Bank Switch</text>
+              <text x="580" y="548" text-anchor="middle" fill="#38bdf8" font-size="12">PromptPay / Visa / Master</text>
+              <text x="580" y="570" text-anchor="middle" fill="#94a3b8" font-size="11">ISO 8583 / REST Switch API</text>
+            </g>
+
+            <!-- Node 3.3: PostgreSQL Primary DB -->
+            <g id="diag-pay-node-postgres">
+              <rect x="850" y="490" width="240" height="106" rx="8" fill="#0e231d" stroke="#16a34a" stroke-width="1.5" />
+              <text x="970" y="522" text-anchor="middle" fill="#86efac" font-size="14" font-weight="600">PostgreSQL Primary DB</text>
+              <text x="970" y="548" text-anchor="middle" fill="#cbd5e1" font-size="12">บันทึกบัญชีแยกประเภท (Ledger)</text>
+              <text x="970" y="570" text-anchor="middle" fill="#94a3b8" font-size="11">ACID Ledger &amp; Audit Log</text>
+            </g>
+
+            <!-- Orthogonal Manhattan Inter-Tier Connections -->
+            <!-- 2.2 -> 3.1 (Idempotency Cache Check) -->
+            <path d="M490 356 L490 410 L190 410 L190 490" fill="none" stroke="#4ade80" stroke-width="2" marker-end="url(#diag-pay-arrow-green)" />
+            <g>
+              <rect x="252" y="397" width="160" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="332" y="415" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">Idempotency Lock / TTL</text>
+            </g>
+
+            <!-- 2.2 -> 3.2 (Direct Vertical Authorize Call) -->
+            <path d="M580 356 L580 490" fill="none" stroke="#fbbf24" stroke-width="2" marker-end="url(#diag-pay-arrow-amber)" />
+            <g>
+              <rect x="495" y="420" width="170" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="580" y="438" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">6. ตัดเงินผ่านธนาคาร (Auth)</text>
+            </g>
+
+            <!-- 2.2 -> 3.3 (Commit Ledger) -->
+            <path d="M670 356 L670 410 L970 410 L970 490" fill="none" stroke="#4ade80" stroke-width="2" marker-end="url(#diag-pay-arrow-green)" />
+            <g>
+              <rect x="748" y="397" width="164" height="26" rx="4" fill="#090d16" stroke="#334155" stroke-width="1" />
+              <text x="830" y="415" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">7. บันทึกบัญชี (Commit)</text>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Diagram Footer / Legend -->
+      <figcaption class="diagram-footer">
+        <div class="legend-item">
+          <span class="legend-color" style="background:#0284c7; border-color:#38bdf8;"></span>
+          <span>ชั้น Ingress / Gateway</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#9333ea; border-color:#c084fc;"></span>
+          <span>ชั้นประมวลผลธุรกรรม (Orchestration)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#16a34a; border-color:#4ade80;"></span>
+          <span>ชั้นฐานข้อมูลและการจัดเก็บ (Persistence)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color" style="background:#334155; border-color:#64748b; border-style:dashed;"></span>
+          <span>ระบบภายนอก (3rd-Party Bank Switch)</span>
+        </div>
+      </figcaption>
+    </figure>
+
+    <!-- Technical Architecture Deep Dive (Natural Thai Prose) -->
+    <article class="section-card">
+      <h2>⚙️ คำอธิบายเชิงสถาปัตยกรรม (Architectural Deep-Dive)</h2>
+      <p>
+        ระบบประมวลผลการชำระเงินได้รับการออกแบบตามมาตรฐานความปลอดภัยระดับสูง เพื่อรองรับปริมาณธุรกรรมจำนวนมากพร้อมกัน (High Concurrency) 
+        โดยรักษาคุณสมบัติความถูกต้องของข้อมูล (Data Consistency) และป้องกันการตัดเงินซ้ำซ้อน 100% ผ่าน 3 ลำดับชั้นหลัก:
+      </p>
+
+      <h3>1. การควบคุมช่องทางเข้าถึงและความปลอดภัยรอบนอก (Client &amp; Ingress Tier)</h3>
+      <p>
+        ทุกคำขอชำระเงินจากแอปพลิเคชันมือถือหรือเว็บ จะส่งผ่านช่องทางเข้ารหัส TLS 1.3 มายัง <strong>API Gateway</strong> 
+        โดยระบบจะดำเนินการตรวจสอบความถูกต้องของโครงสร้าง Payload และส่ง Token ไปตรวจสอบสิทธิ์กับ <strong>Auth Service</strong> 
+        ก่อนอนุญาตให้คำขอเข้าสู่เครือข่ายภายใน พร้อมทั้งมีระบบ Rate Limiting เพื่อป้องกันการส่งคำขอถี่เกินขีดจำกัด
+      </p>
+
+      <h3>2. การบริหารจัดการสถานะและตรวจสอบความเสี่ยง (Core Business &amp; Orchestration Tier)</h3>
+      <p>
+        หัวใจหลักของระบบคือ <strong>Payment Orchestrator</strong> ซึ่งทำงานร่วมกับ State Machine แบบกระจายศูนย์ตามแนวคิด <strong>Saga Pattern</strong> 
+        เมื่อได้รับคำขอ ระบบจะส่งข้อมูลให้ <strong>Fraud Detection Engine</strong> วิเคราะห์พฤติกรรมผิดปกติและคำนวณ Risk Score ทันที 
+        หากมีความเสี่ยงต่ำ ระบบจะดำเนินกระบวนการตัดเงินต่อ พร้อมกระจาย State Change Events ไปยัง <strong>Kafka Event Stream</strong> 
+        เพื่อให้ระบบวิเคราะห์ข้อมูลและแจ้งเตือนทำงานแบบ Asynchronous ต่อไป
+      </p>
+
+      <h3>3. การตัดเงินปลายทางและการบันทึกบัญชีแยกประเภท (Data &amp; Settlement Tier)</h3>
+      <p>
+        ก่อนส่งคำขอไปยังระบบธนาคาร ระบบจะสร้าง Distributed Lock บน <strong>Redis Cache</strong> โดยอ้างอิงจาก <code>Idempotency Key</code> 
+        เพื่อรับประกันว่าจะไม่มีการส่งคำขอตัดยอดซ้ำ เมื่อระบบ <strong>External Bank Switch</strong> ตอบรับผลการชำระเงินสำเร็จ 
+        ระบบจะทำธุรกรรมแบบ ACID ลงใน <strong>PostgreSQL</strong> เพื่อบันทึกบัญชีแยกประเภท (Double-Entry Ledger) และ Audit Log อย่างสมบูรณ์
+      </p>
+    </article>
+
+    <!-- Technical Specifications Table -->
+    <section class="section-card">
+      <h2>📊 สรุปคุณสมบัติและการทำงานแยกตามลำดับชั้น</h2>
+      <div class="table-container">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>ชั้นสถาปัตยกรรม</th>
+              <th>คอมโพเนนต์หลัก</th>
+              <th>โปรโตคอล / รูปแบบการสื่อสาร</th>
+              <th>หน้าที่และความรับผิดชอบ</th>
+              <th>มาตรการความปลอดภัย</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge-tier tier-1">Tier 1: Ingress</span></td>
+              <td>API Gateway, Envoy Proxy, Auth Validator</td>
+              <td>HTTPS / TLS 1.3, JSON, JWT</td>
+              <td>รับคำขอ, ตรวจสอบความถูกต้องของสิทธิ์ และจำกัดปริมาณทราฟฟิก</td>
+              <td>WAF, DDoS Protection, JWT Signature Verification</td>
+            </tr>
+            <tr>
+              <td><span class="badge-tier tier-2">Tier 2: Core</span></td>
+              <td>Payment Orchestrator, Fraud Engine, Kafka</td>
+              <td>gRPC (Protobuf), Event Streams</td>
+              <td>ควบคุม State Machine ธุรกรรม, ตรวจสอบทุจริต และกระจายอีเวนต์</td>
+              <td>Mutual TLS (mTLS), Risk Scoring Rule Engine</td>
+            </tr>
+            <tr>
+              <td><span class="badge-tier tier-3">Tier 3: Data</span></td>
+              <td>PostgreSQL DB, Redis Cluster, Bank Switch</td>
+              <td>ISO 8583, REST Switch API, SQL (ACID)</td>
+              <td>ตัดเงินผ่านธนาคาร, ป้องกันคำขอซ้ำ และบันทึกบัญชีแยกประเภท</td>
+              <td>Idempotency Lock, Double-Entry Ledger, Encryption at Rest</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ==========================================================================
+       STANDARD 100% FULLSCREEN ZEN LIGHTBOX DIALOG
+       ========================================================================== -->
+  <dialog class="diagram-lightbox"
+          id="diag-pay-dialog"
+          aria-labelledby="diag-pay-dialog-title">
+    <div class="diagram-lightbox__header">
+      <h2 id="diag-pay-dialog-title">สถาปัตยกรรมระบบประมวลผลการชำระเงินแบบ 3 ชั้น (High-Fidelity Interactive View)</h2>
+      <div class="lightbox-controls" role="group" aria-label="Diagram zoom and pan controls">
+        <button type="button" id="diag-pay-zoom-in" class="toolbar-btn" aria-label="Zoom In">➕ ขยาย</button>
+        <button type="button" id="diag-pay-zoom-out" class="toolbar-btn" aria-label="Zoom Out">➖ ย่อ</button>
+        <button type="button" id="diag-pay-zoom-reset" class="toolbar-btn" aria-label="Reset Zoom">↺ รีเซ็ต</button>
+        <span id="diag-pay-scale-badge" class="scale-badge">สเกล: 100%</span>
+        <button type="button" id="diag-pay-close" class="toolbar-btn close-btn" aria-label="Close Lightbox">✕ ปิด (Esc)</button>
+      </div>
+    </div>
+    
+    <div class="lightbox-viewport" id="diag-pay-viewport">
+      <div class="lightbox-canvas" id="diag-pay-canvas"></div>
+    </div>
+  </dialog>
+
+  <!-- JAVASCRIPT: PAN & ZOOM CANVAS ENGINE WITH SINGLE-NODE SVG TRANSFER -->
+  <script>
+    (() => {
+      const card = document.querySelector("#diag-pay-card");
+      const sourceSvg = card.querySelector("svg");
+      const trigger = card.querySelector("#diag-pay-open");
+      const dialog = document.querySelector("#diag-pay-dialog");
+      const viewport = dialog.querySelector("#diag-pay-viewport");
+      const canvas = dialog.querySelector("#diag-pay-canvas");
+      const closeButton = dialog.querySelector("#diag-pay-close");
+      const btnZoomIn = dialog.querySelector("#diag-pay-zoom-in");
+      const btnZoomOut = dialog.querySelector("#diag-pay-zoom-out");
+      const btnZoomReset = dialog.querySelector("#diag-pay-zoom-reset");
+      const scaleBadge = dialog.querySelector("#diag-pay-scale-badge");
+      const placeholder = document.createComment("diagram source position placeholder");
+
+      let scale = 1.0;
+      let translateX = 0;
+      let translateY = 0;
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+
+      function applyTransform() {
+        canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        if (scaleBadge) {
+          scaleBadge.textContent = `สเกล: ${Math.round(scale * 100)}%`;
+        }
+      }
+
+      function resetTransform() {
+        scale = 1.0;
+        translateX = 0;
+        translateY = 0;
+        applyTransform();
+      }
+
+      function zoom(delta, clientX, clientY) {
+        const oldScale = scale;
+        let newScale = Math.min(Math.max(0.4, scale + delta), 4.0);
+        if (newScale === oldScale) return;
+
+        if (clientX !== undefined && clientY !== undefined) {
+          const rect = viewport.getBoundingClientRect();
+          const originX = clientX - (rect.left + rect.width / 2);
+          const originY = clientY - (rect.top + rect.height / 2);
+          translateX -= (originX / oldScale) * (newScale - oldScale);
+          translateY -= (originY / oldScale) * (newScale - oldScale);
+        }
+
+        scale = newScale;
+        applyTransform();
+      }
+
+      function openModal() {
+        // Single-node transfer to preserve unique IDs and avoid element duplication
+        sourceSvg.replaceWith(placeholder);
+        canvas.replaceChildren(sourceSvg);
+        sourceSvg.style.width = "100%";
+        sourceSvg.style.maxWidth = "1160px";
+        sourceSvg.style.height = "auto";
+        sourceSvg.style.maxHeight = "none";
+
+        resetTransform();
+        if (typeof dialog.showModal === "function") {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute("open", "");
+        }
+        closeButton.focus();
+      }
+
+      function closeModal() {
+        if (typeof dialog.close === "function" && dialog.open) {
+          dialog.close();
+        } else {
+          dialog.removeAttribute("open");
+          restoreSource();
+        }
+      }
+
+      function restoreSource() {
+        if (placeholder.parentNode) {
+          placeholder.replaceWith(sourceSvg);
+        }
+        sourceSvg.style.width = "";
+        sourceSvg.style.maxWidth = "";
+        sourceSvg.style.height = "";
+        sourceSvg.style.maxHeight = "";
+        canvas.replaceChildren();
+        resetTransform();
+        trigger.focus(); // Accessibility: restore focus to opening button
+      }
+
+      // Event Listeners
+      trigger.addEventListener("click", openModal);
+      closeButton.addEventListener("click", closeModal);
+      dialog.addEventListener("cancel", (e) => {
+        e.preventDefault();
+        closeModal();
+      });
+      dialog.addEventListener("close", restoreSource);
+
+      // Backdrop click to close
+      dialog.addEventListener("click", (e) => {
+        const rect = dialog.getBoundingClientRect();
+        const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+        if (!isInDialog) closeModal();
+      });
+
+      // Zoom Button Controls
+      btnZoomIn.addEventListener("click", () => zoom(0.25));
+      btnZoomOut.addEventListener("click", () => zoom(-0.25));
+      btnZoomReset.addEventListener("click", resetTransform);
+
+      // Cursor-Centered Mouse Wheel Zoom
+      viewport.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.15 : -0.15;
+        zoom(delta, e.clientX, e.clientY);
+      }, { passive: false });
+
+      // Mouse Drag to Pan
+      viewport.addEventListener("mousedown", (e) => {
+        if (e.target.closest(".toolbar-btn")) return;
+        isDragging = true;
+        startX = e.clientX - translateX;
+        startY = e.clientY - translateY;
+        viewport.style.cursor = "grabbing";
+      });
+
+      window.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        translateX = e.clientX - startX;
+        translateY = e.clientY - startY;
+        applyTransform();
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (isDragging) {
+          isDragging = false;
+          viewport.style.cursor = "grab";
+        }
+      });
+
+      // Mobile Touch Panning
+      viewport.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 1) {
+          isDragging = true;
+          startX = e.touches[0].clientX - translateX;
+          startY = e.touches[0].clientY - translateY;
+        }
+      }, { passive: true });
+
+      viewport.addEventListener("touchmove", (e) => {
+        if (!isDragging || e.touches.length !== 1) return;
+        translateX = e.touches[0].clientX - startX;
+        translateY = e.touches[0].clientY - startY;
+        applyTransform();
+      }, { passive: true });
+
+      viewport.addEventListener("touchend", () => {
+        isDragging = false;
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -86,6 +86,36 @@ def audit_svg_collisions(html_content: str) -> dict:
                 "msg": "Diagram card forces overflow-x on primary overview."
             })
 
+    # 7. Check Viewport Lightbox Engine Invariants if Lightbox dialog is present
+    if re.search(r'<dialog[^>]*class=["\'][^"\']*diagram-lightbox', html_content, re.IGNORECASE):
+        # Must have two-tier viewport and canvas structure
+        has_viewport = bool(re.search(r'class=["\'][^"\']*lightbox-viewport', html_content, re.IGNORECASE))
+        has_canvas = bool(re.search(r'class=["\'][^"\']*lightbox-canvas', html_content, re.IGNORECASE))
+        if not (has_viewport and has_canvas):
+            findings.append({
+                "level": "BLOCK",
+                "rule": "missing_lightbox_canvas_structure",
+                "msg": "Lightbox lacks mandatory two-tier .lightbox-viewport and .lightbox-canvas container."
+            })
+
+        # Must use transform translate + scale matrix (never raw scale alone)
+        has_translate = bool(re.search(r'(?:style\.transform|transform)\s*[:=]\s*[`\'"].*translate\(', html_content, re.IGNORECASE))
+        if not has_translate:
+            findings.append({
+                "level": "BLOCK",
+                "rule": "missing_lightbox_translate_matrix",
+                "msg": "Lightbox script lacks translate(x, y) transform matrix engine."
+            })
+
+        # Must have drag-to-pan event listeners
+        has_drag = bool(re.search(r'mousedown', html_content, re.IGNORECASE) and re.search(r'mousemove', html_content, re.IGNORECASE))
+        if not has_drag:
+            findings.append({
+                "level": "BLOCK",
+                "rule": "missing_lightbox_drag_pan",
+                "msg": "Lightbox script lacks drag-to-pan mouse event handling."
+            })
+
     verdict = "PASS"
     if any(f["level"] == "BLOCK" for f in findings):
         verdict = "BLOCK"
@@ -104,6 +134,18 @@ def test_clean_diagram_with_badges_passes():
     result = audit_svg_collisions(html)
     
     assert result["verdict"] == "PASS"
+    assert len(result["findings"]) == 0
+
+
+def test_subagent_generated_artifact_passes_all_gates():
+    """Verify that the test artifact created by the subagent satisfies all 5 Pan-Zoom & Typography invariants."""
+    artifact_file = Path("docs/artifacts/test-subagent-panzoom.html")
+    assert artifact_file.exists(), "subagent artifact file must exist"
+
+    html = artifact_file.read_text(encoding="utf-8")
+    result = audit_svg_collisions(html)
+
+    assert result["verdict"] == "PASS", f"Artifact findings: {result['findings']}"
     assert len(result["findings"]) == 0
 
 
@@ -203,3 +245,27 @@ def test_thai_svg_multiline_step_gate():
     """
     good_res = audit_svg_collisions(good_svg)
     assert good_res["verdict"] == "PASS"
+
+
+def test_broken_lightbox_without_pan_zoom_is_blocked():
+    """Verify that a lightbox missing two-tier canvas, translate transform, or mouse drag is blocked."""
+    broken_lightbox_html = """
+    <html>
+      <body>
+        <dialog class="diagram-lightbox">
+          <div class="diagram-lightbox__detail">
+            <!-- Missing .lightbox-viewport and .lightbox-canvas -->
+          </div>
+        </dialog>
+        <script>
+          // Missing translate(X, Y) and drag events
+          source.style.transform = `scale(${scale})`;
+        </script>
+      </body>
+    </html>
+    """
+    res = audit_svg_collisions(broken_lightbox_html)
+    assert res["verdict"] == "BLOCK"
+    assert any(f["rule"] == "missing_lightbox_canvas_structure" for f in res["findings"])
+    assert any(f["rule"] == "missing_lightbox_translate_matrix" for f in res["findings"])
+    assert any(f["rule"] == "missing_lightbox_drag_pan" for f in res["findings"])

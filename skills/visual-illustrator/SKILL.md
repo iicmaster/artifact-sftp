@@ -149,13 +149,15 @@ To ensure diagrams remain crisp, legible, and completely free of overlapping lin
 
 ---
 
-### Rule: Viewport Lightbox Component (`<dialog>`)
+### Rule: Viewport Lightbox Component (`<dialog>`) — Standard Pan & Zoom Engine
 
-Use this copy-pasteable Tier A component for deep-dive inspection. It keeps one
-sanitized SVG node and moves it into the dialog rather than cloning it, so
-resource IDs remain unique. The component provides the standard trigger,
-`dialog.showModal()` with a backdrop, Zoom In (`+`), Zoom Out (`-`), Reset (`↺`),
-`Esc` handling, backdrop click to close, focus trapping, and focus restoration.
+Use this copy-pasteable, bulletproof Tier A component for deep-dive inspection. It enforces:
+1. **100% Borderless Fullscreen Canvas:** `<dialog>` is `100vw × 100vh` Zen canvas without margin/border/footer waste.
+2. **Two-Tier Canvas Architecture:** Outer `.lightbox-viewport` (`cursor: grab; overflow: hidden;`) + Inner `.lightbox-canvas` (`position: absolute; will-change: transform;`).
+3. **True Transform Matrix:** Uses `transform: translate(${translateX}px, ${translateY}px) scale(${scale})` on canvas (never `scale()` alone).
+4. **Triple-Mode Interaction:** Mouse Drag to Pan (`grabbing`), Cursor-centered Wheel Zoom, and Mobile Touch Panning.
+5. **Integrated Header Toolbar:** `➕`, `➖`, `↺`, Scale Badge (`สเกล: 100%`), and `✕ ปิด (Esc)`.
+6. **Single-Node Transfer & Focus Restoration:** Transfers SVG node to preserve unique IDs and restores focus to the trigger on close.
 
 ```html
 <style>
@@ -172,6 +174,7 @@ resource IDs remain unique. The component provides the standard trigger,
     max-height: 480px;
   }
 
+  /* 100% BORDERLESS FULLSCREEN ZEN LIGHTBOX */
   .diagram-lightbox {
     position: fixed;
     inset: 0;
@@ -187,6 +190,7 @@ resource IDs remain unique. The component provides the standard trigger,
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    color: #e2e8f0;
   }
 
   .diagram-lightbox::backdrop {
@@ -201,28 +205,93 @@ resource IDs remain unique. The component provides the standard trigger,
     background: #101726;
     border-bottom: 1px solid #24324f;
     flex-shrink: 0;
+    gap: 1rem;
   }
 
-  .diagram-lightbox__detail {
+  .diagram-lightbox__header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lightbox-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .toolbar-btn {
+    background: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid #334155;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .toolbar-btn:hover {
+    background: #334155;
+    border-color: #64748b;
+  }
+
+  .scale-badge {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.6rem;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #94a3b8;
+    min-width: 80px;
+    text-align: center;
+  }
+
+  /* TWO-TIER PAN & ZOOM VIEWPORT/CANVAS */
+  .lightbox-viewport {
     flex: 1;
     width: 100%;
     height: 100%;
-    overflow: hidden;
     position: relative;
+    overflow: hidden;
+    cursor: grab;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: #060911;
   }
 
-  .diagram-lightbox__detail > svg {
-    display: block;
+  .lightbox-viewport:active {
+    cursor: grabbing;
+  }
+
+  .lightbox-canvas {
+    position: absolute;
+    transform-origin: center center;
+    will-change: transform;
+    transition: transform 0.05s ease-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
     max-width: 1200px;
+  }
+
+  .lightbox-canvas > svg {
+    display: block;
+    width: 100%;
     height: auto;
-    transform-origin: center;
   }
 </style>
 
+<!-- DIAGRAM CARD -->
 <figure class="diagram-card" id="diag-auth-card">
   <svg id="diag-auth-svg"
        viewBox="0 0 800 420"
@@ -251,10 +320,10 @@ resource IDs remain unique. The component provides the standard trigger,
       <rect x="320" y="170" width="160" height="72" rx="12" />
       <rect x="568" y="170" width="160" height="72" rx="12" />
     </g>
-    <g fill="#0f172a" font-family="Sarabun, sans-serif" font-size="22" text-anchor="middle">
-      <text x="152" y="212">Client</text>
-      <text x="400" y="212">Gateway</text>
-      <text x="648" y="212">Account Store</text>
+    <g fill="#0f172a" font-family="Sarabun, sans-serif" font-size="20" text-anchor="middle">
+      <text x="152" y="214">Client</text>
+      <text x="400" y="214">Gateway</text>
+      <text x="648" y="214">Account Store</text>
     </g>
     <g stroke="#334155" stroke-width="3" fill="none" marker-end="url(#diag-auth-marker1)">
       <path d="M232 206H320" />
@@ -264,100 +333,189 @@ resource IDs remain unique. The component provides the standard trigger,
   <figcaption>Token validation and account lookup</figcaption>
   <button type="button"
           id="diag-auth-open"
+          class="toolbar-btn"
           aria-controls="diag-auth-dialog">
     🔍 ขยายดูรายละเอียด (Expand / View Detail)
   </button>
 </figure>
 
+<!-- VIEWPORT LIGHTBOX -->
 <dialog class="diagram-lightbox"
         id="diag-auth-dialog"
         aria-labelledby="diag-auth-dialog-title">
   <div class="diagram-lightbox__header">
     <h2 id="diag-auth-dialog-title">Authentication request flow</h2>
-    <div role="group" aria-label="Diagram zoom controls">
-      <button type="button" id="diag-auth-zoom-in" data-zoom="in" aria-label="Zoom In">+</button>
-      <button type="button" id="diag-auth-zoom-out" data-zoom="out" aria-label="Zoom Out">-</button>
-      <button type="button" id="diag-auth-zoom-reset" data-zoom="reset" aria-label="Reset">↺</button>
-      <button type="button" id="diag-auth-close">✕ Close (Esc)</button>
+    <div class="lightbox-controls" role="group" aria-label="Diagram zoom controls">
+      <button type="button" id="diag-auth-zoom-in" class="toolbar-btn" aria-label="Zoom In">➕ ขยาย</button>
+      <button type="button" id="diag-auth-zoom-out" class="toolbar-btn" aria-label="Zoom Out">➖ ย่อ</button>
+      <button type="button" id="diag-auth-zoom-reset" class="toolbar-btn" aria-label="Reset">↺ รีเซ็ต</button>
+      <span id="diag-auth-scale-badge" class="scale-badge">สเกล: 100%</span>
+      <button type="button" id="diag-auth-close" class="toolbar-btn" style="background:#dc2626;border-color:#ef4444;">✕ ปิด (Esc)</button>
     </div>
   </div>
-  <div class="diagram-lightbox__detail" id="diag-auth-detail"></div>
+  <div class="lightbox-viewport" id="diag-auth-viewport">
+    <div class="lightbox-canvas" id="diag-auth-canvas"></div>
+  </div>
 </dialog>
 
+<!-- JAVASCRIPT: BULLETPROOF PAN & ZOOM CANVAS ENGINE -->
 <script>
 (() => {
   const card = document.querySelector("#diag-auth-card");
-  const source = card.querySelector("svg");
+  const sourceSvg = card.querySelector("svg");
   const trigger = card.querySelector("#diag-auth-open");
   const dialog = document.querySelector("#diag-auth-dialog");
-  const detail = dialog.querySelector("#diag-auth-detail");
+  const viewport = dialog.querySelector("#diag-auth-viewport");
+  const canvas = dialog.querySelector("#diag-auth-canvas");
   const closeButton = dialog.querySelector("#diag-auth-close");
+  const btnZoomIn = dialog.querySelector("#diag-auth-zoom-in");
+  const btnZoomOut = dialog.querySelector("#diag-auth-zoom-out");
+  const btnZoomReset = dialog.querySelector("#diag-auth-zoom-reset");
+  const scaleBadge = dialog.querySelector("#diag-auth-scale-badge");
   const placeholder = document.createComment("diagram source position");
-  let lastFocused = null;
-  let scale = 1;
 
-  const focusable = () => [...dialog.querySelectorAll(
-    "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])"
-  )];
+  let scale = 1.0;
+  let translateX = 0;
+  let translateY = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
 
-  const renderScale = () => {
-    source.style.transform = `scale(${scale})`;
-  };
+  function applyTransform() {
+    canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    if (scaleBadge) scaleBadge.textContent = `สเกล: ${Math.round(scale * 100)}%`;
+  }
 
-  trigger.addEventListener("click", () => {
-    if (typeof dialog.showModal !== "function") return;
-    lastFocused = document.activeElement;
-    source.replaceWith(placeholder);
-    detail.append(source);
-    scale = 1;
-    renderScale();
-    dialog.showModal();
+  function resetTransform() {
+    scale = 1.0;
+    translateX = 0;
+    translateY = 0;
+    applyTransform();
+  }
+
+  function zoom(delta, clientX, clientY) {
+    const oldScale = scale;
+    let newScale = Math.min(Math.max(0.5, scale + delta), 4.0);
+    if (newScale === oldScale) return;
+
+    if (clientX !== undefined && clientY !== undefined) {
+      const rect = viewport.getBoundingClientRect();
+      const originX = clientX - (rect.left + rect.width / 2);
+      const originY = clientY - (rect.top + rect.height / 2);
+      translateX -= (originX / oldScale) * (newScale - oldScale);
+      translateY -= (originY / oldScale) * (newScale - oldScale);
+    }
+
+    scale = newScale;
+    applyTransform();
+  }
+
+  function openModal() {
+    sourceSvg.replaceWith(placeholder);
+    canvas.replaceChildren(sourceSvg);
+    sourceSvg.style.width = "100%";
+    sourceSvg.style.maxWidth = "1200px";
+    sourceSvg.style.height = "auto";
+    sourceSvg.style.maxHeight = "none";
+
+    resetTransform();
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute("open", "");
+    }
     closeButton.focus();
+  }
+
+  function closeModal() {
+    if (typeof dialog.close === "function" && dialog.open) {
+      dialog.close();
+    } else {
+      dialog.removeAttribute("open");
+      restoreSource();
+    }
+  }
+
+  function restoreSource() {
+    if (placeholder.parentNode) placeholder.replaceWith(sourceSvg);
+    sourceSvg.style.width = "";
+    sourceSvg.style.maxWidth = "";
+    sourceSvg.style.height = "";
+    sourceSvg.style.maxHeight = "";
+    canvas.replaceChildren();
+    resetTransform();
+    trigger.focus();
+  }
+
+  trigger.addEventListener("click", openModal);
+  closeButton.addEventListener("click", closeModal);
+  dialog.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeModal();
+  });
+  dialog.addEventListener("close", restoreSource);
+
+  // Backdrop click close
+  dialog.addEventListener("click", (e) => {
+    const rect = dialog.getBoundingClientRect();
+    const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+      rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+    if (!isInDialog) closeModal();
   });
 
-  closeButton.addEventListener("click", () => dialog.close());
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close();
-  });
-  dialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    dialog.close();
+  // Zoom Button Controls
+  btnZoomIn.addEventListener("click", () => zoom(0.25));
+  btnZoomOut.addEventListener("click", () => zoom(-0.25));
+  btnZoomReset.addEventListener("click", resetTransform);
+
+  // Mouse Wheel Zoom centered at cursor
+  viewport.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.15 : -0.15;
+    zoom(delta, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // Mouse Drag to Pan
+  viewport.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".toolbar-btn")) return;
+    isDragging = true;
+    startX = e.clientX - translateX;
+    startY = e.clientY - translateY;
+    viewport.style.cursor = "grabbing";
   });
 
-  dialog.querySelector("#diag-auth-zoom-in").addEventListener("click", () => {
-    scale = Math.min(3, scale + 0.25);
-    renderScale();
-  });
-  dialog.querySelector("#diag-auth-zoom-out").addEventListener("click", () => {
-    scale = Math.max(0.5, scale - 0.25);
-    renderScale();
-  });
-  dialog.querySelector("#diag-auth-zoom-reset").addEventListener("click", () => {
-    scale = 1;
-    renderScale();
+  window.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    translateX = e.clientX - startX;
+    translateY = e.clientY - startY;
+    applyTransform();
   });
 
-  dialog.addEventListener("keydown", (event) => {
-    if (event.key !== "Tab") return;
-    const items = focusable();
-    if (items.length === 0) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
+  window.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      viewport.style.cursor = "grab";
     }
   });
 
-  dialog.addEventListener("close", () => {
-    placeholder.replaceWith(source);
-    source.style.transform = "";
-    detail.replaceChildren();
-    scale = 1;
-    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+  // Mobile Touch Panning
+  viewport.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      startX = e.touches[0].clientX - translateX;
+      startY = e.touches[0].clientY - translateY;
+    }
+  }, { passive: true });
+
+  viewport.addEventListener("touchmove", (e) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    translateX = e.touches[0].clientX - startX;
+    translateY = e.touches[0].clientY - startY;
+    applyTransform();
+  }, { passive: true });
+
+  viewport.addEventListener("touchend", () => {
+    isDragging = false;
   });
 })();
 </script>

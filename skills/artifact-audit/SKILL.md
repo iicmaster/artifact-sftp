@@ -85,6 +85,14 @@ inline chat and pure Markdown.
   - **Node Bounding Box Intersection:** If diagram nodes overlap each other without clearance ($\text{gap} < 40\text{px}$), **BLOCK**.
   - **Collinear Path Collisions:** If multiple connection lines share identical coordinates or slice through node centers, **BLOCK**.
   - **Thai Multiline Text Step in SVG (`<tspan dy="...">`):** If multiline SVG text containing Thai characters sets vertical step $\text{dy} < 1.3 \times \text{font-size}$ (causing upper tone marks and lower vowels to collide between lines), **BLOCK**. If $1.3 \le \text{dy} < 1.5 \times \text{font-size}$, **WARN**.
+- **Viewport Lightbox Pan & Zoom Invariants Check (🔴 BLOCK):**
+  - If a document contains a `<dialog class="diagram-lightbox">`, it MUST satisfy the 5 Enterprise Invariants:
+    1. **Two-Tier Structure:** Must include `.lightbox-viewport` and `.lightbox-canvas`.
+    2. **Transform Matrix Engine:** Must apply `translate(X, Y) scale(S)` to `.lightbox-canvas` (never `scale()` alone).
+    3. **Drag to Pan:** Must attach `mousedown` / `mousemove` / `mouseup` drag handling.
+    4. **Toolbar Controls:** Must provide Zoom In (`+`), Zoom Out (`-`), Reset (`↺`), and Close triggers.
+    5. **Single-Node Transfer:** Must transfer the SVG element into the modal rather than duplicating/cloning to prevent ID collision.
+  - If any of these 5 invariants are violated, **BLOCK**.
 - **Complex Diagram Lightbox Check (🟡 WARN):** If a diagram is complex (more than 12 nodes) and lacks an Expand Detail / Viewport Lightbox trigger, **WARN** and route it for remediation.
 - **Fit-First & Accessible Lightbox Standard (🟢 PASS):** The overview is 100% responsive fit, readable, free of visual collisions, and provides an accessible native `<dialog>` lightbox for detail inspection when supported. No-JavaScript fallback remains a sanitized static fit.
 - **Responsive Layout:** Verifies primary diagram cards use `max-width: 100%` and `overflow: hidden`. Tables may use a bounded responsive wrapper when necessary, but table behavior must never turn the primary diagram overview into a horizontal scroll surface.
