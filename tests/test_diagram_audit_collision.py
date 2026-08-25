@@ -149,6 +149,18 @@ def test_subagent_generated_artifact_passes_all_gates():
     assert len(result["findings"]) == 0
 
 
+def test_codex_generated_artifact_passes_all_gates():
+    """Verify that the test artifact created by Codex satisfies all 5 Pan-Zoom & Typography invariants."""
+    artifact_file = Path("docs/artifacts/test-codex-panzoom.html")
+    assert artifact_file.exists(), "codex artifact file must exist"
+
+    html = artifact_file.read_text(encoding="utf-8")
+    result = audit_svg_collisions(html)
+
+    assert result["verdict"] == "PASS", f"Artifact findings: {result['findings']}"
+    assert len(result["findings"]) == 0
+
+
 def test_unbadged_colliding_label_is_blocked():
     """Verify that connection text without a background badge is caught and BLOCKED."""
     bad_html = """

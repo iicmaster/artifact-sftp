@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สถาปัตยกรรม Event-Driven ระดับองค์กร</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --surface: #0d1b2d;
+      --surface-raised: #12243a;
+      --surface-soft: #102033;
+      --ink: #ecf5ff;
+      --ink-soft: #b7c9dc;
+      --ink-muted: #7f97b0;
+      --line: #28435f;
+      --cyan: #55d6ff;
+      --amber: #f7c85c;
+      --violet: #c4a6ff;
+      --orange: #ffad72;
+      --green: #66e3a1;
+      --blue: #8cb9ff;
+      --danger: #ff8e8e;
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --shadow: 0 24px 64px rgb(0 0 0 / 28%);
+      --font-sans: Sarabun, Tahoma, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+      color-scheme: dark;
+    }
+
+    body,
+    button,
+    code {
+      font-family: var(--font-sans);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 0%, rgb(28 93 131 / 22%), transparent 34rem),
+        radial-gradient(circle at 90% 12%, rgb(91 55 139 / 18%), transparent 28rem),
+        var(--bg);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    h1,
+    h2,
+    h3,
+    p,
+    ul,
+    li,
+    figure,
+    figcaption,
+    button,
+    th,
+    td,
+    .eyebrow,
+    .subtitle,
+    .stat-label,
+    .stat-value,
+    .stat-copy,
+    .toolbar-btn,
+    .scale-badge,
+    .legend-item,
+    .diagram-hint,
+    .table-note {
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3,
+    p,
+    ul,
+    figure,
+    figcaption {
+      margin: 0;
+    }
+
+    .page-shell {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 54px 0 72px;
+    }
+
+    .hero {
+      max-width: 900px;
+      margin: 0 auto 34px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 5px 14px;
+      border: 1px solid rgb(85 214 255 / 42%);
+      border-radius: 999px;
+      background: rgb(85 214 255 / 10%);
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      margin-top: 18px;
+      color: var(--ink);
+      font-size: clamp(2rem, 4.8vw, 3.55rem);
+      font-weight: 760;
+      letter-spacing: -0.035em;
+      line-height: 1.5;
+    }
+
+    .subtitle {
+      max-width: 790px;
+      margin: 16px auto 0;
+      color: var(--ink-soft);
+      font-size: clamp(1rem, 1.7vw, 1.2rem);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      min-height: 148px;
+      padding: 19px 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: linear-gradient(145deg, rgb(18 36 58 / 92%), rgb(10 25 42 / 92%));
+      box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+    }
+
+    .stat-label {
+      color: var(--ink-muted);
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+    }
+
+    .stat-value {
+      margin-top: 8px;
+      color: var(--ink);
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .stat-copy {
+      margin-top: 5px;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .diagram-card {
+      max-width: 100%;
+      margin: 0 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .diagram-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-raised);
+    }
+
+    .diagram-title {
+      color: var(--ink);
+      font-size: 1.08rem;
+      font-weight: 700;
+    }
+
+    .diagram-hint {
+      margin-top: 3px;
+      color: var(--ink-muted);
+      font-size: 0.85rem;
+    }
+
+    .expand-btn,
+    .toolbar-btn {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 8px 13px;
+      border: 1px solid #3c6284;
+      border-radius: var(--radius-sm);
+      background: #17304b;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 700;
+      line-height: 1.6;
+      transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+
+    .expand-btn:hover,
+    .toolbar-btn:hover {
+      border-color: var(--cyan);
+      background: #214364;
+      transform: translateY(-1px);
+    }
+
+    .expand-btn:focus-visible,
+    .toolbar-btn:focus-visible {
+      outline: 3px solid rgb(85 214 255 / 38%);
+      outline-offset: 2px;
+    }
+
+    .diagram-body {
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      padding: 18px;
+      background: #081522;
+    }
+
+    .diagram-card > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 100%;
+      max-height: 480px;
+    }
+
+    .diagram-svg text,
+    .diagram-svg tspan {
+      font-family: var(--font-sans);
+      line-height: 1.6;
+    }
+
+    .diagram-footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 22px;
+      align-items: center;
+      padding: 15px 22px;
+      border-top: 1px solid var(--line);
+      background: #0b1929;
+      color: var(--ink-soft);
+      font-size: 0.85rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-swatch {
+      width: 13px;
+      height: 13px;
+      flex: 0 0 auto;
+      border: 2px solid currentColor;
+      border-radius: 4px;
+    }
+
+    .legend-ingress { color: var(--amber); }
+    .legend-bus { color: var(--orange); }
+    .legend-worker { color: var(--violet); }
+    .legend-data { color: var(--green); }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 24px;
+    }
+
+    .content-card {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgb(13 27 45 / 90%);
+    }
+
+    .content-card h2 {
+      margin-bottom: 13px;
+      color: var(--ink);
+      font-size: 1.35rem;
+      line-height: 1.6;
+    }
+
+    .content-card h3 {
+      margin-top: 20px;
+      margin-bottom: 6px;
+      color: var(--cyan);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .content-card p,
+    .content-card li {
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    .content-card ul {
+      display: grid;
+      gap: 9px;
+      padding-left: 1.25rem;
+    }
+
+    .content-card li::marker {
+      color: var(--cyan);
+    }
+
+    .table-wrap {
+      margin-top: 4px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 520px;
+      border-collapse: collapse;
+      color: var(--ink-soft);
+      font-size: 0.91rem;
+      line-height: 1.6;
+    }
+
+    th,
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    th {
+      color: var(--ink);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .table-note {
+      margin-top: 14px;
+      color: var(--ink-muted);
+      font-size: 0.84rem;
+    }
+
+    code {
+      padding: 2px 6px;
+      border: 1px solid #34516e;
+      border-radius: 6px;
+      background: #10243a;
+      color: #c9e8ff;
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      line-height: 1.6;
+    }
+
+    /* 100% FULLSCREEN VIEWPORT LIGHTBOX */
+    .diagram-lightbox {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      max-height: 100vh;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: #050b14;
+      color: var(--ink);
+      overflow: hidden;
+    }
+
+    .diagram-lightbox:not([open]) {
+      display: none;
+    }
+
+    .diagram-lightbox::backdrop {
+      background: rgb(2 7 15 / 92%);
+    }
+
+    .diagram-lightbox[open] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .diagram-lightbox__header {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #0c1929;
+    }
+
+    .diagram-lightbox__header h2 {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 1.03rem;
+      font-weight: 700;
+      line-height: 1.6;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lightbox-controls {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .scale-badge {
+      display: inline-flex;
+      min-width: 106px;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 10px;
+      border: 1px solid #34516e;
+      border-radius: var(--radius-sm);
+      background: #091522;
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+
+    .close-btn {
+      border-color: rgb(255 142 142 / 65%);
+      background: rgb(127 31 47 / 45%);
+      color: #ffd1d1;
+    }
+
+    .close-btn:hover {
+      border-color: var(--danger);
+      background: rgb(156 44 58 / 72%);
+    }
+
+    /* TWO-TIER PAN & ZOOM SURFACE */
+    .lightbox-viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      flex: 1 1 auto;
+      overflow: hidden;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px),
+        #050b14;
+      background-size: 32px 32px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .lightbox-viewport.is-dragging,
+    .lightbox-viewport:active {
+      cursor: grabbing;
+    }
+
+    .lightbox-canvas {
+      position: absolute;
+      display: flex;
+      width: min(1500px, 96vw);
+      align-items: center;
+      justify-content: center;
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .lightbox-canvas > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 1500px;
+      filter: drop-shadow(0 20px 40px rgb(0 0 0 / 38%));
+    }
+
+    @media (max-width: 860px) {
+      .page-shell {
+        width: min(100% - 22px, 700px);
+        padding-top: 30px;
+      }
+
+      .stats-grid,
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-header,
+      .diagram-lightbox__header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .lightbox-controls {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .diagram-lightbox__header h2 {
+        width: 100%;
+        white-space: normal;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .diagram-body {
+        padding: 8px;
+      }
+
+      .diagram-footer,
+      .content-card {
+        padding: 16px;
+      }
+
+      .toolbar-btn {
+        padding-inline: 9px;
+        font-size: 0.78rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <div class="eyebrow">EVENT-DRIVEN ARCHITECTURE · ENTERPRISE</div>
+      <h1>สถาปัตยกรรม Event-Driven ระดับองค์กร</h1>
+      <p class="subtitle">
+        API Gateway รับคำขอและส่ง Event เข้า Kafka Event Bus จากนั้น Order Worker และ Payment Worker
+        ประมวลผลแยกอิสระ ก่อนบันทึกผลลง Database Cluster ด้วยธุรกรรมที่ตรวจสอบย้อนกลับได้
+      </p>
+    </header>
+
+    <section class="stats-grid" aria-label="สรุปคุณสมบัติของสถาปัตยกรรม">
+      <article class="stat-card">
+        <div class="stat-label">เส้นทางข้อมูลหลัก</div>
+        <div class="stat-value">API → Event → Worker → DB</div>
+        <p class="stat-copy">แยกการรับคำขอออกจากงานเบื้องหลัง เพื่อให้แต่ละส่วนขยายตัวได้ตามภาระงาน</p>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">รูปแบบการประมวลผล</div>
+        <div class="stat-value">Asynchronous</div>
+        <p class="stat-copy">Kafka เก็บ Event ตาม Topic แล้วกระจายให้ Worker ที่รับผิดชอบแต่ละโดเมน</p>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">หลักประกันข้อมูล</div>
+        <div class="stat-value">Idempotency + ACID</div>
+        <p class="stat-copy">Worker กันงานซ้ำ และ Database Cluster ยืนยันผลด้วยธุรกรรมที่ครบถ้วน</p>
+      </article>
+    </section>
+
+    <figure class="diagram-card" id="diag-eda-card">
+      <div class="diagram-header">
+        <div>
+          <div class="diagram-title">แผนผังการไหลของคำสั่งซื้อและการชำระเงิน</div>
+          <div class="diagram-hint">ลากเพื่อเลื่อน · หมุนล้อเมาส์เพื่อซูม · เปิดรายละเอียดเพื่อดูแผนผังเต็มขนาด</div>
+        </div>
+        <button type="button"
+                id="diag-eda-open"
+                class="expand-btn"
+                aria-controls="diag-eda-dialog"
+                aria-haspopup="dialog">
+          🔍 เปิดรายละเอียด
+        </button>
+      </div>
+
+      <div class="diagram-body">
+        <svg id="diag-eda-svg"
+             class="diagram-svg"
+             viewBox="0 0 1740 760"
+             preserveAspectRatio="xMidYMid meet"
+             width="100%"
+             height="auto"
+             role="img"
+             aria-labelledby="diag-eda-title diag-eda-desc">
+          <title id="diag-eda-title">Enterprise Event-Driven Architecture</title>
+          <desc id="diag-eda-desc">API Gateway รับคำขอ ส่ง Event เข้า Kafka Event Bus แล้วกระจายให้ Order Worker และ Payment Worker ก่อนบันทึกผลลง Database Cluster</desc>
+
+          <defs>
+            <marker id="diag-eda-arrow-cyan" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+              <polygon points="0,0 10,5 0,10" fill="#55d6ff"></polygon>
+            </marker>
+            <marker id="diag-eda-arrow-amber" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+              <polygon points="0,0 10,5 0,10" fill="#f7c85c"></polygon>
+            </marker>
+            <marker id="diag-eda-arrow-violet" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+              <polygon points="0,0 10,5 0,10" fill="#c4a6ff"></polygon>
+            </marker>
+            <marker id="diag-eda-arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+              <polygon points="0,0 10,5 0,10" fill="#ffad72"></polygon>
+            </marker>
+            <marker id="diag-eda-arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+              <polygon points="0,0 10,5 0,10" fill="#66e3a1"></polygon>
+            </marker>
+          </defs>
+
+          <rect x="0" y="0" width="1740" height="760" rx="20" fill="#081522" stroke="#28435f" stroke-width="2"></rect>
+          <text x="54" y="54" class="svg-kicker" fill="#55d6ff" font-size="13" font-weight="700" letter-spacing="0.1em">ARCHITECTURE FLOW / ORDER &amp; PAYMENT</text>
+          <text x="54" y="84" class="svg-caption" fill="#b7c9dc" font-size="16">รับคำขอครั้งเดียว แล้วปล่อยให้ Event ขับเคลื่อนงานแต่ละโดเมน</text>
+
+          <g id="diag-eda-zone-edge" aria-label="ชั้นรับคำขอ">
+            <rect x="30" y="112" width="610" height="560" rx="18" fill="#0b1b2b" stroke="#a47b26" stroke-width="2" stroke-dasharray="7 7"></rect>
+            <text x="56" y="142" class="svg-zone-title" fill="#f7c85c" font-size="15" font-weight="700">01 · ช่องทางรับคำขอ</text>
+            <text x="56" y="170" class="svg-zone-note" fill="#b7c9dc" font-size="12">ตรวจสอบสิทธิ์และจัดรูปแบบ Request</text>
+          </g>
+
+          <g id="diag-eda-zone-bus" aria-label="ชั้น Event Bus">
+            <rect x="660" y="112" width="370" height="560" rx="18" fill="#1d1714" stroke="#a96d3f" stroke-width="2" stroke-dasharray="7 7"></rect>
+            <text x="686" y="142" class="svg-zone-title" fill="#ffad72" font-size="15" font-weight="700">02 · Event Bus</text>
+            <text x="686" y="170" class="svg-zone-note" fill="#b7c9dc" font-size="12">เก็บ Event และส่งต่อแบบ Asynchronous</text>
+          </g>
+
+          <g id="diag-eda-zone-worker" aria-label="ชั้น Worker">
+            <rect x="1050" y="112" width="370" height="560" rx="18" fill="#17152a" stroke="#8067bc" stroke-width="2" stroke-dasharray="7 7"></rect>
+            <text x="1076" y="142" class="svg-zone-title" fill="#c4a6ff" font-size="15" font-weight="700">03 · Worker Cluster</text>
+            <text x="1076" y="170" class="svg-zone-note" fill="#b7c9dc" font-size="12">แยกงานตามขอบเขตของธุรกิจ</text>
+          </g>
+
+          <g id="diag-eda-zone-data" aria-label="ชั้นฐานข้อมูล">
+            <rect x="1440" y="112" width="270" height="560" rx="18" fill="#10231f" stroke="#3f9b72" stroke-width="2" stroke-dasharray="7 7"></rect>
+            <text x="1466" y="142" class="svg-zone-title" fill="#66e3a1" font-size="15" font-weight="700">04 · Data</text>
+            <text x="1466" y="170" class="svg-zone-note" fill="#b7c9dc" font-size="12">เก็บผลลัพธ์และ Audit Log</text>
+          </g>
+
+          <g id="diag-eda-node-client" aria-label="ระบบลูกค้า">
+            <rect x="70" y="300" width="210" height="112" rx="14" fill="#102c42" stroke="#55d6ff" stroke-width="2"></rect>
+            <circle cx="105" cy="335" r="13" fill="#55d6ff" opacity="0.9"></circle>
+            <circle cx="105" cy="335" r="5" fill="#081522"></circle>
+            <text x="180" y="342" class="svg-node-title" text-anchor="middle" fill="#ecf5ff" font-size="17" font-weight="700">ระบบลูกค้า</text>
+            <text x="175" y="376" class="svg-node-subtitle" text-anchor="middle" fill="#b7c9dc" font-size="13">Web / Mobile App</text>
+            <text x="175" y="397" class="svg-node-meta" text-anchor="middle" fill="#7f97b0" font-size="11">สร้างคำขอ Order</text>
+          </g>
+
+          <g id="diag-eda-node-gateway" aria-label="API Gateway">
+            <rect x="380" y="270" width="230" height="152" rx="14" fill="#2b2110" stroke="#f7c85c" stroke-width="2"></rect>
+            <text x="495" y="316" class="svg-node-title" text-anchor="middle" fill="#fff0ba" font-size="19" font-weight="700">API Gateway</text>
+            <text x="495" y="350" class="svg-node-subtitle" text-anchor="middle" fill="#f7c85c" font-size="14">รับคำขอและตรวจสิทธิ์</text>
+            <text x="495" y="382" class="svg-node-meta" text-anchor="middle" fill="#b7c9dc" font-size="12">REST / JSON · Rate Limit</text>
+            <rect x="420" y="392" width="150" height="18" rx="9" fill="#4b3510"></rect>
+            <text x="495" y="405" class="svg-node-chip" text-anchor="middle" fill="#f7c85c" font-size="10" font-weight="700">EDGE CONTROL</text>
+          </g>
+
+          <g id="diag-eda-node-kafka" aria-label="Kafka Event Bus">
+            <rect x="700" y="256" width="290" height="180" rx="14" fill="#2b1b12" stroke="#ffad72" stroke-width="2"></rect>
+            <circle cx="744" cy="304" r="15" fill="#ffad72" opacity="0.9"></circle>
+            <path d="M736 304 H752 M744 296 V312" stroke="#2b1b12" stroke-width="3" stroke-linecap="round"></path>
+            <text x="845" y="299" class="svg-node-title" text-anchor="middle" fill="#ffe1c9" font-size="18" font-weight="700">
+              <tspan x="845" dy="0">Kafka Event Bus</tspan>
+              <tspan x="845" dy="1.6em">ศูนย์กระจาย Event</tspan>
+            </text>
+            <text x="845" y="382" class="svg-node-subtitle" text-anchor="middle" fill="#ffad72" font-size="13">Topic: orders.* / payments.*</text>
+            <text x="845" y="407" class="svg-node-meta" text-anchor="middle" fill="#b7c9dc" font-size="12">Durable Log · Consumer Group</text>
+          </g>
+
+          <g id="diag-eda-node-order-worker" aria-label="Order Worker">
+            <rect x="1080" y="220" width="280" height="126" rx="14" fill="#211a3a" stroke="#c4a6ff" stroke-width="2"></rect>
+            <text x="1220" y="262" class="svg-node-title" text-anchor="middle" fill="#ede4ff" font-size="18" font-weight="700">Order Worker</text>
+            <text x="1220" y="292" class="svg-node-subtitle" text-anchor="middle" fill="#c4a6ff" font-size="14">สร้างและอัปเดตคำสั่งซื้อ</text>
+            <text x="1220" y="320" class="svg-node-meta" text-anchor="middle" fill="#b7c9dc" font-size="12">Consumer: orders.* · Idempotent</text>
+          </g>
+
+          <g id="diag-eda-node-payment-worker" aria-label="Payment Worker">
+            <rect x="1080" y="440" width="280" height="126" rx="14" fill="#211a3a" stroke="#c4a6ff" stroke-width="2"></rect>
+            <text x="1220" y="482" class="svg-node-title" text-anchor="middle" fill="#ede4ff" font-size="18" font-weight="700">Payment Worker</text>
+            <text x="1220" y="512" class="svg-node-subtitle" text-anchor="middle" fill="#c4a6ff" font-size="14">ยืนยันการชำระเงิน</text>
+            <text x="1220" y="540" class="svg-node-meta" text-anchor="middle" fill="#b7c9dc" font-size="12">Consumer: payments.* · Retry Safe</text>
+          </g>
+
+          <g id="diag-eda-node-database" aria-label="Database Cluster">
+            <rect x="1500" y="270" width="180" height="204" rx="14" fill="#102d25" stroke="#66e3a1" stroke-width="2"></rect>
+            <text x="1590" y="312" class="svg-node-title" text-anchor="middle" fill="#d9ffeb" font-size="16" font-weight="700">Database Cluster</text>
+            <text x="1590" y="340" class="svg-node-subtitle" text-anchor="middle" fill="#66e3a1" font-size="13">คลัสเตอร์ฐานข้อมูล</text>
+            <rect x="1520" y="362" width="140" height="31" rx="8" fill="#173d31" stroke="#2f7858"></rect>
+            <text x="1590" y="383" class="svg-node-meta" text-anchor="middle" fill="#b9f5d4" font-size="11">Primary + Replica</text>
+            <rect x="1520" y="401" width="140" height="31" rx="8" fill="#173d31" stroke="#2f7858"></rect>
+            <text x="1590" y="422" class="svg-node-meta" text-anchor="middle" fill="#b9f5d4" font-size="11">Order / Payment</text>
+            <rect x="1520" y="440" width="140" height="20" rx="8" fill="#173d31"></rect>
+            <text x="1590" y="455" class="svg-node-chip" text-anchor="middle" fill="#66e3a1" font-size="10" font-weight="700">ACID · AUDIT</text>
+          </g>
+
+          <!-- Every connection label has its own pill badge. All paths use H/V Manhattan steps. -->
+          <g id="diag-eda-edge-client-gateway" class="edge">
+            <path d="M280 356 H380" fill="none" stroke="#55d6ff" stroke-width="3" marker-end="url(#diag-eda-arrow-cyan)"></path>
+            <rect x="285" y="342" width="90" height="28" rx="14" fill="#07111f" stroke="#55d6ff" stroke-width="1.2" />
+            <text x="330" y="361" class="svg-edge-label" text-anchor="middle" fill="#9deaff" font-size="12" font-weight="700">HTTPS / JWT</text>
+          </g>
+
+          <g id="diag-eda-edge-gateway-kafka" class="edge">
+            <path d="M610 356 H700" fill="none" stroke="#f7c85c" stroke-width="3" marker-end="url(#diag-eda-arrow-amber)"></path>
+            <rect x="622" y="342" width="66" height="28" rx="14" fill="#07111f" stroke="#f7c85c" stroke-width="1.2" />
+            <text x="655" y="361" class="svg-edge-label" text-anchor="middle" fill="#ffe8a0" font-size="12" font-weight="700">ส่ง Event</text>
+          </g>
+
+          <g id="diag-eda-edge-kafka-order" class="edge">
+            <path d="M990 306 H1020 V194 H1035 V283 H1080" fill="none" stroke="#c4a6ff" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#diag-eda-arrow-violet)"></path>
+            <rect x="995" y="180" width="96" height="28" rx="14" fill="#07111f" stroke="#c4a6ff" stroke-width="1.2" />
+            <text x="1043" y="199" class="svg-edge-label" text-anchor="middle" fill="#ede4ff" font-size="12" font-weight="700">อ่าน orders</text>
+          </g>
+
+          <g id="diag-eda-edge-kafka-payment" class="edge">
+            <path d="M990 386 H1040 V503 H1080" fill="none" stroke="#ffad72" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#diag-eda-arrow-orange)"></path>
+            <rect x="995" y="376" width="100" height="28" rx="14" fill="#07111f" stroke="#ffad72" stroke-width="1.2" />
+            <text x="1045" y="395" class="svg-edge-label" text-anchor="middle" fill="#ffe1c9" font-size="12" font-weight="700">อ่าน payments</text>
+          </g>
+
+          <g id="diag-eda-edge-order-database" class="edge">
+            <path d="M1360 283 H1420 V310 H1500" fill="none" stroke="#66e3a1" stroke-width="3" marker-end="url(#diag-eda-arrow-green)"></path>
+            <rect x="1372" y="290" width="112" height="28" rx="14" fill="#07111f" stroke="#66e3a1" stroke-width="1.2" />
+            <text x="1428" y="309" class="svg-edge-label" text-anchor="middle" fill="#b9f5d4" font-size="12" font-weight="700">บันทึก Order</text>
+          </g>
+
+          <g id="diag-eda-edge-payment-database" class="edge">
+            <path d="M1360 503 H1450 V430 H1500" fill="none" stroke="#8cb9ff" stroke-width="3" marker-end="url(#diag-eda-arrow-green)"></path>
+            <rect x="1392" y="466" width="100" height="28" rx="14" fill="#07111f" stroke="#8cb9ff" stroke-width="1.2" />
+            <text x="1442" y="485" class="svg-edge-label" text-anchor="middle" fill="#d9e8ff" font-size="12" font-weight="700">ยืนยัน Payment</text>
+          </g>
+
+          <g id="diag-eda-footnote" aria-label="คำอธิบายการไหล">
+            <rect x="70" y="618" width="1610" height="34" rx="17" fill="#0d2234" stroke="#28435f"></rect>
+            <text x="875" y="641" class="svg-footnote" text-anchor="middle" fill="#b7c9dc" font-size="12">Kafka ช่วยแยกเวลาในการรับคำขอออกจากเวลาในการประมวลผล ทำให้ Worker แต่ละตัวขยายและลองใหม่ได้โดยไม่บล็อก Gateway</text>
+          </g>
+        </svg>
+      </div>
+
+      <figcaption class="diagram-footer">
+        <span class="legend-item legend-ingress"><span class="legend-swatch"></span> API Gateway · รับคำขอ</span>
+        <span class="legend-item legend-bus"><span class="legend-swatch"></span> Kafka · กระจาย Event</span>
+        <span class="legend-item legend-worker"><span class="legend-swatch"></span> Worker · ประมวลผลโดเมน</span>
+        <span class="legend-item legend-data"><span class="legend-swatch"></span> Database Cluster · เก็บผลลัพธ์</span>
+      </figcaption>
+    </figure>
+
+    <section class="content-grid" aria-label="เอกสารประกอบแผนผัง">
+      <article class="content-card">
+        <h2>วิธีอ่านแผนผัง</h2>
+        <p>
+          ระบบรับคำขอที่ API Gateway เพียงจุดเดียว จากนั้น Gateway ส่ง Event เข้า Kafka แทนการเรียก Worker โดยตรง
+          Kafka จึงทำหน้าที่เป็นขอบเขตคั่นกลางระหว่าง Request ที่ต้องตอบเร็วกับงานเบื้องหลังที่ใช้เวลานานกว่า
+        </p>
+        <h3>เส้นทางคำสั่งซื้อ</h3>
+        <p>
+          Order Worker อ่าน Event จาก Topic ของคำสั่งซื้อ แล้วตรวจสอบ Idempotency ก่อนบันทึกสถานะลง Database Cluster
+          การแยก Consumer Group ทำให้เพิ่มจำนวน Worker ได้โดยไม่ต้องปรับ API Gateway
+        </p>
+        <h3>เส้นทางการชำระเงิน</h3>
+        <p>
+          Payment Worker อ่าน Event ของการชำระเงินแยกจาก Order Worker ระบบกำหนด Retry ที่ปลอดภัยและเขียนผลด้วยธุรกรรม ACID
+          เพื่อไม่ให้การลองใหม่สร้างรายการชำระเงินซ้ำ
+        </p>
+      </article>
+
+      <article class="content-card">
+        <h2>จุดควบคุมที่ต้องรักษา</h2>
+        <ul>
+          <li><strong>API Gateway:</strong> ตรวจสอบ Token, จำกัดอัตราคำขอ และปฏิเสธ Payload ที่ไม่ตรง Schema ก่อนเข้าเครือข่ายภายใน</li>
+          <li><strong>Kafka Event Bus:</strong> กำหนด Topic, Retention และ Consumer Group ให้สอดคล้องกับอายุของข้อมูลแต่ละโดเมน</li>
+          <li><strong>Order / Payment Worker:</strong> ใช้ Idempotency Key, Dead-Letter Queue และ Retry Policy ที่ตรวจสอบได้</li>
+          <li><strong>Database Cluster:</strong> แยก Primary กับ Replica พร้อม Audit Log เพื่อรองรับการตรวจสอบย้อนหลังและการกู้คืน</li>
+        </ul>
+        <h3>หลักการออกแบบ</h3>
+        <p>
+          ถ้า Kafka ช้าลง Gateway ยังรับคำขอได้ตามขอบเขตที่กำหนด ถ้า Worker หยุดทำงาน Event ยังอยู่ใน Log และกลับมาประมวลผลต่อได้
+          ขอบเขตเหล่านี้ช่วยลดการผูกกันแน่นระหว่างบริการและทำให้วิเคราะห์เหตุขัดข้องได้ตรงจุด
+        </p>
+      </article>
+    </section>
+
+    <section class="content-card" style="margin-top: 24px;">
+      <h2>สรุปความรับผิดชอบของแต่ละคอมโพเนนต์</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>คอมโพเนนต์</th>
+              <th>หน้าที่หลัก</th>
+              <th>ขอบเขตความรับผิดชอบ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>API Gateway</td>
+              <td>รับ Request และส่ง Event</td>
+              <td>Authentication, Rate Limit และการตรวจ Schema</td>
+            </tr>
+            <tr>
+              <td>Kafka Event Bus</td>
+              <td>เก็บและกระจาย Event</td>
+              <td>Topic, Retention และ Consumer Group</td>
+            </tr>
+            <tr>
+              <td>Order / Payment Worker</td>
+              <td>ประมวลผลตามโดเมน</td>
+              <td>Idempotency, Retry และการเปลี่ยนสถานะ</td>
+            </tr>
+            <tr>
+              <td>Database Cluster</td>
+              <td>เก็บผลลัพธ์ทางธุรกิจ</td>
+              <td>ACID Transaction, Replica และ Audit Log</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note">คำศัพท์เทคนิคคงรูปแบบสากลไว้ เพื่อให้ค้นต่อในเอกสารระบบและ Source Code ได้ตรงกัน</p>
+    </section>
+  </main>
+
+  <dialog class="diagram-lightbox"
+          id="diag-eda-dialog"
+          aria-labelledby="diag-eda-dialog-title">
+    <div class="diagram-lightbox__header">
+      <h2 id="diag-eda-dialog-title">Enterprise Event-Driven Architecture · มุมมองเต็มขนาด</h2>
+      <div class="lightbox-controls" role="group" aria-label="ตัวควบคุมการดูแผนผัง">
+        <button type="button" id="diag-eda-zoom-in" class="toolbar-btn" aria-label="Zoom In">➕ Zoom In</button>
+        <button type="button" id="diag-eda-zoom-out" class="toolbar-btn" aria-label="Zoom Out">➖ Zoom Out</button>
+        <button type="button" id="diag-eda-zoom-reset" class="toolbar-btn" aria-label="Reset">↺ Reset</button>
+        <span id="diag-eda-scale-badge" class="scale-badge">สเกล: 100%</span>
+        <button type="button" id="diag-eda-close" class="toolbar-btn close-btn" aria-label="Close (Escape)">✕ Close (Esc)</button>
+      </div>
+    </div>
+    <div class="lightbox-viewport" id="diag-eda-viewport">
+      <div class="lightbox-canvas" id="diag-eda-canvas"></div>
+    </div>
+  </dialog>
+
+  <script>
+    (() => {
+      const card = document.querySelector("#diag-eda-card");
+      const sourceSvg = card.querySelector("svg");
+      const trigger = card.querySelector("#diag-eda-open");
+      const dialog = document.querySelector("#diag-eda-dialog");
+      const viewport = dialog.querySelector("#diag-eda-viewport");
+      const canvas = dialog.querySelector("#diag-eda-canvas");
+      const closeButton = dialog.querySelector("#diag-eda-close");
+      const btnZoomIn = dialog.querySelector("#diag-eda-zoom-in");
+      const btnZoomOut = dialog.querySelector("#diag-eda-zoom-out");
+      const btnZoomReset = dialog.querySelector("#diag-eda-zoom-reset");
+      const scaleBadge = dialog.querySelector("#diag-eda-scale-badge");
+      const placeholder = document.createComment("ตำแหน่งเดิมของ SVG");
+
+      let scale = 1;
+      let translateX = 0;
+      let translateY = 0;
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+
+      function applyTransform() {
+        canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        scaleBadge.textContent = `สเกล: ${Math.round(scale * 100)}%`;
+      }
+
+      function resetTransform() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        applyTransform();
+      }
+
+      function zoom(delta, clientX, clientY) {
+        const oldScale = scale;
+        const newScale = Math.min(Math.max(0.45, scale + delta), 4);
+        if (newScale === oldScale) return;
+
+        if (clientX !== undefined && clientY !== undefined) {
+          const rect = viewport.getBoundingClientRect();
+          const originX = clientX - (rect.left + rect.width / 2);
+          const originY = clientY - (rect.top + rect.height / 2);
+          translateX -= (originX / oldScale) * (newScale - oldScale);
+          translateY -= (originY / oldScale) * (newScale - oldScale);
+        }
+
+        scale = newScale;
+        applyTransform();
+      }
+
+      function openModal() {
+        if (dialog.open) return;
+
+        // ย้าย SVG node เดิมเพียงครั้งเดียว เพื่อรักษา IDs ภายใน SVG ให้ไม่ซ้ำกัน
+        sourceSvg.replaceWith(placeholder);
+        canvas.replaceChildren(sourceSvg);
+        sourceSvg.style.width = "100%";
+        sourceSvg.style.maxWidth = "1500px";
+        sourceSvg.style.height = "auto";
+        sourceSvg.style.maxHeight = "none";
+
+        resetTransform();
+        trigger.setAttribute("aria-expanded", "true");
+        if (typeof dialog.showModal === "function") {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute("open", "");
+        }
+        closeButton.focus();
+      }
+
+      function restoreSource() {
+        if (placeholder.parentNode) {
+          placeholder.replaceWith(sourceSvg);
+        }
+        sourceSvg.style.width = "";
+        sourceSvg.style.maxWidth = "";
+        sourceSvg.style.height = "";
+        sourceSvg.style.maxHeight = "";
+        canvas.replaceChildren();
+        viewport.classList.remove("is-dragging");
+        isDragging = false;
+        trigger.setAttribute("aria-expanded", "false");
+        resetTransform();
+        trigger.focus();
+      }
+
+      function closeModal() {
+        if (typeof dialog.close === "function" && dialog.open) {
+          dialog.close();
+        } else {
+          dialog.removeAttribute("open");
+          restoreSource();
+        }
+      }
+
+      trigger.addEventListener("click", openModal);
+      closeButton.addEventListener("click", closeModal);
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeModal();
+      });
+      dialog.addEventListener("close", restoreSource);
+
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) closeModal();
+      });
+
+      btnZoomIn.addEventListener("click", () => zoom(0.25));
+      btnZoomOut.addEventListener("click", () => zoom(-0.25));
+      btnZoomReset.addEventListener("click", resetTransform);
+
+      // Cursor-centered mouse wheel zoom
+      viewport.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        zoom(event.deltaY < 0 ? 0.15 : -0.15, event.clientX, event.clientY);
+      }, { passive: false });
+
+      // Mouse drag-to-pan
+      viewport.addEventListener("mousedown", (event) => {
+        if (event.button !== 0) return;
+        isDragging = true;
+        startX = event.clientX - translateX;
+        startY = event.clientY - translateY;
+        viewport.classList.add("is-dragging");
+      });
+
+      window.addEventListener("mousemove", (event) => {
+        if (!isDragging) return;
+        translateX = event.clientX - startX;
+        translateY = event.clientY - startY;
+        applyTransform();
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        viewport.classList.remove("is-dragging");
+      });
+
+      // Mobile touch panning
+      viewport.addEventListener("touchstart", (event) => {
+        if (event.touches.length !== 1) return;
+        isDragging = true;
+        startX = event.touches[0].clientX - translateX;
+        startY = event.touches[0].clientY - translateY;
+        viewport.classList.add("is-dragging");
+      }, { passive: true });
+
+      viewport.addEventListener("touchmove", (event) => {
+        if (!isDragging || event.touches.length !== 1) return;
+        event.preventDefault();
+        translateX = event.touches[0].clientX - startX;
+        translateY = event.touches[0].clientY - startY;
+        applyTransform();
+      }, { passive: false });
+
+      viewport.addEventListener("touchend", () => {
+        isDragging = false;
+        viewport.classList.remove("is-dragging");
+      });
+    })();
+  </script>
+</body>
+</html>
