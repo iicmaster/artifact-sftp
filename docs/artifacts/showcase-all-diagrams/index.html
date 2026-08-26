@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archify Diagram Showcase Hub (ครบ 5 รูปแบบ)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --emerald: #10b981;
+      --purple: #8b5cf6;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --cyan: #06b6d4;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.65;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--card-border);
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .header-title h1 {
+      font-family: 'Prompt', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-hub {
+      font-size: 0.75rem;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid var(--accent);
+      color: var(--accent-hover);
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+
+    .header-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      background: #0f172a;
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      font-family: 'Prompt', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 500;
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px 24px;
+      gap: 16px;
+    }
+
+    .info-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .info-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.9rem;
+    }
+
+    .info-meta strong {
+      color: #fff;
+      font-family: 'Prompt', sans-serif;
+    }
+
+    .open-direct-btn {
+      font-family: 'Prompt', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #334155;
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .open-direct-btn:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    .viewer-frame-container {
+      flex: 1;
+      min-height: 720px;
+      background: #020617;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      min-height: 720px;
+      border: none;
+      display: block;
+    }
+
+    footer {
+      padding: 16px 32px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--card-border);
+      background: #090d16;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <h1>
+        🏛️ Archify Diagram Showcase Hub
+        <span class="badge-hub">v2.16.0 Enterprise</span>
+      </h1>
+      <p class="header-desc">ทดสอบการคอมไพล์และแสดงผลไดอะแกรมเชิงสถาปัตยกรรมแบบ Interactive ครบทั้ง 5 Archetypes</p>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchDiagram(0, '01-architecture-deployment.html', 'Architecture: Production Deployment Ownership', 'microservices, cloud boundaries, infrastructure, security zones')">
+        🏛️ 1. Architecture
+      </button>
+      <button class="tab-btn" onclick="switchDiagram(1, '02-workflow-agent-loop.html', 'Workflow: Agent Tool Call Runbook', 'CI/CD pipelines, approval gates, runbooks, tool loops')">
+        🔄 2. Workflow
+      </button>
+      <button class="tab-btn" onclick="switchDiagram(2, '03-sequence-cache-miss.html', 'Sequence: Cache-Miss API Request Lifecycle', 'API request/response lifecycles, async message chains')">
+        ⚡ 3. Sequence
+      </button>
+      <button class="tab-btn" onclick="switchDiagram(3, '04-dataflow-analytics.html', 'Dataflow: Real-time Product Analytics Pipeline', 'ETL/ELT pipelines, streaming data lineage, governance')">
+        🌊 4. Dataflow
+      </button>
+      <button class="tab-btn" onclick="switchDiagram(4, '05-lifecycle-agent-run.html', 'Lifecycle: Agent Run State Machine', 'state machines, status transitions, retries, terminal states')">
+        🔀 5. Lifecycle
+      </button>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <div class="info-bar">
+      <div class="info-meta">
+        <span id="current-title"><strong>แบบที่ 1: Architecture</strong> — Production Deployment Ownership</span>
+        <span style="color: #475569;">|</span>
+        <span id="current-desc" style="color: var(--text-muted);">Microservices, AWS Cloud, Security Boundaries, Database Replicas</span>
+      </div>
+      <a id="direct-link" href="01-architecture-deployment.html" target="_blank" class="open-direct-btn">
+        ↗ เปิดดูไฟล์แยก (Full Window)
+      </a>
+    </div>
+
+    <div class="viewer-frame-container">
+      <iframe id="diagram-frame" src="01-architecture-deployment.html"></iframe>
+    </div>
+  </div>
+
+  <footer>
+    Artifact SFTP &amp; Archify Engine • 100% Client-Side Interactive SVG • Dark/Light Themes • Shortest Route Probing • 1200×630 Share Cards
+  </footer>
+
+  <script>
+    const diagrams = [
+      { file: '01-architecture-deployment.html', title: 'แบบที่ 1: Architecture — Production Deployment Ownership', desc: 'Microservices, AWS Cloud, Security Boundaries, Database Replicas' },
+      { file: '02-workflow-agent-loop.html', title: 'แบบที่ 2: Workflow — Agent Tool Call Runbook', desc: 'Process orchestration, approval gates, and autonomous execution loops' },
+      { file: '03-sequence-cache-miss.html', title: 'แบบที่ 3: Sequence — Cache-Miss API Request Lifecycle', desc: 'Synchronous API hops, Redis cache lookup, PostgreSQL fallback & write-back' },
+      { file: '04-dataflow-analytics.html', title: 'แบบที่ 4: Dataflow — Real-time Product Analytics Pipeline', desc: 'Clickstream intake, Kafka streaming, ETL transforms, and BI consumers' },
+      { file: '05-lifecycle-agent-run.html', title: 'แบบที่ 5: Lifecycle — Agent Run State Machine', desc: 'State progression, validation gates, retry loops, and terminal checkpoints' }
+    ];
+
+    function switchDiagram(index, file, title, desc) {
+      document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+        btn.classList.toggle('active', idx === index);
+      });
+      document.getElementById('diagram-frame').src = file;
+      document.getElementById('current-title').innerHTML = `<strong>${diagrams[index].title.split('—')[0]}</strong> — ${diagrams[index].title.split('—')[1]}`;
+      document.getElementById('current-desc').textContent = diagrams[index].desc;
+      document.getElementById('direct-link').href = file;
+    }
+  </script>
+</body>
+</html>

@@ -125,6 +125,9 @@ System change — **Diff**:
 +environment["PATH"] = without this adapter's own venv
 ```
 
+Comprehensive system architecture or state map (Level 3 & 4) — **Archify Interactive Diagram**:
+Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <output.html> --quality showcase` to produce interactive, dark/light theme diagrams with route tracing, semantic lenses, and 1200×630 share card exports.
+
 ---
 
 ## 5. The Primary Output: Audited, Published HTML Artifact

@@ -22,7 +22,47 @@ Visual diagrams must accelerate comprehension, not create cognitive burden. A go
 
 ---
 
-## 2. Strict Syntax & Parsing Safety (The "Never Fail" Rules)
+## 2. High-Fidelity Typed Diagram Engine (Archify)
+
+For complex, enterprise-grade architecture maps, workflows, sequences, data pipelines, and lifecycle diagrams delivered as standalone HTML artifacts, use the bundled **Archify Engine** located at `tools/archify/bin/archify.mjs`.
+
+Archify uses a typed JSON Intermediate Representation (IR) to compile deterministic, responsive, zero-collision SVG diagrams with built-in dark/light themes, motion presets, semantic route probing, and 1200×630 share card exports.
+
+### 5 Diagram Archetypes
+
+| Type | Use For | Schema Path |
+|---|---|---|
+| `architecture` | Microservices, cloud boundaries, infrastructure, security zones | `tools/archify/schemas/architecture.schema.json` |
+| `workflow` | CI/CD pipelines, approval gates, runbooks, tool call loops | `tools/archify/schemas/workflow.schema.json` |
+| `sequence` | API request/response lifecycles, async message chains | `tools/archify/schemas/sequence.schema.json` |
+| `dataflow` | ETL/ELT pipelines, streaming data lineage, governance | `tools/archify/schemas/dataflow.schema.json` |
+| `lifecycle` | State machines, status transitions, retries, terminal states | `tools/archify/schemas/lifecycle.schema.json` |
+
+### Authoring & Delivery Workflow
+
+1. **Author Candidate Specification**:
+   - Create `<diagram-name>.<type>.json` conforming to the archetype schema and `tools/archify/schemas/common.schema.json`.
+   - Set `"quality_profile": "showcase"` in `meta` for pristine production standards.
+   - Reference examples in `tools/archify/examples/` for structure and shape.
+
+2. **Validate with Deterministic Quality Gates**:
+   ```bash
+   node tools/archify/bin/archify.mjs validate <type> <candidate.json> --quality showcase --json
+   ```
+   Ensures 0 composition errors, 0 collision warnings, and full 9 artifact checks passing.
+
+3. **Deliver Atomic HTML Artifact**:
+   ```bash
+   node tools/archify/bin/archify.mjs deliver <type> <candidate.json> <output.html> --quality showcase --json
+   ```
+
+4. **Pre-flight Audit & SFTP Publish**:
+   - Audit with `artifact-audit` to guarantee Thai `line-height >= 1.5` and Sarabun font injection.
+   - Publish securely via `artifact_sftp.publish`.
+
+---
+
+## 3. Strict Syntax & Parsing Safety (The "Never Fail" Rules for Mermaid)
 
 Mermaid parsers fail abruptly on unescaped symbols, malformed IDs, or deep subgraph recursion. Follow these non-negotiable rules for every generated diagram:
 
