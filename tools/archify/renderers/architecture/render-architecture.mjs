@@ -1079,14 +1079,14 @@ ${renderLegend()}
 validateArchitecture();
 if (layoutJsonMode) {
   console.log(JSON.stringify(buildLayoutReport(), null, 2));
-  process.exit(0);
+} else {
+  writeDiagram({
+    outPath,
+    template,
+    diagramType: 'architecture',
+    meta: arch.meta,
+    svg: renderSvg(),
+    cards: arch.cards,
+    sourceEvidence,
+  });
 }
-writeDiagram({
-  outPath,
-  template,
-  diagramType: 'architecture',
-  meta: arch.meta,
-  svg: renderSvg(),
-  cards: arch.cards,
-  sourceEvidence,
-});

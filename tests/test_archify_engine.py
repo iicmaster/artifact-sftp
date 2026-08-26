@@ -359,6 +359,54 @@ class ArchifyEngineTestCase(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"Visual check theme mismatch test failed: {result.stderr}\n{result.stdout}")
         self.assertIn("OK", result.stdout)
 
+    def test_architecture_inspect_large_layout_report_completes_json(self):
+        """Verify that architecture layout JSON report finishes writing and is valid JSON."""
+        components = []
+        connections = []
+        for r in range(10):
+            for c in range(5):
+                comp_id = f"comp_{r}_{c}"
+                components.append({
+                    "id": comp_id,
+                    "label": f"Service {r} {c}",
+                    "type": "backend",
+                    "pos": [40 + c * 250, 40 + r * 100],
+                    "size": [140, 50]
+                })
+                if c < 4:
+                    connections.append({
+                        "from": comp_id,
+                        "to": f"comp_{r}_{c+1}"
+                    })
+        arch_spec = {
+            "schema_version": 1,
+            "diagram_type": "architecture",
+            "meta": {
+                "title": "Large Architecture Inspect Test",
+                "viewBox": [1400, 1200]
+            },
+            "components": components,
+            "connections": connections
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            spec_path = Path(tmpdir) / "large-arch.json"
+            spec_path.write_text(json.dumps(arch_spec), encoding="utf-8")
+
+            # Run inspect architecture
+            result = subprocess.run(
+                ["node", str(ARCHIFY_BIN), "inspect", "architecture", str(spec_path)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, f"Inspect failed: {result.stderr}\n{result.stdout}")
+            # Ensure the output is valid complete JSON
+            parsed = json.loads(result.stdout)
+            self.assertIsInstance(parsed, dict)
+            self.assertIn("components", parsed)
+
 
 if __name__ == "__main__":
     unittest.main()
