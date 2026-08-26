@@ -295,6 +295,70 @@ class ArchifyEngineTestCase(unittest.TestCase):
             self.assertNotEqual(val_result.returncode, 0, "Expected validation failure for out-of-bounds labelAt")
             self.assertIn("outside the viewBox", val_result.stderr + val_result.stdout)
 
+    def test_visual_check_fails_on_theme_resolution_mismatch(self):
+        """Verify that runVisualCheck fails if captures do not resolve the requested theme."""
+        js_code = """
+        import { runVisualCheck } from './tools/archify/bin/visual-check.mjs';
+        import fs from 'node:fs';
+        import path from 'node:path';
+        import os from 'node:os';
+
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-test-vc-'));
+        const htmlPath = path.join(tmp, 'test.html');
+        fs.writeFileSync(htmlPath, '<!doctype html><html lang="en" data-theme="light"><body><div>Test</div></body></html>');
+
+        class FakeBrowser {
+          async inspect({ theme }) {
+            // Simulate broken theme switching where dark request still resolves as light
+            return {
+              innerWidth: 1200,
+              innerHeight: 800,
+              scrollWidth: 1200,
+              scrollHeight: 800,
+              resolvedTheme: 'light', // Always light!
+              readerWidth: 1000,
+              diagramWidth: 900,
+              viewBoxWidth: 900,
+              minimumProjectedNodeTextPx: 12,
+              hasLegend: false,
+              hasNavigationDock: false,
+              legendDockIntersectionArea: 0,
+              viewerChromeReserve: 0,
+              viewerChromeActive: false
+            };
+          }
+          async close() {}
+        }
+
+        runVisualCheck({
+          artifactPath: htmlPath,
+          chromePath: '/dummy/chrome',
+          browserFactory: async () => new FakeBrowser()
+        }).then(result => {
+          if (result.receipt.captures.status !== 'fail') {
+            console.error('Expected captures.status fail, got:', result.receipt.captures.status);
+            process.exit(1);
+          }
+          if (result.receipt.ok !== false) {
+            console.error('Expected receipt.ok false, got:', result.receipt.ok);
+            process.exit(1);
+          }
+          console.log('OK');
+        }).catch(err => {
+          console.error(err);
+          process.exit(1);
+        });
+        """
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", js_code],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, f"Visual check theme mismatch test failed: {result.stderr}\n{result.stdout}")
+        self.assertIn("OK", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -517,7 +517,7 @@ function observation({ width, height, theme, metrics }) {
     viewerChromeReserve: Number(metrics.viewerChromeReserve) || 0,
     viewerChromeActive: Boolean(metrics.viewerChromeActive),
     viewerChromeOk,
-    resolvedTheme: metrics.resolvedTheme || theme,
+    resolvedTheme: metrics.resolvedTheme || null,
   };
 }
 
@@ -660,13 +660,15 @@ export async function runVisualCheck({
     const containmentPass = allObservations.every((entry) => entry.ok);
     const readabilityPass = receipt.readability.viewports.every((entry) => entry.readabilityOk);
     const viewerChromePass = allObservations.every((entry) => entry.viewerChromeOk);
+    const capturesPass = receipt.captures.screenshots.length > 0
+      && receipt.captures.screenshots.every((entry) => entry.resolvedTheme === entry.theme);
     receipt.containment.status = containmentPass ? 'pass' : 'fail';
     receipt.readability.status = readabilityPass ? 'pass' : 'fail';
     receipt.viewerChrome.status = viewerChromePass ? 'pass' : 'fail';
-    receipt.captures.status = 'pass';
+    receipt.captures.status = capturesPass ? 'pass' : 'fail';
     receipt.captures.contactSheet = path.basename(outputs.contactSheet);
-    receipt.status = containmentPass && readabilityPass && viewerChromePass ? 'pass' : 'fail';
-    receipt.ok = containmentPass && readabilityPass && viewerChromePass;
+    receipt.status = containmentPass && readabilityPass && viewerChromePass && capturesPass ? 'pass' : 'fail';
+    receipt.ok = containmentPass && readabilityPass && viewerChromePass && capturesPass;
     writeAtomic(outputs.contactSheet, contactSheetHtml({
       artifactPath: artifact,
       receipt,
