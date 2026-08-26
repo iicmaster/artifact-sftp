@@ -3,7 +3,7 @@ import { rectsOverlap, segmentIntersectsRect } from './geometry.mjs';
 import { esc, textUnits } from './utils.mjs';
 import { translateMessage } from './i18n.mjs';
 
-const DEFAULT_FONT_SIZE = 8;
+const DEFAULT_FONT_SIZE = 10;
 const DEFAULT_ITEM_GAP = 22;
 const DEFAULT_LINE_GAP = 22;
 const DEFAULT_SWATCH_GAP = 8;
@@ -196,7 +196,7 @@ export function renderLegend({ entries, layout, renderSwatch, locale }) {
   const measured = measureLegend(entries, layout);
   if (!measured) return '';
   const hasInteractiveEntries = measured.entries.some((entry) => entry.interactive);
-  const renderedFontSize = measured.fontSize < 8 ? measured.fontSize + 0.5 : measured.fontSize + 2;
+  const renderedFontSize = measured.fontSize;
   const rootAttributes = hasInteractiveEntries ? ' data-legend="" data-legend-bridge=""' : ' data-legend=""';
   const parts = [
     `        <g${rootAttributes}>`,

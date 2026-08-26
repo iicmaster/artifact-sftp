@@ -227,6 +227,39 @@ class ArchifyEngineTestCase(unittest.TestCase):
             html_content = output_html.read_text(encoding="utf-8")
             self.assertIn('data-edge-role="error"', html_content)
 
+    def test_legend_measurement_and_rendered_font_size_parity(self):
+        """Verify that legend measurement and rendered SVG text use the exact same font size."""
+        js_code = """
+        import('./tools/archify/renderers/shared/legend.mjs').then(m => {
+          const entries = [
+            { kind: 'k1', label: 'Primary Data Flow Stream' },
+            { kind: 'k2', label: 'Secondary Analytics Pipeline' }
+          ];
+          const layout = { x: 30, baselineY: 400, width: 800 };
+          const measured = m.measureLegend(entries, layout);
+          const rendered = m.renderLegend({
+            entries,
+            layout,
+            renderSwatch: () => '<rect width="14" height="14"/>',
+            locale: 'en'
+          });
+          if (!rendered.includes(`font-size="${measured.fontSize}"`)) {
+            console.error('Mismatch between measured and rendered font size:', measured.fontSize, rendered);
+            process.exit(1);
+          }
+          console.log('OK');
+        });
+        """
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", js_code],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, f"Legend font size parity test failed: {result.stderr}\n{result.stdout}")
+        self.assertIn("OK", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
