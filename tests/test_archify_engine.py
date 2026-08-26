@@ -113,6 +113,83 @@ class ArchifyEngineTestCase(unittest.TestCase):
                     self.assertIn("Sarabun", html_content)
                     self.assertIn("line-height: 1.6", html_content)
 
+    def test_thai_text_units_ignores_zero_advance_combining_marks(self):
+        """Verify that Thai combining marks (vowels/tones) do not inflate horizontal text units."""
+        js_code = """
+        import('./tools/archify/renderers/shared/utils.mjs').then(m => {
+          const t1 = m.textUnits('ที่นี่');
+          const t2 = m.textUnits('ผู้ใช้งาน');
+          const t3 = m.textUnits('สถาปัตยกรรม');
+          if (t1 !== 2 || t2 !== 6 || t3 !== 10) {
+            console.error(JSON.stringify({ t1, t2, t3 }));
+            process.exit(1);
+          }
+          console.log('OK');
+        });
+        """
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", js_code],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, f"Thai textUnits test failed: {result.stderr}\n{result.stdout}")
+        self.assertIn("OK", result.stdout)
+
+    def test_thai_locale_metadata_and_html_generation(self):
+        """Verify that locale 'th' is accepted by schema validator and produces <html lang="th">."""
+        thai_spec = {
+            "schema_version": 1,
+            "diagram_type": "workflow",
+            "meta": {
+                "title": "ระบบชำระเงินอัตโนมัติ",
+                "locale": "th",
+                "quality_profile": "standard"
+            },
+            "lanes": [
+                {"id": "user_lane", "label": "ผู้ใช้งาน", "variant": "normal"},
+                {"id": "sys_lane", "label": "ระบบชำระเงิน", "variant": "normal"}
+            ],
+            "nodes": [
+                {"id": "start", "lane": "user_lane", "col": 0, "type": "frontend", "label": "กดปุ่มชำระเงิน"},
+                {"id": "process", "lane": "sys_lane", "col": 1, "type": "backend", "label": "ตัดยอดบัตรเครดิต"}
+            ],
+            "edges": [
+                {"id": "e1", "from": "start", "to": "process", "label": "ส่งคำสั่ง", "variant": "emphasis"}
+            ]
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            spec_path = Path(tmpdir) / "thai-workflow.json"
+            output_html = Path(tmpdir) / "thai-workflow.html"
+            spec_path.write_text(json.dumps(thai_spec, ensure_ascii=False), encoding="utf-8")
+
+            # 1. Validate spec with locale="th"
+            val_result = subprocess.run(
+                ["node", str(ARCHIFY_BIN), "validate", "workflow", str(spec_path), "--json"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(val_result.returncode, 0, f"Validation failed: {val_result.stderr}\n{val_result.stdout}")
+            val_data = json.loads(val_result.stdout)
+            self.assertTrue(val_data.get("ok"))
+
+            # 2. Deliver HTML with locale="th"
+            del_result = subprocess.run(
+                ["node", str(ARCHIFY_BIN), "deliver", "workflow", str(spec_path), str(output_html), "--json"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(del_result.returncode, 0, f"Delivery failed: {del_result.stderr}\n{del_result.stdout}")
+            self.assertTrue(output_html.exists())
+            html_content = output_html.read_text(encoding="utf-8")
+            self.assertIn('lang="th"', html_content)
+
 
 if __name__ == "__main__":
     unittest.main()

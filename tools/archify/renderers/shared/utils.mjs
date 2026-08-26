@@ -217,12 +217,17 @@ const VARIATION_SELECTOR_LAST = 0xfe0f;
 const VARIATION_SELECTOR_TEXT = 0xfe0e;
 const VARIATION_SELECTOR_EMOJI = 0xfe0f;
 
+// Nonspacing combining marks (Unicode category Mn and Me) carry zero horizontal advance
+// (e.g. Thai vowels and tone marks U+0E31, U+0E34-U+0E3A, U+0E47-U+0E4E, combining accents, etc.).
+const NONSPACING_MARK_RE = /\p{Mn}|\p{Me}/u;
+
 export function textUnits(text) {
   const chars = Array.from(String(text ?? ''));
   let units = 0;
   for (let i = 0; i < chars.length; i += 1) {
     const codePoint = chars[i].codePointAt(0);
     if (codePoint >= VARIATION_SELECTOR_FIRST && codePoint <= VARIATION_SELECTOR_LAST) continue;
+    if (NONSPACING_MARK_RE.test(chars[i])) continue;
     const next = i + 1 < chars.length ? chars[i + 1].codePointAt(0) : -1;
     if (next === VARIATION_SELECTOR_EMOJI) units += 2;
     else if (next === VARIATION_SELECTOR_TEXT) units += 1;
