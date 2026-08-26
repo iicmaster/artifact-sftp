@@ -39,7 +39,7 @@ does; `brand` explains whose product it is.
      "label": "Partner portal",
      "brand": {
        "url": "https://partner.example.com",
-       "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+       "sha256": "<hex-sha256-digest-from-brands-capture>"
      }
    }
    ```
