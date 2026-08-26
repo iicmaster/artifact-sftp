@@ -305,6 +305,9 @@ function validateLifecycle() {
     labelRects.push({ relation: transition, relationIndex: transitionIndex, label: transition.label, x: lx - width / 2, y: ly - 11, width, height, lx, ly });
   }
   for (const rect of labelRects) {
+    if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > viewBox[0] || rect.y + rect.height > viewBox[1]) {
+      problems.push(`Transition label "${rect.label}" extends outside the viewBox (${viewBox[0]}x${viewBox[1]}) — adjust labelAt, labelDx, or labelDy.`);
+    }
     for (const state of states.values()) {
       if (rectsOverlap(rect, state, -2)) {
         problems.push(`Label "${rect.label}" overlaps state "${state.id}" — adjust labelDx/labelDy/labelSegment or set labelAt.\n${suggestLabelObstacleFix(rect, rect.lx, rect.ly, state, 'state')}`);

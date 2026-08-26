@@ -260,6 +260,41 @@ class ArchifyEngineTestCase(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"Legend font size parity test failed: {result.stderr}\n{result.stdout}")
         self.assertIn("OK", result.stdout)
 
+    def test_workflow_rejects_labels_outside_viewbox(self):
+        """Verify that workflow labels positioned outside the viewBox are rejected during validation."""
+        workflow_spec = {
+            "schema_version": 1,
+            "diagram_type": "workflow",
+            "meta": {
+                "title": "Out of Bounds Label Test",
+                "quality_profile": "showcase"
+            },
+            "lanes": [
+                {"id": "main_lane", "label": "Main", "variant": "normal"}
+            ],
+            "nodes": [
+                {"id": "n1", "lane": "main_lane", "col": 0, "type": "frontend", "label": "Start"},
+                {"id": "n2", "lane": "main_lane", "col": 2, "type": "backend", "label": "Handler"}
+            ],
+            "edges": [
+                {"id": "e1", "from": "n1", "to": "n2", "label": "Way Out There", "labelAt": [10000, 10000]}
+            ]
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            spec_path = Path(tmpdir) / "out-of-bounds-workflow.json"
+            spec_path.write_text(json.dumps(workflow_spec), encoding="utf-8")
+
+            val_result = subprocess.run(
+                ["node", str(ARCHIFY_BIN), "validate", "workflow", str(spec_path), "--quality", "showcase", "--json"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(val_result.returncode, 0, "Expected validation failure for out-of-bounds labelAt")
+            self.assertIn("outside the viewBox", val_result.stderr + val_result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

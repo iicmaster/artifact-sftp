@@ -583,6 +583,9 @@ function validateArchitecture() {
     labelRects.push({ relation: conn, relationIndex: connectionIndex, label: conn.label, x: lx - w / 2, y: ly - 10, width: w, height: 14, lx, ly });
   }
   for (const rect of labelRects) {
+    if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > viewBox[0] || rect.y + rect.height > viewBox[1]) {
+      problems.push(`Connection label "${rect.label}" extends outside the viewBox (${viewBox[0]}x${viewBox[1]}) — adjust labelAt, labelDx, or labelDy.`);
+    }
     for (const c of components.values()) {
       if (rectsOverlap(rect, c, -2)) {
         problems.push(`Label "${rect.label}" overlaps component "${c.id}" — adjust labelDx/labelDy/labelSegment or set labelAt.\n${suggestLabelObstacleFix(rect, rect.lx, rect.ly, c)}`);
