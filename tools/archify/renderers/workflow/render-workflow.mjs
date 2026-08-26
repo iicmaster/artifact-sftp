@@ -663,7 +663,7 @@ function renderEdgePath(edge, index) {
   const [cls, marker] = arrowClassMap[edge.variant || 'default'] || arrowClassMap.default;
   const routed = pathFor(edge);
   const strokeWidth = edge.width || (edge.variant === 'emphasis' ? 1.8 : 1.4);
-  return `        <path ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id)} data-composition-points="${routePointsValue(routed.points)}" d="${routed.d}" class="${cls}"${animateAttr(workflow.meta, 'edge', edgeSteps.get(edge))} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  return `        <path ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id, edge.role)} data-composition-points="${routePointsValue(routed.points)}" d="${routed.d}" class="${cls}"${animateAttr(workflow.meta, 'edge', edgeSteps.get(edge))} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
 }
 
 function renderEdgeLabel(edge, index) {
@@ -671,7 +671,7 @@ function renderEdgeLabel(edge, index) {
   const routed = pathFor(edge);
   const [lx, ly] = workflowEdgeLabelPoint(edge, routed.points);
   const labelW = Math.max(30, textUnits(edge.label) * 4.8 + 10);
-  return `        <g data-detail="context" ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id)}>
+  return `        <g data-detail="context" ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id, edge.role)}>
           <rect x="${lx - labelW / 2}" y="${ly - 10}" width="${labelW}" height="14" rx="3" class="c-mask"/>
           <text x="${lx}" y="${ly}" class="${variantAccent(edge.variant, { dashed: 't-database' })}" font-size="8" text-anchor="middle">${esc(edge.label)}</text>
         </g>`;

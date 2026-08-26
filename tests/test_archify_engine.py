@@ -190,6 +190,43 @@ class ArchifyEngineTestCase(unittest.TestCase):
             html_content = output_html.read_text(encoding="utf-8")
             self.assertIn('lang="th"', html_content)
 
+    def test_workflow_edge_role_preservation(self):
+        """Verify that edge role values (e.g. main, error, async) are preserved in rendered SVG attributes."""
+        workflow_spec = {
+            "schema_version": 1,
+            "diagram_type": "workflow",
+            "meta": {
+                "title": "Edge Role Test",
+                "quality_profile": "standard"
+            },
+            "lanes": [
+                {"id": "main_lane", "label": "Main", "variant": "normal"}
+            ],
+            "nodes": [
+                {"id": "n1", "lane": "main_lane", "col": 0, "type": "frontend", "label": "Start"},
+                {"id": "n2", "lane": "main_lane", "col": 2, "type": "backend", "label": "Handler"}
+            ],
+            "edges": [
+                {"id": "e_err", "from": "n1", "to": "n2", "label": "Failover", "variant": "security", "role": "error", "labelDy": 20}
+            ]
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            spec_path = Path(tmpdir) / "role-workflow.json"
+            output_html = Path(tmpdir) / "role-workflow.html"
+            spec_path.write_text(json.dumps(workflow_spec), encoding="utf-8")
+
+            del_result = subprocess.run(
+                ["node", str(ARCHIFY_BIN), "deliver", "workflow", str(spec_path), str(output_html), "--json"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(del_result.returncode, 0, f"Delivery failed: {del_result.stderr}\n{del_result.stdout}")
+            html_content = output_html.read_text(encoding="utf-8")
+            self.assertIn('data-edge-role="error"', html_content)
+
 
 if __name__ == "__main__":
     unittest.main()

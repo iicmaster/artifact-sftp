@@ -210,11 +210,14 @@ export function focusNodeTitle(label, metadata = {}) {
   return `<title>${esc(parts.join(' · '))}</title>`;
 }
 
-export function focusEdgeAttrs(from, to, label, key, id) {
+export function focusEdgeAttrs(from, to, label, key, id, role) {
   const named = label ? ` data-edge-label="${esc(label)}"` : '';
   const keyed = key !== undefined && key !== null ? ` data-edge-key="${esc(String(key))}"` : '';
   const identified = id !== undefined && id !== null && String(id).trim() !== ''
     ? ` data-edge-id="${esc(String(id))}"`
     : '';
-  return `data-edge-from="${esc(from)}" data-edge-to="${esc(to)}"${named}${keyed}${identified}`;
+  const roled = role !== undefined && role !== null && String(role).trim() !== ''
+    ? ` data-edge-role="${esc(String(role))}"`
+    : '';
+  return `data-edge-from="${esc(from)}" data-edge-to="${esc(to)}"${named}${keyed}${identified}${roled}`;
 }
