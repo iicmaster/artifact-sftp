@@ -351,7 +351,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', monospace;
+      font-family: 'Sarabun', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif, monospace;
+      line-height: 1.6;
       background: var(--bg);
       min-height: 100vh;
       padding: 2rem;
@@ -2940,15 +2941,16 @@
     .card-dot.orange   { background: var(--messagebus-stroke); }
     .card-dot.slate    { background: var(--external-stroke); }
 
-    .card h3 { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .card h3 { font-size: 0.875rem; font-weight: 600; color: var(--text); line-height: 1.6; }
 
     .card ul {
       list-style: none;
       color: var(--text-muted);
       font-size: 0.75rem;
+      line-height: 1.6;
     }
 
-    .card li { margin-bottom: 0.375rem; }
+    .card li { margin-bottom: 0.375rem; line-height: 1.6; }
 
     /* ==========================================================
        Print stylesheet — hide interactive controls, force light,
@@ -5254,25 +5256,25 @@
         <!-- Legend -->
         <g data-legend="">
           <text x="40" y="686" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="emphasis" data-legend-x="40" data-legend-baseline="706" data-legend-width="78">
+          <g data-legend-semantic-kind="emphasis" data-legend-x="40" data-legend-baseline="706" data-legend-width="87">
             <path d="M 40 703 L 74 703" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
             <text x="83" y="706" class="t-muted" font-size="10" font-weight="500">request</text>
           </g>
-          <g data-legend-semantic-kind="return" data-legend-x="140" data-legend-baseline="706" data-legend-width="73">
-            <path d="M 140 703 L 174 703" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-            <text x="183" y="706" class="t-muted" font-size="10" font-weight="500">return</text>
+          <g data-legend-semantic-kind="return" data-legend-x="149" data-legend-baseline="706" data-legend-width="81">
+            <path d="M 149 703 L 183 703" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+            <text x="192" y="706" class="t-muted" font-size="10" font-weight="500">return</text>
           </g>
-          <g data-legend-semantic-kind="security" data-legend-x="235" data-legend-baseline="706" data-legend-width="83">
-            <path d="M 235 703 L 269 703" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-            <text x="278" y="706" class="t-muted" font-size="10" font-weight="500">security</text>
+          <g data-legend-semantic-kind="security" data-legend-x="252" data-legend-baseline="706" data-legend-width="93">
+            <path d="M 252 703 L 286 703" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+            <text x="295" y="706" class="t-muted" font-size="10" font-weight="500">security</text>
           </g>
-          <g data-legend-semantic-kind="dashed" data-legend-x="340" data-legend-baseline="706" data-legend-width="98">
-            <path d="M 340 703 L 374 703" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-            <text x="383" y="706" class="t-muted" font-size="10" font-weight="500">async trace</text>
+          <g data-legend-semantic-kind="dashed" data-legend-x="367" data-legend-baseline="706" data-legend-width="112">
+            <path d="M 367 703 L 401 703" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+            <text x="410" y="706" class="t-muted" font-size="10" font-weight="500">async trace</text>
           </g>
-          <g data-legend-semantic-kind="default" data-legend-x="460" data-legend-baseline="706" data-legend-width="118">
-            <path d="M 460 703 L 494 703" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-            <text x="503" y="706" class="t-muted" font-size="10" font-weight="500">default message</text>
+          <g data-legend-semantic-kind="default" data-legend-x="501" data-legend-baseline="706" data-legend-width="136">
+            <path d="M 501 703 L 535 703" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <text x="544" y="706" class="t-muted" font-size="10" font-weight="500">default message</text>
           </g>
         </g>
       </svg>

@@ -351,7 +351,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', monospace;
+      font-family: 'Sarabun', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif, monospace;
+      line-height: 1.6;
       background: var(--bg);
       min-height: 100vh;
       padding: 2rem;
@@ -2940,15 +2941,16 @@
     .card-dot.orange   { background: var(--messagebus-stroke); }
     .card-dot.slate    { background: var(--external-stroke); }
 
-    .card h3 { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .card h3 { font-size: 0.875rem; font-weight: 600; color: var(--text); line-height: 1.6; }
 
     .card ul {
       list-style: none;
       color: var(--text-muted);
       font-size: 0.75rem;
+      line-height: 1.6;
     }
 
-    .card li { margin-bottom: 0.375rem; }
+    .card li { margin-bottom: 0.375rem; line-height: 1.6; }
 
     /* ==========================================================
        Print stylesheet — hide interactive controls, force light,
@@ -5266,29 +5268,29 @@
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
           <text x="40" y="692" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="40" data-legend-baseline="712" data-legend-width="78">
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="40" data-legend-baseline="712" data-legend-width="87">
             <rect x="40" y="703" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
             <text x="62" y="712" class="t-muted" font-size="10" font-weight="500">Backend</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="140" data-legend-baseline="712" data-legend-width="83">
-            <rect x="140" y="703" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
-            <text x="162" y="712" class="t-muted" font-size="10" font-weight="500">Database</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="149" data-legend-baseline="712" data-legend-width="93">
+            <rect x="149" y="703" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
+            <text x="171" y="712" class="t-muted" font-size="10" font-weight="500">Database</text>
           </g>
-          <g data-legend-semantic-kind="cloud" data-legend-kind="cloud" data-legend-label="Cloud" data-legend-x="245" data-legend-baseline="712" data-legend-width="68">
-            <rect x="245" y="703" width="16" height="10" rx="2.5" class="c-cloud" stroke-width="1"/>
-            <text x="267" y="712" class="t-muted" font-size="10" font-weight="500">Cloud</text>
+          <g data-legend-semantic-kind="cloud" data-legend-kind="cloud" data-legend-label="Cloud" data-legend-x="264" data-legend-baseline="712" data-legend-width="74">
+            <rect x="264" y="703" width="16" height="10" rx="2.5" class="c-cloud" stroke-width="1"/>
+            <text x="286" y="712" class="t-muted" font-size="10" font-weight="500">Cloud</text>
           </g>
-          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="335" data-legend-baseline="712" data-legend-width="83">
-            <rect x="335" y="703" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
-            <text x="357" y="712" class="t-muted" font-size="10" font-weight="500">Security</text>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="360" data-legend-baseline="712" data-legend-width="93">
+            <rect x="360" y="703" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
+            <text x="382" y="712" class="t-muted" font-size="10" font-weight="500">Security</text>
           </g>
-          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Message bus" data-legend-x="440" data-legend-baseline="712" data-legend-width="98">
-            <rect x="440" y="703" width="16" height="10" rx="2.5" class="c-messagebus" stroke-width="1"/>
-            <text x="462" y="712" class="t-muted" font-size="10" font-weight="500">Message bus</text>
+          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Message bus" data-legend-x="475" data-legend-baseline="712" data-legend-width="112">
+            <rect x="475" y="703" width="16" height="10" rx="2.5" class="c-messagebus" stroke-width="1"/>
+            <text x="497" y="712" class="t-muted" font-size="10" font-weight="500">Message bus</text>
           </g>
-          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="560" data-legend-baseline="712" data-legend-width="83">
-            <rect x="560" y="703" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
-            <text x="582" y="712" class="t-muted" font-size="10" font-weight="500">External</text>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="609" data-legend-baseline="712" data-legend-width="93">
+            <rect x="609" y="703" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
+            <text x="631" y="712" class="t-muted" font-size="10" font-weight="500">External</text>
           </g>
         </g>
       </svg>

@@ -351,7 +351,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', monospace;
+      font-family: 'Sarabun', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif, monospace;
+      line-height: 1.6;
       background: var(--bg);
       min-height: 100vh;
       padding: 2rem;
@@ -2940,15 +2941,16 @@
     .card-dot.orange   { background: var(--messagebus-stroke); }
     .card-dot.slate    { background: var(--external-stroke); }
 
-    .card h3 { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .card h3 { font-size: 0.875rem; font-weight: 600; color: var(--text); line-height: 1.6; }
 
     .card ul {
       list-style: none;
       color: var(--text-muted);
       font-size: 0.75rem;
+      line-height: 1.6;
     }
 
-    .card li { margin-bottom: 0.375rem; }
+    .card li { margin-bottom: 0.375rem; line-height: 1.6; }
 
     /* ==========================================================
        Print stylesheet — hide interactive controls, force light,
@@ -5184,29 +5186,29 @@
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
           <text x="40" y="604" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="start" data-legend-kind="start" data-legend-label="start" data-legend-x="40" data-legend-baseline="624" data-legend-width="68">
+          <g data-legend-semantic-kind="start" data-legend-kind="start" data-legend-label="start" data-legend-x="40" data-legend-baseline="624" data-legend-width="74">
             <rect x="40" y="616" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
             <text x="62" y="624" class="t-muted" font-size="10" font-weight="500">start</text>
           </g>
-          <g data-legend-semantic-kind="active" data-legend-kind="active" data-legend-label="active state" data-legend-x="130" data-legend-baseline="624" data-legend-width="103">
-            <rect x="130" y="616" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-            <text x="152" y="624" class="t-muted" font-size="10" font-weight="500">active state</text>
+          <g data-legend-semantic-kind="active" data-legend-kind="active" data-legend-label="active state" data-legend-x="136" data-legend-baseline="624" data-legend-width="118">
+            <rect x="136" y="616" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+            <text x="158" y="624" class="t-muted" font-size="10" font-weight="500">active state</text>
           </g>
-          <g data-legend-semantic-kind="waiting" data-legend-kind="waiting" data-legend-label="waiting" data-legend-x="255" data-legend-baseline="624" data-legend-width="78">
-            <rect x="255" y="616" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
-            <text x="277" y="624" class="t-muted" font-size="10" font-weight="500">waiting</text>
+          <g data-legend-semantic-kind="waiting" data-legend-kind="waiting" data-legend-label="waiting" data-legend-x="276" data-legend-baseline="624" data-legend-width="87">
+            <rect x="276" y="616" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
+            <text x="298" y="624" class="t-muted" font-size="10" font-weight="500">waiting</text>
           </g>
-          <g data-legend-semantic-kind="decision" data-legend-kind="decision" data-legend-label="decision" data-legend-x="355" data-legend-baseline="624" data-legend-width="83">
-            <rect x="355" y="616" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-            <text x="377" y="624" class="t-muted" font-size="10" font-weight="500">decision</text>
+          <g data-legend-semantic-kind="decision" data-legend-kind="decision" data-legend-label="decision" data-legend-x="385" data-legend-baseline="624" data-legend-width="93">
+            <rect x="385" y="616" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+            <text x="407" y="624" class="t-muted" font-size="10" font-weight="500">decision</text>
           </g>
-          <g data-legend-semantic-kind="success" data-legend-kind="success" data-legend-label="terminal success" data-legend-x="460" data-legend-baseline="624" data-legend-width="123">
-            <rect x="460" y="616" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-            <text x="482" y="624" class="t-muted" font-size="10" font-weight="500">terminal success</text>
+          <g data-legend-semantic-kind="success" data-legend-kind="success" data-legend-label="terminal success" data-legend-x="500" data-legend-baseline="624" data-legend-width="143">
+            <rect x="500" y="616" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="522" y="624" class="t-muted" font-size="10" font-weight="500">terminal success</text>
           </g>
-          <g data-legend-semantic-kind="failure" data-legend-kind="failure" data-legend-label="failure / exit" data-legend-x="605" data-legend-baseline="624" data-legend-width="113">
-            <rect x="605" y="616" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-            <text x="627" y="624" class="t-muted" font-size="10" font-weight="500">failure / exit</text>
+          <g data-legend-semantic-kind="failure" data-legend-kind="failure" data-legend-label="failure / exit" data-legend-x="665" data-legend-baseline="624" data-legend-width="130">
+            <rect x="665" y="616" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+            <text x="687" y="624" class="t-muted" font-size="10" font-weight="500">failure / exit</text>
           </g>
         </g>
       </svg>
