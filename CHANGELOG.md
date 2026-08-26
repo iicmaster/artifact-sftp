@@ -2,6 +2,14 @@
  
 All notable changes to this project are documented here.
  
+## [0.19.2] - 2026-08-26
+
+- **Standardized Bulletproof Pan & Zoom Viewport Lightbox Engine:**
+  - Codified the 5 Enterprise Invariants for interactive diagram lightboxes in `visual-illustrator`: Two-tier architecture (`.lightbox-viewport` + `.lightbox-canvas`), full transform matrix engine (`canvas.style.transform = translate(X, Y) scale(S)`), triple-mode navigation (mouse drag-to-pan, cursor-centered wheel zoom, mobile touch), integrated controls toolbar (➕, ➖, ↺, scale badge, ✕ close Esc), and single-node SVG transfer to avoid ID collision.
+  - Added strict Dimension 2 audit gates in `artifact-audit` to 🔴 **BLOCK** any diagram lightbox missing two-tier containers, `translate()` matrix transform, or mouse drag-to-pan handling.
+  - Verified autonomous diagram generation across both Claude Subagent (`test-subagent-panzoom.html`) and Codex (`gpt-5.6-luna[max]` via ACP, `test-codex-panzoom.html`) with 100% compliance.
+  - Expanded test suite in `tests/test_diagram_audit_collision.py` to 47 passing tests.
+
 ## [0.19.1] - 2026-08-25
 
 - **Thai Typography & Line-Height Standards (`line-height >= 1.5`):**
