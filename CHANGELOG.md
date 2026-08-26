@@ -2,6 +2,22 @@
  
 All notable changes to this project are documented here.
  
+## [0.20.0] - 2026-08-27
+
+- **Archify Typed Diagram Engine & Autonomous Quality Assurance:**
+  - Integrated full Archify diagramming engine into `tools/archify/` supporting 5 core archetypes: **Architecture**, **Workflow**, **Sequence**, **Dataflow**, and **Lifecycle**.
+  - **Thai Typography Invariant Guarantee:** Integrated automatic `line-height >= 1.5` and multiline `<tspan dy >= 1.5em>` formatting across all diagram text elements to prevent vowel/tone-mark overlap.
+  - **Zero-Collision Auto-Layout Engine:** Built-in orthogonal routing, node clearance validation ($\ge 40\text{px}$), edge badge masks, and strict viewBox containment validation.
+  - **Standard Fullscreen Pan & Zoom Lightbox:** Integrated two-tier canvas engine (`.lightbox-viewport` + `.lightbox-canvas`), drag-to-pan, cursor-centered wheel zoom, mobile touch, and toolbar controls.
+  - **Tooling & CLI Utilities:** Added `archify render`, `archify compare`, `archify deliver`, `archify preview`, `archify validate`, `archify inspect`, `archify visual-check`, `archify guide`, `archify brands`, and `archify doctor`.
+  - **Robustness & Parity Fixes:**
+    - Edge roles preservation and serialization in workflow diagrams.
+    - Legend font-size measurement and SVG rendering parity.
+    - ViewBox boundary checks preventing out-of-bounds relationship labels.
+    - Theme resolution mismatch detection in `visual-check`.
+    - Non-blocking layout report generation avoiding truncated stdout JSON in `inspect architecture`.
+  - **Test Suite:** Added 9 new unit tests in `tests/test_archify_engine.py` covering all archetypes, visual-checks, brand catalog, and layout report completion, bringing test suite to 56 automated tests.
+
 ## [0.19.2] - 2026-08-26
 
 - **Standardized Bulletproof Pan & Zoom Viewport Lightbox Engine:**
