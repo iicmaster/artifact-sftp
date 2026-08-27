@@ -85,6 +85,9 @@ inline chat and pure Markdown.
   - **Node Bounding Box Intersection:** If diagram nodes overlap each other without clearance ($\text{gap} < 40\text{px}$), **BLOCK**.
   - **Collinear Path Collisions:** If multiple connection lines share identical coordinates or slice through node centers, **BLOCK**.
   - **Thai Multiline Text Step in SVG (`<tspan dy="...">`):** If multiline SVG text containing Thai characters sets vertical step $\text{dy} < 1.3 \times \text{font-size}$ (causing upper tone marks and lower vowels to collide between lines), **BLOCK**. If $1.3 \le \text{dy} < 1.5 \times \text{font-size}$, **WARN**.
+- **Editorial Cleanliness & No-Slop Check (🟡 WARN):**
+  - **Drop-Shadow / Blur Clutter:** Flags unnecessary `filter: drop-shadow(...)` or fuzzy multi-layer glow on diagram nodes that creates visual slop.
+  - **Color Budget Invariant:** Flags excessive multicolor rainbow nodes (more than 3 distinct saturated accent colors in a single diagram); warns to restrict bright accents to 1–2 focal points.
 - **Viewport Lightbox Pan & Zoom Invariants Check (🔴 BLOCK):**
   - If a document contains a `<dialog class="diagram-lightbox">`, it MUST satisfy the 5 Enterprise Invariants:
     1. **Two-Tier Structure:** Must include `.lightbox-viewport` and `.lightbox-canvas`.

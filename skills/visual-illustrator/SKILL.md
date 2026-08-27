@@ -62,7 +62,38 @@ Archify uses a typed JSON Intermediate Representation (IR) to compile determinis
 
 ---
 
-## 3. Strict Syntax & Parsing Safety (The "Never Fail" Rules for Mermaid)
+## 3. Editorial Aesthetics & High-Impact Business Archetypes
+
+Beyond purely technical topology maps, executive and strategic artifacts require publication-grade clarity, minimal visual noise, and strong narrative focus (editorial aesthetic standards inspired by [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)).
+
+### Editorial Design Rules (Aesthetic Invariants)
+
+1. **Target Density 4/10 (The Deletion Rule):**
+   - Every node must earn its place. Eliminate redundant container boxes, decorative icons, and empty labels.
+   - *"The highest-quality move is usually deletion."*
+2. **Strict Color Budget (1–2 Accent Focal Points):**
+   - Use a subdued, high-contrast base palette (e.g. Deep Slate `#090d16` paper, `#131b2e` surface, `#24324f` hairline border, `#f1f5f9` ink, `#94a3b8` muted).
+   - **Reserve bright accent colors (e.g. Atomic Tangerine `#ff6b35` or Electric Cyan `#00f0ff`) exclusively for the 1–2 critical focal points** (e.g. the write-back feedback loop or key bottleneck). Never color-code every node differently.
+3. **No Drop Shadows & No Blur Slop:**
+   - Forbid blurry `filter: drop-shadow(...)` or fuzzy multi-layer glow on SVG shapes. Use crisp 1px borders (`stroke="#24324f"` or `stroke="#334155"`).
+4. **Thai Typography Invariants:**
+   - Prose: `line-height >= 1.5` (recommended `1.6`–`1.7`).
+   - SVG Multiline: `<tspan dy="1.6em">` to prevent vowel and tone-mark collisions.
+
+### Tier-2 High-Impact Business Archetypes
+
+For business strategy and process flows that do not require full grid-layout compilation, author clean, responsive SVG diagrams adhering to these archetype patterns:
+
+| Business Archetype | Description & Visual Structure | Key Accent Opportunity |
+|---|---|---|
+| **Flywheel / Loop** | 4-quadrant reinforcing cycle orbiting a central **Shared-Memory & Pattern Hub**. Continuous outer cycle with dashed feedback connectors. | Dashed write-back connector returning to central hub (`#ff6b35`). |
+| **2x2 Strategy Matrix** | Two continuous orthogonal axes (e.g. Value vs Complexity, Urgency vs Importance) forming 4 strategic quadrants. | High-priority quadrant (Top-Right / Focus). |
+| **User Journey / Story Map** | Sequential timeline steps across stages with actor touchpoints, actions, and pain-point highlights. | Critical friction or conversion milestone. |
+| **Sankey / Funnel** | Quantified directional flows that split, merge, or filter across pipeline stages. | Final high-value conversion stream. |
+
+---
+
+## 4. Strict Syntax & Parsing Safety (The "Never Fail" Rules for Mermaid)
 
 Mermaid parsers fail abruptly on unescaped symbols, malformed IDs, or deep subgraph recursion. Follow these non-negotiable rules for every generated diagram:
 
@@ -109,7 +140,7 @@ Words such as `end`, `subgraph`, `state`, `class`, `style`, `graph`, `default`, 
 
 ---
 
-## Diagram Layout Ergonomics & Responsive Delivery
+## 5. Diagram Layout Ergonomics & Responsive Delivery
 
 This section is mandatory for rich diagrams in published HTML artifacts. It is
 the **Option 4 (Static Sanitized Inline SVG Delivery)** contract and does not
@@ -567,7 +598,7 @@ horizontal scrolling in the primary overview.
 
 ---
 
-## 3. Core Diagram Archetypes & Production Templates
+## 6. Core Diagram Archetypes & Production Templates (Mermaid)
 
 ### Archetype 1: Architecture & System Component Flow (`flowchart`)
 Used for microservice architectures, cloud infrastructure, network topology, and event-driven backends.
@@ -866,7 +897,7 @@ mindmap
 
 ---
 
-## 4. Visual Ergonomics & Aesthetic Styling
+## 7. Visual Ergonomics & Aesthetic Styling
 
 ### Anti-Spaghetti Rules (Preventing Tangled Lines)
 1. **Linear Ordering**: Place components in the natural direction of data flow (e.g., in `TD`, define Clients at the top, Gateway next, Services middle, Storage bottom).
@@ -902,7 +933,7 @@ classDef external fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,color:#334155,s
 
 ---
 
-## 5. Markdown Artifact & Document Integration
+## 8. Markdown Artifact & Document Integration
 
 When incorporating Mermaid diagrams into technical specs, RFCs, and markdown artifacts:
 
@@ -932,7 +963,7 @@ flowchart LR
 
 ---
 
-## 6. Comprehensive Troubleshooting & Self-Correction Guide
+## 9. Comprehensive Troubleshooting & Self-Correction Guide
 
 When a Mermaid diagram fails to render or throws a syntax error, apply this systematic diagnosis checklist:
 
