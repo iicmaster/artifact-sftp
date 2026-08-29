@@ -86,7 +86,15 @@ def audit_svg_collisions(html_content: str) -> dict:
                 "msg": "Diagram card forces overflow-x on primary overview."
             })
 
-    # 7. Check Viewport Lightbox Engine Invariants if Lightbox dialog is present
+        # 7. Editorial Cleanliness & Drop-Shadow Clutter Check (WARN)
+        if re.search(r'filter:\s*(?:drop-shadow|blur)\(', svg, re.IGNORECASE) or re.search(r'<filter[\s\S]*?<feGaussianBlur', svg, re.IGNORECASE):
+            findings.append({
+                "level": "WARN",
+                "rule": "editorial_drop_shadow_clutter",
+                "msg": f"SVG #{idx}: Node drop-shadow / blur filter detected; editorial standard recommends crisp 1px borders without fuzzy shadow slop."
+            })
+
+    # 8. Check Viewport Lightbox Engine Invariants if Lightbox dialog is present
     if re.search(r'<dialog[^>]*class=["\'][^"\']*diagram-lightbox', html_content, re.IGNORECASE):
         # Must have two-tier viewport and canvas structure
         has_viewport = bool(re.search(r'class=["\'][^"\']*lightbox-viewport', html_content, re.IGNORECASE))
@@ -114,6 +122,16 @@ def audit_svg_collisions(html_content: str) -> dict:
                 "level": "BLOCK",
                 "rule": "missing_lightbox_drag_pan",
                 "msg": "Lightbox script lacks drag-to-pan mouse event handling."
+            })
+
+        # Must have reset and close controls
+        has_reset = bool(re.search(r'reset', html_content, re.IGNORECASE))
+        has_close = bool(re.search(r'close', html_content, re.IGNORECASE))
+        if not (has_reset and has_close):
+            findings.append({
+                "level": "BLOCK",
+                "rule": "missing_lightbox_controls",
+                "msg": "Lightbox lacks mandatory reset or close controls."
             })
 
     verdict = "PASS"
@@ -281,3 +299,35 @@ def test_broken_lightbox_without_pan_zoom_is_blocked():
     assert any(f["rule"] == "missing_lightbox_canvas_structure" for f in res["findings"])
     assert any(f["rule"] == "missing_lightbox_translate_matrix" for f in res["findings"])
     assert any(f["rule"] == "missing_lightbox_drag_pan" for f in res["findings"])
+
+
+def test_codex_editorial_loop_artifact_passes_all_gates():
+    """Verify that the test editorial loop artifact satisfies all Pan-Zoom, Typography, and Editorial invariants."""
+    artifact_file = Path("docs/artifacts/test-codex-editorial-loop.html")
+    assert artifact_file.exists(), "test-codex-editorial-loop.html must exist"
+
+    html = artifact_file.read_text(encoding="utf-8")
+    result = audit_svg_collisions(html)
+
+    assert result["verdict"] == "PASS", f"Artifact findings: {result['findings']}"
+    assert len(result["findings"]) == 0
+
+
+def test_drop_shadow_triggers_editorial_warning():
+    """Verify that unnecessary drop-shadow blur filters trigger an editorial warning."""
+    shadow_html = """
+    <div class="diagram-card">
+      <svg viewBox="0 0 400 200">
+        <defs>
+          <filter id="drop-shadow">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+          </filter>
+        </defs>
+        <rect x="20" y="20" width="100" height="50" filter="url(#drop-shadow)" />
+      </svg>
+    </div>
+    """
+    res = audit_svg_collisions(shadow_html)
+    assert res["verdict"] == "WARN"
+    assert any(f["rule"] == "editorial_drop_shadow_clutter" for f in res["findings"])
+

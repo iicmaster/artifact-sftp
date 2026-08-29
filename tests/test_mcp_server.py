@@ -230,10 +230,96 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(response.is_error)
         result = response.structured_content["result"]
         self.assertEqual(result["archive_path"], str(current.resolve()))
+        self.assertEqual(result["source"], "local_archive")
         self.assertTrue(result["truncated"])
         self.assertEqual(result["next_cursor"], 8)
         self.assertFalse(result["network_accessed"])
         self.assertTrue(result["content_is_untrusted"])
+
+    async def test_read_remote_sftp_cache_fallback_resolves_and_reports_network_accessed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            mock_home = Path(temp) / "home"
+            mock_home.mkdir()
+            project = Path(temp) / "project"
+            project.mkdir()
+            cache_file = mock_home / ".cache/artifact-sftp/remote/codex/private/remote-doc/index.html"
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text("<!DOCTYPE html><html><body>Remote SFTP Content</body></html>", encoding="utf-8")
+            
+            with unittest.mock.patch.object(Path, "home", return_value=mock_home):
+                fake = FakeRunner(command_result(0, stdout=f"{cache_file.resolve()}\n"))
+                server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+                response = await self.call(
+                    server,
+                    "artifact_sftp.read",
+                    {
+                        "project_path": str(project),
+                        "reference": "https://artifacts.example/codex/private/remote-doc/",
+                        "max_bytes": 100,
+                    },
+                )
+                self.assertFalse(response.is_error)
+                result = response.structured_content["result"]
+                self.assertEqual(result["source"], "remote_sftp")
+                self.assertTrue(result["network_accessed"])
+                self.assertEqual(result["archive_path"], str(cache_file.resolve()))
+                self.assertEqual(result["artifact"]["slug"], "remote-doc")
+                self.assertIn("Remote SFTP Content", result["content"])
+
+    async def test_publish_verification_rejects_remote_cache_paths(self) -> None:
+        """Verify that publisher custody verification strictly forbids paths outside project docs/artifacts."""
+        with tempfile.TemporaryDirectory() as temp:
+            mock_home = Path(temp) / "home"
+            mock_home.mkdir()
+            project = Path(temp) / "project"
+            project.mkdir()
+            source = project / "doc.html"
+            source.write_text("<html></html>", encoding="utf-8")
+            cache_file = mock_home / ".cache/artifact-sftp/remote/codex/private/report/index.html"
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text("<html></html>", encoding="utf-8")
+
+            # Fake publisher emitting read-back pointing to cache instead of project docs/artifacts
+            fake = FakeRunner(
+                command_result(
+                    0,
+                    stdout="https://artifacts.example/codex/private/report/\n",
+                    stderr=f"read-back: {cache_file.resolve()}\nsnapshot: {cache_file.resolve()}\n",
+                )
+            )
+            with unittest.mock.patch.object(Path, "home", return_value=mock_home):
+                server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+                response = await self.call(
+                    server,
+                    "artifact_sftp.publish",
+                    {
+                        "project_path": str(project),
+                        "source_path": str(source),
+                        "slug": "report",
+                        "tool": "codex",
+                        "confirm": True,
+                    },
+                )
+            self.assertTrue(response.is_error)
+            self.assertEqual(response.structured_content["error"]["code"], "archive_outside_project")
+
+    async def test_read_rejects_oversized_artifacts(self) -> None:
+        """Verify that read rejects artifacts exceeding the 5 MiB ceiling."""
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, current, _ = make_project(Path(temp))
+            # Write 6 MB file
+            current.write_bytes(b"A" * (6 * 1024 * 1024))
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.read",
+                {
+                    "project_path": str(project),
+                    "reference": "https://artifacts.example/codex/private/report/",
+                },
+            )
+            self.assertTrue(response.is_error)
+            self.assertEqual(response.structured_content["error"]["code"], "oversized_artifact")
 
     async def test_setup_reports_not_ready_without_exposing_a_direct_shell_handoff(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

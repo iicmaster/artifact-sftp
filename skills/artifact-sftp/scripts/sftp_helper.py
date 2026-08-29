@@ -129,6 +129,9 @@ def main():
                     print(name)
             except IOError:
                 pass  # slug dir doesn't exist yet -> no versions
+        elif op == "get":
+            rfile, lfile = sys.argv[2], sys.argv[3]
+            sftp.get(rfile, lfile)
         elif op == "list":
             base = sys.argv[2]
             for vis in ("private", "public"):

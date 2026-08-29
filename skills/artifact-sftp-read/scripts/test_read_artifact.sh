@@ -13,6 +13,8 @@ env -u ARTIFACT_SFTP_MCP_CALL bash "$READ" --help >"$WORK/direct.out" 2>"$WORK/d
   && echo "PASS direct read resolver is rejected outside MCP" \
   || { echo "FAIL: direct read resolver bypass was not rejected" >&2; exit 1; }
 export ARTIFACT_SFTP_MCP_CALL=1
+export HOME="$WORK/home"
+mkdir -p "$HOME"
 
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT/docs/artifacts/codex/private/report"

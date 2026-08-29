@@ -2,6 +2,25 @@
  
 All notable changes to this project are documented here.
  
+## [0.21.0] - 2026-08-29
+
+- **Two-Tier Read Resolution Engine (`artifact-sftp-read`):**
+  - **Tier 1 (Local-First):** Resolves local `$project/docs/artifacts/` archive with zero network I/O (`source: local_archive`, `network_accessed: false`).
+  - **Tier 2 (Remote SFTP Fallback):** Securely fetches and caches private/cross-project artifacts under `$HOME/.cache/artifact-sftp/remote/` using owner-managed SFTP configuration in `~/.config/artifact-sftp/config` (`source: remote_sftp`, `network_accessed: true`).
+  - Hard 5 MiB file size safety ceiling on remote artifact transfers and cached reads.
+  - Strict publish custody gate preservation: cache paths accepted only for `read` operations, never for `publish` verification.
+  - Declared `openWorldHint=True` on `artifact_sftp.read` MCP tool.
+- **Editorial Aesthetics & High-Impact Business Archetypes (`visual-illustrator`):**
+  - Integrated editorial diagram styling (Target Density 4/10, strict 1–2 color budget, zero drop-shadows).
+  - Added 4 Tier-2 Business Archetypes: Flywheel / Loop with Central Shared Hub, 2x2 Strategy Matrix, User Journey / Story Map, and Sankey / Funnel.
+  - Added Self-Improving Multi-Agent Loop artifact (`docs/artifacts/test-codex-editorial-loop.html`) with WCAG AA compliant text contrast.
+- **Pre-Flight Editorial Audit Gate (`artifact-audit`):**
+  - Dimension 2 checks flagging drop-shadow blur filters and rainbow color palettes (>2 saturated accents).
+- **Tracked Architecture Decision Record (ADR 0001):**
+  - Added `docs/adr/0001-s3-cloudflare-r2-driver.md` detailing Cloudflare R2 + Custom Domain + Cloudflare Access with fail-closed provisioning sequence and MCP boundary.
+- **Agent Governance & PR Lifecycle Policy (`AGENTS.md`):**
+  - Codified automated GitHub Codex bot review & CI matrix monitoring workflow.
+
 ## [0.20.0] - 2026-08-27
 
 - **Archify Typed Diagram Engine & Autonomous Quality Assurance:**

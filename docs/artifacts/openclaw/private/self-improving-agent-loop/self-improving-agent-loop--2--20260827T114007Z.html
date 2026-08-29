@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="th">
+<head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="วงล้อปรับปรุงตัวเองของระบบ Multi-Agent: สร้าง ตรวจสอบ พิสูจน์ และเรียนรู้ผ่าน Shared Memory Hub">
+  <title>วงล้อปรับปรุงตัวเองของระบบ Multi-Agent | Self-Improving Autonomous Agent Loop</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #131b2e;
+      --surface-deep: #0f1626;
+      --surface-soft: #17223a;
+      --border: #24324f;
+      --border-soft: #1c2943;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --muted-deep: #64748b;
+      --font-sans: Sarabun, Tahoma, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+      color-scheme: dark;
+      scroll-behavior: smooth;
+    }
+
+    body,
+    button,
+    summary,
+    table {
+      font-family: var(--font-sans);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    body,
+    p,
+    li,
+    td,
+    th,
+    figcaption,
+    summary,
+    button,
+    .thai {
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3,
+    p,
+    ul,
+    ol,
+    figure,
+    figcaption {
+      margin: 0;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.5;
+      font-weight: 650;
+      letter-spacing: -0.025em;
+    }
+
+    button,
+    summary {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+    }
+
+    .page-shell {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }
+
+    .masthead {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 48px;
+      align-items: end;
+      padding-bottom: 34px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .eyebrow,
+    .section-kicker,
+    .metric-label,
+    .card-kicker,
+    .appendix-label {
+      color: var(--muted-deep);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      line-height: 1.6;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 5px 9px;
+      border: 1px solid var(--border);
+      background: var(--surface-deep);
+    }
+
+    .masthead h1 {
+      max-width: 840px;
+      margin-top: 18px;
+      font-size: clamp(2rem, 5vw, 4.15rem);
+      line-height: 1.5;
+    }
+
+    .masthead h1 span {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.7vw, 1.2rem);
+    }
+
+    .masthead-note {
+      padding-left: 20px;
+      border-left: 1px solid var(--border);
+    }
+
+    .masthead-note strong {
+      display: block;
+      margin-top: 10px;
+      color: var(--text);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .masthead-note p:last-child {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .tier {
+      padding-top: 46px;
+    }
+
+    .section-kicker {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding-bottom: 13px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .section-kicker span:first-child {
+      color: var(--text);
+    }
+
+    .summary-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 1.05fr);
+      gap: 52px;
+      align-items: start;
+      padding-top: 25px;
+    }
+
+    .summary-layout h2,
+    .section-heading h2 {
+      max-width: 610px;
+      font-size: clamp(1.55rem, 3vw, 2.45rem);
+    }
+
+    .summary-points {
+      display: grid;
+      gap: 12px;
+      padding: 20px 0 0 22px;
+      color: var(--muted);
+    }
+
+    .summary-points li::marker {
+      color: var(--text);
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric-card {
+      min-height: 132px;
+      padding: 17px 18px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .metric-value {
+      margin-top: 11px;
+      color: var(--text);
+      font-size: 1.75rem;
+      font-weight: 650;
+      line-height: 1.5;
+    }
+
+    .metric-copy {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+      padding: 24px 0 20px;
+    }
+
+    .section-heading p {
+      max-width: 440px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-align: right;
+    }
+
+    .diagram-card {
+      max-width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .diagram-card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-deep);
+    }
+
+    .diagram-card-header h3 {
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    .diagram-card-header p {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .expand-button,
+    .toolbar-button {
+      min-height: 44px;
+      padding: 8px 13px;
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+
+    .expand-button:hover,
+    .expand-button:focus-visible,
+    .toolbar-button:hover,
+    .toolbar-button:focus-visible {
+      border-color: var(--muted);
+      background: #1c2943;
+      outline: none;
+    }
+
+    .diagram-card > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 100%;
+      max-height: 480px;
+      background: var(--surface);
+    }
+
+    #diag-agent-loop-svg text {
+      font-family: var(--font-sans);
+      line-height: 1.6;
+    }
+
+    #diag-agent-loop-svg .node-number {
+      fill: var(--text);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    #diag-agent-loop-svg .node-kicker,
+    #diag-agent-loop-svg .hub-kicker {
+      fill: var(--muted-deep);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+    }
+
+    #diag-agent-loop-svg .node-title {
+      fill: var(--text);
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    #diag-agent-loop-svg .node-thai {
+      fill: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    #diag-agent-loop-svg .node-copy {
+      fill: var(--muted);
+      font-size: 13px;
+    }
+
+    #diag-agent-loop-svg .hub-title {
+      fill: var(--text);
+      font-size: 19px;
+      font-weight: 650;
+    }
+
+    #diag-agent-loop-svg .hub-thai {
+      fill: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    #diag-agent-loop-svg .hub-copy {
+      fill: var(--muted);
+      font-size: 13px;
+    }
+
+    #diag-agent-loop-svg .label-badge {
+      fill: var(--surface-deep);
+      stroke: var(--border);
+      stroke-width: 1;
+    }
+
+    #diag-agent-loop-svg .edge-label-text {
+      fill: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .diagram-caption {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 13px 20px 16px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+
+    .diagram-caption strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .walkthrough-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding-top: 14px;
+    }
+
+    .walkthrough-card {
+      min-height: 164px;
+      padding: 17px 18px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .walkthrough-card h3 {
+      margin-top: 17px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    .walkthrough-card p:last-child {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .step-number {
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      line-height: 1.6;
+    }
+
+    .deep-dive {
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .deep-dive summary {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      padding: 18px 20px;
+      color: var(--text);
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .deep-dive summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .deep-dive summary::after {
+      content: "+";
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      line-height: 1.5;
+    }
+
+    .deep-dive[open] summary::after {
+      content: "−";
+    }
+
+    .deep-dive summary:focus-visible {
+      outline: 1px solid var(--muted);
+      outline-offset: -4px;
+    }
+
+    .deep-dive-content {
+      padding: 0 20px 22px;
+      border-top: 1px solid var(--border);
+    }
+
+    .deep-dive-intro {
+      max-width: 760px;
+      padding: 19px 0;
+      color: var(--muted);
+      font-size: 0.91rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      min-width: 720px;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    th,
+    td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td:first-child {
+      width: 21%;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .footer-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding-top: 42px;
+      color: var(--muted-deep);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      line-height: 1.6;
+      text-transform: uppercase;
+    }
+
+    /* Fullscreen lightbox: the live SVG moves into this two-tier viewport. */
+    .diagram-lightbox {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      max-height: 100vh;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .diagram-lightbox:not([open]) {
+      display: none;
+    }
+
+    .diagram-lightbox::backdrop {
+      background: rgb(9 13 22 / 92%);
+    }
+
+    .diagram-lightbox__header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      flex: 0 0 auto;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-deep);
+    }
+
+    .lightbox-title {
+      min-width: 0;
+    }
+
+    .lightbox-title h2 {
+      overflow: hidden;
+      font-size: 1rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lightbox-title p {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .lightbox-controls {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .toolbar-button {
+      font-size: 0.77rem;
+    }
+
+    .scale-badge {
+      display: inline-flex;
+      min-height: 44px;
+      min-width: 92px;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      line-height: 1.6;
+      white-space: nowrap;
+    }
+
+    .lightbox-viewport {
+      position: relative;
+      flex: 1 1 auto;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      cursor: grab;
+      background: var(--bg);
+      touch-action: none;
+    }
+
+    .lightbox-viewport.grabbing {
+      cursor: grabbing;
+    }
+
+    .lightbox-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: min(1120px, 92vw);
+      will-change: transform;
+      transform-origin: center center;
+    }
+
+    .lightbox-canvas > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: none;
+      max-height: none;
+    }
+
+    .lightbox-close {
+      border-color: var(--border);
+    }
+
+    @media (max-width: 900px) {
+      .masthead {
+        grid-template-columns: 1fr;
+        gap: 26px;
+      }
+
+      .masthead-note {
+        padding: 0;
+        border-top: 1px solid var(--border);
+        border-left: 0;
+        padding-top: 18px;
+      }
+
+      .summary-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+
+      .walkthrough-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .diagram-lightbox__header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .lightbox-controls {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        gap: 6px;
+      }
+
+      .toolbar-button {
+        flex: 1 1 auto;
+        min-width: 68px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .page-shell {
+        width: min(100% - 28px, 1180px);
+        padding-top: 30px;
+      }
+
+      .section-heading,
+      .diagram-caption,
+      .footer-line {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .section-heading p {
+        text-align: left;
+      }
+
+      .metric-grid,
+      .walkthrough-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-card-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .diagram-card > svg {
+        max-height: 420px;
+      }
+
+      .deep-dive summary {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .lightbox-controls {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">MULTI-AGENT SYSTEM / CONTINUOUS IMPROVEMENT</p>
+        <h1>วงล้อปรับปรุงตัวเองของระบบ <span>Multi-Agent</span></h1>
+        <p class="lead thai">ระบบสร้าง ตรวจสอบ พิสูจน์ และเรียนรู้จากผลลัพธ์ แล้วเขียนกฎใหม่กลับเข้าสู่ความจำร่วม เพื่อให้ Cycle ถัดไปเริ่มจากฐานความรู้ที่แม่นยำขึ้น</p>
+      </div>
+      <aside class="masthead-note" aria-label="Diagram reading note">
+        <p class="section-kicker">EDITORIAL MAP · 01</p>
+        <strong>Evidence turns into capability.</strong>
+        <p class="thai">อ่านวงล้อตามเข็มนาฬิกา แล้วดูเส้นประสีส้มที่ส่งความรู้กลับเข้าสู่ระบบ</p>
+      </aside>
+    </header>
+
+    <section class="tier" id="summary" aria-labelledby="summary-heading">
+      <div class="section-kicker"><span>01</span><span>EXECUTIVE SUMMARY / สรุปผู้บริหาร</span></div>
+      <div class="summary-layout">
+        <div>
+          <h2 id="summary-heading">ทุก Cycle ทิ้งหลักฐานและกฎที่ดีขึ้น</h2>
+          <ul class="summary-points thai">
+            <li>Agent เริ่มจาก Pattern ที่มีอยู่ แล้วสร้างโค้ดพร้อมวิเคราะห์สถาปัตยกรรม</li>
+            <li>Adversarial Audit บังคับให้ระบบค้นหาจุดอ่อนก่อนอ้างความพร้อม</li>
+            <li>Regression และ Security Scan แยกหลักฐานที่วัดได้ออกจากคำกล่าวอ้าง</li>
+            <li>Pitfalls ที่พบกลายเป็นกฎใหม่ใน Shared Memory สำหรับงานรอบถัดไป</li>
+          </ul>
+        </div>
+        <div class="metric-grid" aria-label="Key architecture metrics">
+          <article class="metric-card">
+            <p class="metric-label">Loop stages</p>
+            <p class="metric-value">04</p>
+            <p class="metric-copy thai">สร้าง → ตรวจ → พิสูจน์ → เรียนรู้</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Knowledge core</p>
+            <p class="metric-value">01</p>
+            <p class="metric-copy thai">Shared Memory &amp; Pattern Hub</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Regression gate</p>
+            <p class="metric-value">100%</p>
+            <p class="metric-copy thai">ทุกชุดทดสอบต้องผ่านก่อนส่งต่อ</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Learning mode</p>
+            <p class="metric-value">∞</p>
+            <p class="metric-copy thai">Write-back ต่อเนื่องทุก Cycle</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="tier" id="core-loop" aria-labelledby="core-loop-heading">
+      <div class="section-kicker"><span>02</span><span>CORE ARCHITECTURE / โครงสร้างหลัก</span></div>
+      <div class="section-heading">
+        <h2 id="core-loop-heading">Four stages reinforce one another</h2>
+        <p class="thai">ลูกศรรอบนอกแสดงลำดับการทำงานหลัก ส่วนเส้นประสีส้มแสดงการเขียนความรู้กลับและจ่ายกฎใหม่เข้าสู่ Stage 1</p>
+      </div>
+
+      <figure class="diagram-card" id="diag-agent-loop-card">
+        <div class="diagram-card-header">
+          <div>
+            <h3>Self-Improving Autonomous Agent Loop</h3>
+            <p class="thai">วงล้อปรับปรุงตัวเองของระบบ Multi-Agent</p>
+          </div>
+          <button type="button" class="expand-button" id="diag-agent-loop-open" aria-controls="diag-agent-loop-dialog">⤢ Expand Diagram</button>
+        </div>
+
+        <svg id="diag-agent-loop-svg"
+             viewBox="0 0 1200 760"
+             preserveAspectRatio="xMidYMid meet"
+             width="100%"
+             role="img"
+             aria-labelledby="diag-agent-loop-title diag-agent-loop-desc">
+          <title id="diag-agent-loop-title">Self-Improving Autonomous Agent Loop with a Shared Memory and Pattern Hub</title>
+          <desc id="diag-agent-loop-desc">Four stages form a continuous outer loop: Code Generation and Analysis, Adversarial Audit and Quality Gate, Evidence-Based Verification, and Self-Learning and Skill Evolution. Dashed orange connectors write learning back to the central Shared Memory and Pattern Hub and feed updated knowledge into Stage 1.</desc>
+          <defs>
+            <marker id="diag-agent-loop-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0 0 L9 4.5 L0 9 Z" fill="#94a3b8"></path>
+            </marker>
+            <marker id="diag-agent-loop-writeback-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0 0 L9 4.5 L0 9 Z" fill="#ff6b35"></path>
+            </marker>
+          </defs>
+
+          <rect x="20" y="20" width="1160" height="720" rx="18" fill="#131b2e" stroke="#24324f" stroke-width="1"></rect>
+
+          <g class="loop-paths" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M390 125 V50 H810 V125" marker-end="url(#diag-agent-loop-arrow)"></path>
+            <path d="M1120 170 H1160 V580 H1120" marker-end="url(#diag-agent-loop-arrow)"></path>
+            <path d="M810 625 V710 H390 V625" marker-end="url(#diag-agent-loop-arrow)"></path>
+            <path d="M80 570 H40 V170 H80" marker-end="url(#diag-agent-loop-arrow)"></path>
+          </g>
+
+          <g class="edge-label">
+            <rect class="label-badge" x="510" y="36" width="180" height="28" rx="5"></rect>
+            <text class="edge-label-text thai" x="600" y="55" text-anchor="middle" style="line-height:1.6">สร้าง / GENERATE</text>
+          </g>
+          <g class="edge-label">
+            <rect class="label-badge" x="1015" y="351" width="150" height="28" rx="5"></rect>
+            <text class="edge-label-text thai" x="1090" y="370" text-anchor="middle" style="line-height:1.6">พิสูจน์ / VERIFY</text>
+          </g>
+          <g class="edge-label">
+            <rect class="label-badge" x="510" y="696" width="180" height="28" rx="5"></rect>
+            <text class="edge-label-text thai" x="600" y="715" text-anchor="middle" style="line-height:1.6">เรียนรู้ / LEARN</text>
+          </g>
+          <g class="edge-label">
+            <rect class="label-badge" x="30" y="356" width="140" height="28" rx="5"></rect>
+            <text class="edge-label-text thai" x="100" y="375" text-anchor="middle" style="line-height:1.6">ใช้กฎใหม่ / APPLY</text>
+          </g>
+
+          <g class="writeback-loop" fill="none" stroke="#ff6b35" stroke-width="2" stroke-dasharray="8 7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M390 540 H412 V420 H435" marker-end="url(#diag-agent-loop-writeback-arrow)"></path>
+            <path d="M435 330 H412 V210 H390" marker-end="url(#diag-agent-loop-writeback-arrow)"></path>
+          </g>
+          <g class="edge-label writeback-label">
+            <rect class="label-badge" x="252" y="430" width="150" height="28" rx="5"></rect>
+            <text class="edge-label-text thai" x="327" y="449" text-anchor="middle" style="line-height:1.6">เขียนกลับ / WRITE-BACK</text>
+          </g>
+          <g class="edge-label writeback-label">
+            <rect class="label-badge" x="244" y="272" width="170" height="28" rx="5"></rect>
+            <text class="edge-label-text thai" x="329" y="291" text-anchor="middle" style="line-height:1.6">จ่ายความรู้ / FEED</text>
+          </g>
+
+          <g class="node" aria-label="Stage 1 Code Generation and Analysis">
+            <rect x="80" y="90" width="310" height="160" rx="14" fill="#131b2e" stroke="#24324f" stroke-width="1"></rect>
+            <circle cx="111" cy="122" r="16" fill="#0f1626" stroke="#24324f" stroke-width="1"></circle>
+            <text class="node-number" x="111" y="127" text-anchor="middle">1</text>
+            <text class="node-kicker" x="139" y="119">BUILD / INSPECT</text>
+            <text class="node-title" x="105" y="157">🛠️ Code Generation &amp; Analysis</text>
+            <text class="node-thai thai" x="105" y="184" style="line-height:1.6">การสร้างและวิเคราะห์โค้ด</text>
+            <text class="node-copy thai" x="105" y="212" style="line-height:1.6">
+              <tspan x="105">Agent สร้างโค้ดและอ่าน</tspan>
+              <tspan x="105" dy="1.6em">โครงสร้างสถาปัตยกรรมก่อนส่งต่อ</tspan>
+            </text>
+          </g>
+
+          <g class="node" aria-label="Stage 2 Adversarial Audit and Quality Gate">
+            <rect x="810" y="90" width="310" height="160" rx="14" fill="#131b2e" stroke="#24324f" stroke-width="1"></rect>
+            <circle cx="841" cy="122" r="16" fill="#0f1626" stroke="#24324f" stroke-width="1"></circle>
+            <text class="node-number" x="841" y="127" text-anchor="middle">2</text>
+            <text class="node-kicker" x="869" y="119">ATTACK / GATE</text>
+            <text class="node-title" x="835" y="157">🔍 Adversarial Audit &amp; Quality Gate</text>
+            <text class="node-thai thai" x="835" y="184" style="line-height:1.6">การตรวจสอบและทดสอบเชิงปรปักษ์</text>
+            <text class="node-copy thai" x="835" y="212" style="line-height:1.6">
+              <tspan x="835">ตรวจจับจุดบกพร่อง วัด CRAP score</tspan>
+              <tspan x="835" dy="1.6em">และรัน mutation tests</tspan>
+            </text>
+          </g>
+
+          <g class="node" aria-label="Stage 3 Evidence-Based Verification">
+            <rect x="810" y="500" width="310" height="160" rx="14" fill="#131b2e" stroke="#24324f" stroke-width="1"></rect>
+            <circle cx="841" cy="532" r="16" fill="#0f1626" stroke="#24324f" stroke-width="1"></circle>
+            <text class="node-number" x="841" y="537" text-anchor="middle">3</text>
+            <text class="node-kicker" x="869" y="529">PROVE / VERIFY</text>
+            <text class="node-title" x="835" y="567">🛡️ Evidence-Based Verification</text>
+            <text class="node-thai thai" x="835" y="594" style="line-height:1.6">การพิสูจน์ด้วยหลักฐานเชิงประจักษ์</text>
+            <text class="node-copy thai" x="835" y="622" style="line-height:1.6">
+              <tspan x="835">รัน regression suite ให้ผ่าน 100%</tspan>
+              <tspan x="835" dy="1.6em">และสแกนความปลอดภัย</tspan>
+            </text>
+          </g>
+
+          <g class="node" aria-label="Stage 4 Self-Learning and Skill Evolution">
+            <rect x="80" y="500" width="310" height="160" rx="14" fill="#131b2e" stroke="#24324f" stroke-width="1"></rect>
+            <circle cx="111" cy="532" r="16" fill="#0f1626" stroke="#24324f" stroke-width="1"></circle>
+            <text class="node-number" x="111" y="537" text-anchor="middle">4</text>
+            <text class="node-kicker" x="139" y="529">LEARN / EVOLVE</text>
+            <text class="node-title" x="105" y="567">🧠 Self-Learning &amp; Skill Evolution</text>
+            <text class="node-thai thai" x="105" y="594" style="line-height:1.6">การเรียนรู้และอัปเกรดทักษะ</text>
+            <text class="node-copy thai" x="105" y="622" style="line-height:1.6">
+              <tspan x="105">สกัดข้อผิดพลาด (Pitfalls)</tspan>
+              <tspan x="105" dy="1.6em">และปรับปรุงกฎอัตโนมัติ</tspan>
+            </text>
+          </g>
+
+          <g class="hub-node" aria-label="Central Shared Memory and Pattern Hub">
+            <rect x="435" y="290" width="330" height="170" rx="16" fill="#17223a" stroke="#24324f" stroke-width="1"></rect>
+            <text class="hub-kicker" x="600" y="322" text-anchor="middle">HUB / MEMORY LAYER</text>
+            <text class="hub-title" x="600" y="356" text-anchor="middle">💾 Shared Memory &amp; Pattern Hub</text>
+            <text class="hub-thai thai" x="600" y="389" text-anchor="middle" style="line-height:1.6">คลังความจำและรูปแบบกลาง</text>
+            <text class="hub-copy thai" x="600" y="417" text-anchor="middle" style="line-height:1.6">
+              <tspan x="600">เก็บ Pattern, Pitfalls และกฎที่พิสูจน์แล้ว</tspan>
+              <tspan x="600" dy="1.6em">เพื่อส่งความรู้กลับสู่ Cycle ถัดไป</tspan>
+            </text>
+          </g>
+        </svg>
+
+        <figcaption class="diagram-caption thai">
+          <span><strong>อ่านเส้นทึบ</strong> เป็นลำดับการทำงานหลัก และอ่าน <strong>เส้นประสีส้ม</strong> เป็นวงจรการเรียนรู้</span>
+          <span>Click <strong>Expand Diagram</strong> เพื่อเลื่อนและขยายรายละเอียด</span>
+        </figcaption>
+      </figure>
+
+      <div class="walkthrough-grid" aria-label="Stage walkthrough">
+        <article class="walkthrough-card">
+          <p class="step-number">01 / BUILD</p>
+          <h3>Code Generation &amp; Analysis</h3>
+          <p class="thai">สร้างโค้ดจาก Pattern ที่มีอยู่ พร้อมตรวจโครงสร้างและจุดเสี่ยงตั้งแต่ต้น</p>
+        </article>
+        <article class="walkthrough-card">
+          <p class="step-number">02 / ATTACK</p>
+          <h3>Adversarial Audit &amp; Quality Gate</h3>
+          <p class="thai">จำลองแรงกดดันต่อระบบเพื่อให้ข้อบกพร่องปรากฏก่อนผ่าน Gate</p>
+        </article>
+        <article class="walkthrough-card">
+          <p class="step-number">03 / PROVE</p>
+          <h3>Evidence-Based Verification</h3>
+          <p class="thai">ยืนยันผลด้วย Regression Suite, Security Scan และหลักฐาน Runtime</p>
+        </article>
+        <article class="walkthrough-card">
+          <p class="step-number">04 / EVOLVE</p>
+          <h3>Self-Learning &amp; Skill Evolution</h3>
+          <p class="thai">สรุป Pitfalls เป็นกฎและทักษะใหม่ แล้วเขียนกลับสู่ Shared Memory</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="tier" id="deep-dive" aria-labelledby="deep-dive-heading">
+      <div class="section-kicker"><span>03</span><span>DEEP DIVE / รายละเอียดเชิงลึก</span></div>
+      <details class="deep-dive">
+        <summary id="deep-dive-heading"><span>Stage contracts, evidence, and memory outputs</span><span class="thai">เปิดรายละเอียดการส่งต่อของแต่ละ Stage</span></summary>
+        <div class="deep-dive-content">
+          <p class="deep-dive-intro thai">แต่ละ Stage มี Input และหลักฐานที่ชัดเจน เมื่อระบบจบ Cycle แล้ว Shared Memory จะเก็บเฉพาะ Pattern และกฎที่ผ่านการพิสูจน์ เพื่อให้การปรับปรุงรอบต่อไปตรวจสอบย้อนกลับได้</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Input → Action</th>
+                  <th>Evidence / Memory output</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>01 · Build / Inspect</td>
+                  <td class="thai">Pattern + งานที่ต้องทำ → สร้างโค้ดและวิเคราะห์สถาปัตยกรรม</td>
+                  <td>Candidate diff, architecture notes</td>
+                </tr>
+                <tr>
+                  <td>02 · Attack / Gate</td>
+                  <td class="thai">Candidate → ตรวจจุดบกพร่องด้วย CRAP score และ mutation tests</td>
+                  <td>Audit findings, mutation result, gate decision</td>
+                </tr>
+                <tr>
+                  <td>03 · Prove / Verify</td>
+                  <td class="thai">Build ที่ผ่าน Gate → รัน regression suite และ security scan</td>
+                  <td>100% regression pass, scan report, runtime evidence</td>
+                </tr>
+                <tr>
+                  <td>04 · Learn / Evolve</td>
+                  <td class="thai">หลักฐาน + Pitfalls → สกัดกฎ ปรับ Skill และเขียนกลับ</td>
+                  <td>New Pattern, updated rule, next-cycle guidance</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <footer class="footer-line">
+      <span>SELF-IMPROVING LOOP / STATIC EDITORIAL ARTIFACT</span>
+      <span class="thai">หลักฐาน → ความรู้ → ความสามารถ</span>
+    </footer>
+  </main>
+
+  <dialog class="diagram-lightbox" id="diag-agent-loop-dialog" aria-labelledby="diag-agent-loop-dialog-title">
+    <div class="diagram-lightbox__header">
+      <div class="lightbox-title">
+        <h2 id="diag-agent-loop-dialog-title">Self-Improving Autonomous Agent Loop</h2>
+        <p class="thai">ลากเพื่อเลื่อน ใช้ Wheel หรือ Touch เพื่อขยาย</p>
+      </div>
+      <div class="lightbox-controls" role="group" aria-label="Diagram zoom controls">
+        <button type="button" class="toolbar-button" id="diag-agent-loop-zoom-in" aria-label="Zoom In">➕ Zoom In</button>
+        <button type="button" class="toolbar-button" id="diag-agent-loop-zoom-out" aria-label="Zoom Out">➖ Zoom Out</button>
+        <button type="button" class="toolbar-button" id="diag-agent-loop-reset" aria-label="Reset">↺ Reset</button>
+        <span class="scale-badge" id="diag-agent-loop-scale" aria-live="polite">Scale: 100%</span>
+        <button type="button" class="toolbar-button lightbox-close" id="diag-agent-loop-close" aria-label="Close">✕ Close</button>
+      </div>
+    </div>
+    <div class="lightbox-viewport" id="diag-agent-loop-viewport">
+      <div class="lightbox-canvas" id="diag-agent-loop-canvas"></div>
+    </div>
+  </dialog>
+
+  <noscript>
+    <p class="thai">เปิดใช้ JavaScript เพื่อใช้งานการขยายและเลื่อน Diagram แบบเต็มจอ เนื้อหาหลักยังแสดงเป็น SVG แบบคงที่</p>
+  </noscript>
+
+  <script>
+    (() => {
+      const card = document.querySelector("#diag-agent-loop-card");
+      const sourceSvg = document.querySelector("#diag-agent-loop-svg");
+      const trigger = document.querySelector("#diag-agent-loop-open");
+      const dialog = document.querySelector("#diag-agent-loop-dialog");
+      const viewport = document.querySelector("#diag-agent-loop-viewport");
+      const canvas = document.querySelector("#diag-agent-loop-canvas");
+      const closeButton = document.querySelector("#diag-agent-loop-close");
+      const zoomInButton = document.querySelector("#diag-agent-loop-zoom-in");
+      const zoomOutButton = document.querySelector("#diag-agent-loop-zoom-out");
+      const resetButton = document.querySelector("#diag-agent-loop-reset");
+      const scaleBadge = document.querySelector("#diag-agent-loop-scale");
+      const placeholder = document.createComment("diagram source position");
+
+      if (!card || !sourceSvg || !trigger || !dialog || !viewport || !canvas) return;
+
+      let scale = 1;
+      let translateX = 0;
+      let translateY = 0;
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let svgIsInLightbox = false;
+
+      function applyTransform() {
+        canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        if (scaleBadge) scaleBadge.textContent = `Scale: ${Math.round(scale * 100)}%`;
+      }
+
+      function centerCanvas() {
+        canvas.style.transform = "none";
+        const viewportRect = viewport.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        canvas.style.left = `${Math.round((viewportRect.width - canvasRect.width) / 2)}px`;
+        canvas.style.top = `${Math.round((viewportRect.height - canvasRect.height) / 2)}px`;
+      }
+
+      function resetTransform() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        centerCanvas();
+        applyTransform();
+      }
+
+      function zoom(delta, clientX, clientY) {
+        const oldScale = scale;
+        const newScale = Math.min(Math.max(0.5, scale + delta), 4);
+        if (newScale === oldScale) return;
+
+        if (clientX !== undefined && clientY !== undefined) {
+          const rect = viewport.getBoundingClientRect();
+          const originX = clientX - (rect.left + rect.width / 2);
+          const originY = clientY - (rect.top + rect.height / 2);
+          translateX -= (originX / oldScale) * (newScale - oldScale);
+          translateY -= (originY / oldScale) * (newScale - oldScale);
+        }
+
+        scale = newScale;
+        applyTransform();
+      }
+
+      function openModal() {
+        if (svgIsInLightbox) return;
+        sourceSvg.replaceWith(placeholder);
+        canvas.replaceChildren(sourceSvg);
+        sourceSvg.style.width = "100%";
+        sourceSvg.style.maxWidth = "none";
+        sourceSvg.style.height = "auto";
+        sourceSvg.style.maxHeight = "none";
+        svgIsInLightbox = true;
+
+        if (typeof dialog.showModal === "function") {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute("open", "");
+        }
+
+        resetTransform();
+        closeButton?.focus();
+      }
+
+      function restoreSource() {
+        if (!svgIsInLightbox) return;
+        if (placeholder.parentNode) placeholder.replaceWith(sourceSvg);
+        sourceSvg.style.removeProperty("width");
+        sourceSvg.style.removeProperty("max-width");
+        sourceSvg.style.removeProperty("height");
+        sourceSvg.style.removeProperty("max-height");
+        canvas.replaceChildren();
+        svgIsInLightbox = false;
+        resetTransform();
+        trigger.focus();
+      }
+
+      function closeModal() {
+        if (typeof dialog.close === "function" && dialog.open) {
+          dialog.close();
+        } else {
+          dialog.removeAttribute("open");
+          restoreSource();
+        }
+      }
+
+      trigger.addEventListener("click", openModal);
+      closeButton?.addEventListener("click", closeModal);
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeModal();
+      });
+      dialog.addEventListener("close", restoreSource);
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) closeModal();
+      });
+
+      zoomInButton?.addEventListener("click", () => zoom(0.25));
+      zoomOutButton?.addEventListener("click", () => zoom(-0.25));
+      resetButton?.addEventListener("click", resetTransform);
+
+      viewport.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        zoom(event.deltaY < 0 ? 0.15 : -0.15, event.clientX, event.clientY);
+      }, { passive: false });
+
+      viewport.addEventListener("mousedown", (event) => {
+        if (event.button !== 0) return;
+        isDragging = true;
+        dragStartX = event.clientX - translateX;
+        dragStartY = event.clientY - translateY;
+        viewport.classList.add("grabbing");
+      });
+
+      window.addEventListener("mousemove", (event) => {
+        if (!isDragging) return;
+        translateX = event.clientX - dragStartX;
+        translateY = event.clientY - dragStartY;
+        applyTransform();
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        viewport.classList.remove("grabbing");
+      });
+
+      viewport.addEventListener("touchstart", (event) => {
+        if (event.touches.length !== 1) return;
+        isDragging = true;
+        dragStartX = event.touches[0].clientX - translateX;
+        dragStartY = event.touches[0].clientY - translateY;
+        viewport.classList.add("grabbing");
+      }, { passive: true });
+
+      viewport.addEventListener("touchmove", (event) => {
+        if (!isDragging || event.touches.length !== 1) return;
+        event.preventDefault();
+        translateX = event.touches[0].clientX - dragStartX;
+        translateY = event.touches[0].clientY - dragStartY;
+        applyTransform();
+      }, { passive: false });
+
+      viewport.addEventListener("touchend", () => {
+        isDragging = false;
+        viewport.classList.remove("grabbing");
+      });
+
+      window.addEventListener("resize", () => {
+        if (!svgIsInLightbox || !dialog.open) return;
+        resetTransform();
+      });
+    })();
+  </script>
+<footer data-artifact-meta style="max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666">artifact: self-improving-agent-loop · v2 · artifact-sftp v0.20.0 · created 2026-08-27 18:40 +07</footer></body>
+</html>
