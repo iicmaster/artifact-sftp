@@ -22,17 +22,21 @@ However, standard object storage lacks built-in authentication layers for select
 We select **Cloudflare R2 + Custom Domain + Cloudflare Zero Trust Access** as our primary S3 driver architecture pattern.
 
 ```text
-               [AI Agent / MCP Client]
-                          │
-          (S3 PUT API: Boto3 / S3 REST Client)
-                          ▼
-            [Cloudflare R2 Bucket (Private)]
-                          ▲
-                          │
-            [Custom Domain / Cloudflare CDN]
-             (e.g. artifacts.mycompany.com)
-             ├── /public/*  ──> Anonymous Allowed
-             └── /private/* ──> Cloudflare Access Gate (OTP/SSO Login)
+                 [AI Agent Client]
+                         │
+         (MCP Tool: artifact_sftp.publish)
+                         ▼
+           [Local Artifact SFTP MCP Server]
+                         │
+         (S3 Driver: Boto3 / Internal S3 REST)
+                         ▼
+           [Cloudflare R2 Bucket (Private)]
+                         ▲
+                         │
+           [Custom Domain / Cloudflare CDN]
+            (e.g. artifacts.mycompany.com)
+            ├── /public/*  ──> Anonymous Allowed
+            └── /private/* ──> Cloudflare Access Gate (OTP/SSO Login)
 ```
 
 ---
