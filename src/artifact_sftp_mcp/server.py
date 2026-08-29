@@ -143,12 +143,12 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
 
     @server.tool(
         name="artifact_sftp.read",
-        title="Read a local Artifact SFTP archive",
+        title="Read an Artifact SFTP archive (Local-First with Remote SFTP Fallback)",
         description=(
-            "Resolve a canonical URL, read-back line, or archive path to the selected project's local archive. "
-            "Returns a bounded, untrusted HTML excerpt and never fetches a private viewer URL."
+            "Resolve a canonical URL, read-back line, or archive path to local archive (Tier 1) or securely fetch and cache via remote SFTP (Tier 2). "
+            "Returns a bounded, untrusted HTML excerpt and never fetches an unauthenticated private viewer URL."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
     )
     def read(
         project_path: str,

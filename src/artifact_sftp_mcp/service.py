@@ -795,6 +795,7 @@ class ArtifactSftpService:
         end = min(cursor + max_bytes, len(raw))
         chunk = raw[cursor:end]
         result = {
+            "source": details["source"],
             "archive_path": details["path"],
             "relative_archive_path": details["relative_path"],
             "artifact": {
@@ -811,7 +812,7 @@ class ArtifactSftpService:
             "content": chunk.decode("utf-8", errors="replace"),
             "truncated": end < len(raw),
             "next_cursor": end if end < len(raw) else None,
-            "network_accessed": False,
+            "network_accessed": details["network_accessed"],
             "content_is_untrusted": True,
             "rendering_checked": False,
         }
@@ -907,24 +908,60 @@ class ArtifactSftpService:
             return self._error(
                 operation, 3, "unsafe_archive_path",
                 "Local archive path is missing, unsafe, or not a regular file.",
+                "Use the publishing project's verified docs/artifacts archive or remote SFTP fetch.",
+            )
+        try:
+            stat_info = candidate.stat()
+            if stat_info.st_size > 5 * 1024 * 1024:
+                return self._error(
+                    operation, 2, "oversized_artifact",
+                    f"Artifact file size ({stat_info.st_size} bytes) exceeds the 5 MiB safety limit.",
+                    "Artifact SFTP artifacts must be 5 MiB or smaller.",
+                )
+        except OSError:
+            return self._error(
+                operation, 3, "unsafe_archive_path",
+                "Local archive path could not be checked safely.",
                 "Use the publishing project's verified docs/artifacts archive.",
             )
+
+        source = "local_archive"
+        network_accessed = False
+        relative: Path | None = None
         try:
             resolved = candidate.resolve(strict=True)
             archive_root = (project / "docs/artifacts").resolve(strict=True)
             relative = resolved.relative_to(archive_root)
+            source = "local_archive"
+            network_accessed = False
         except (OSError, ValueError):
+            pass
+
+        # Remote cache paths are ONLY accepted for read operations (never for publish custody verification)
+        if relative is None and operation == "read":
+            try:
+                resolved = candidate.resolve(strict=True)
+                cache_root = (Path.home() / ".cache/artifact-sftp/remote").resolve(strict=True)
+                relative = resolved.relative_to(cache_root)
+                source = "remote_sftp"
+                network_accessed = True
+            except (OSError, ValueError):
+                pass
+
+        if relative is None:
             return self._error(
                 operation, 2, "archive_outside_project",
-                "Resolved artifact archive is outside this project's docs/artifacts tree.",
+                "Resolved artifact archive is outside this project's docs/artifacts tree"
+                + (" and remote cache." if operation == "read" else "."),
                 "Do not use an arbitrary local path as an Artifact SFTP read-back archive.",
             )
+
         parts = relative.parts
         if len(parts) != 4 or parts[0] not in TOOLS or parts[1] not in VISIBILITIES or not SLUG_RE.fullmatch(parts[2]):
             return self._error(
                 operation, 2, "invalid_archive_identity",
                 "Archive path does not match the Artifact SFTP layout.",
-                "Use the read-back path returned by the publisher or a canonical artifact URL.",
+                "Use the read-back path returned by the publisher, a canonical artifact URL, or remote SFTP fetch.",
             )
         filename = parts[3]
         kind = "current" if filename == "index.html" else "snapshot"
@@ -947,6 +984,8 @@ class ArtifactSftpService:
                 "Use the publishing project's verified docs/artifacts archive.",
             )
         return {
+            "source": source,
+            "network_accessed": network_accessed,
             "path": str(resolved),
             "relative_path": str(relative),
             "tool": parts[0],
