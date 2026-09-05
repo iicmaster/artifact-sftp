@@ -137,7 +137,7 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 ### A. Execution Modes & Opt-Out Routing
 - **Standard Run (Default):** Every standard invocation of `show-me` (including `/show-me` slash commands) **MUST produce a focused, standalone HTML artifact**, pass the mandatory `artifact-audit` pre-flight gate, and publish via `artifact_sftp.publish`.
 - **`--inline` Mode (Chat-Only Opt-Out):** Explicitly exempt from the HTML artifact workflow. Bypasses standalone HTML file generation, auditing, and publishing entirely. Delivers the complete visual representation, explanation, and checkable source links directly in chat.
-- **`--no-publish` Mode (Local-First Opt-Out):** Generates and audits the local standalone HTML artifact under `docs/<slug>.html`, but skips remote publishing and reports the local archive path.
+- **`--no-publish` Mode (Local-First Opt-Out):** Generates and audits the local standalone HTML artifact under `docs/<slug>.html`, but skips remote publishing and reports the generated local file path.
 
 ### B. Invariants & Safety Boundaries
 1. **Audit Conditioning:** For publishing runs, `artifact_sftp.publish` is **mandatory only after achieving 🟢 PASS or an approved 🟡 WARN**. If `artifact-audit` returns 🔴 **BLOCK**, the agent **MUST HALT** and never publish the artifact. The agent must route to the corresponding remediation skill, repair the underlying defect, and re-run the audit. Never bypass the audit gate to satisfy publishing.
@@ -147,16 +147,16 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
 2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform when appropriate.
 3. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception:**
-   - 🟢 **PASS & private:** Call `artifact_sftp.publish` immediately (pre-authorized; skip if `--no-publish`).
+   - 🟢 **PASS & private:** For publishing runs, check setup readiness via `artifact_sftp.setup_status(verify_connection=true)` first (if not already verified in this session); if ready, call `artifact_sftp.publish` immediately (pre-authorized). Skip publishing if `--no-publish`.
    - 🟡 **WARN:** Present warnings for user confirmation before publish.
    - 🔴 **BLOCK:** **Halt.** Route to remediation skill, repair source, re-audit. Never publish a BLOCK.
-4. **Report the deliverable reference:** Report published URL (or local path for `--no-publish`), local read-back reference, and checkable source links in the executive chat summary.
+4. **Report the deliverable reference:** For publishing runs, report the published URL, local read-back reference, and checkable source links in the executive chat summary. For `--no-publish` runs, report the generated local HTML file path and checkable source links (do not report a read-back reference since no upload took place).
 
 ---
 
 ## 6. Core Rules & Invariants
 
-- **Never stop at inline chat markdown (unless `--inline` or `--no-publish` is requested).** For standard invocations, the published artifact on SFTP is the primary deliverable; the chat message is the executive summary.
+- **Never stop at inline chat markdown (unless `--inline` is requested).** For standard and `--no-publish` runs, the HTML artifact is required; the chat message is the executive summary.
 - **A number is not a picture, and a picture is not a measurement.** A diagram proves a shape; a measurement proves a quantity. Show both when needed.
 - **Draw what IS, not what was planned.** Read the actual source code before drawing.
 - **Simple is not the same as approximately true.** Reduction buys you fewer boxes and fewer words. It never buys a wrong arrow, a renamed tool, or a fictional step.
