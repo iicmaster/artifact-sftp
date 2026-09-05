@@ -1,6 +1,6 @@
 ---
 name: show-me
-description: "Explain any topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Always delivers an audited, standalone HTML artifact published via artifact_sftp.publish (Option 4 inline SVG/lightbox) with executive chat summary. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
+description: "Explain any topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Delivers an audited, standalone HTML artifact published via artifact_sftp.publish (Option 4 inline SVG/lightbox) with executive chat summary (unless invoked with --inline). Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
 ---
 
 # Show Me
@@ -11,7 +11,7 @@ Explain any system, change, workflow, architecture, or codebase topic visually w
 
 ## 1. The 3 Mandatory Pillars (The Triad of Trust)
 
-Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output delivers an **audited HTML artifact published via `artifact_sftp.publish`** accompanied by an **executive chat summary**, and **MUST satisfy all three pillars simultaneously**:
+Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output delivers an **audited HTML artifact published via `artifact_sftp.publish`** accompanied by an **executive chat summary** (unless invoked with `--inline` or `--no-publish`), and **MUST satisfy all three pillars simultaneously**:
 
 ```text
        ┌────────────────────────────────────────────────────────┐
@@ -108,7 +108,8 @@ src/artifact_sftp_mcp/
 └── models.py     # what a tool may return
 ```
 
-Interaction over time — **Mermaid / Sequence**:
+Interaction over time — **Sequence / Interaction Flow**:
+*(Note: Mermaid syntax below is authoring syntax only. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4).*
 ```mermaid
 sequenceDiagram
     participant Agent
@@ -131,9 +132,13 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 
 ---
 
-## 5. The Mandatory Deliverable: Audited, Published HTML Artifact
+## 5. The Primary Deliverable: Audited, Published HTML Artifact
 
-**HARD INVARIANT — CANNOT BYPASS:** Every invocation of `show-me` (including `/show-me` slash commands) **MUST produce and publish an audited HTML artifact via `artifact_sftp.publish`**. An AI agent MUST NOT end the turn with only inline markdown text in chat unless the user explicitly passed the `--inline` or `--no-publish` flag.
+**MANDATORY DELIVERABLE INVARIANT:**
+Every invocation of `show-me` (including `/show-me` slash commands) **MUST produce a focused, standalone HTML artifact** and execute the `artifact-audit` pre-flight quality and security gate, with publishing governed by the following strict conditions:
+1. **Explicit Opt-Out Exception:** If the user explicitly passes the `--inline` or `--no-publish` flag, do not publish to SFTP; deliver the complete explanation and visual representation inline within the chat turn.
+2. **Audit Conditioning:** Publishing via `artifact_sftp.publish` is **mandatory only after the artifact achieves 🟢 PASS or an approved 🟡 WARN**. If `artifact-audit` returns 🔴 **BLOCK**, the agent **MUST HALT** and never publish the artifact. The agent must route to the corresponding remediation skill, repair the underlying defect, and re-run the audit. Never bypass the audit gate to satisfy publishing.
+3. **MCP Availability Exception:** If `artifact_sftp.*` MCP tools are unavailable, stop immediately and report `artifact_sftp MCP is not available`. An agent MUST NOT substitute shell commands, direct SFTP, or internal script execution (strictly enforce `AGENTS.md`).
 
 Workflow:
 1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
@@ -148,7 +153,7 @@ Workflow:
 
 ## 6. Core Rules & Invariants
 
-- **Never stop at inline chat markdown.** The artifact on SFTP is the primary deliverable; the chat message is the executive summary.
+- **Never stop at inline chat markdown (unless `--inline` or `--no-publish` is requested).** For standard invocations, the published artifact on SFTP is the primary deliverable; the chat message is the executive summary.
 - **A number is not a picture, and a picture is not a measurement.** A diagram proves a shape; a measurement proves a quantity. Show both when needed.
 - **Draw what IS, not what was planned.** Read the actual source code before drawing.
 - **Simple is not the same as approximately true.** Reduction buys you fewer boxes and fewer words. It never buys a wrong arrow, a renamed tool, or a fictional step.
