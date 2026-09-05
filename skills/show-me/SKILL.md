@@ -1,17 +1,17 @@
 ---
 name: show-me
-description: "Explain the current topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Pick the smallest view that makes the point — pseudocode, call tree, shallow file tree, Mermaid, diff, or an audited HTML artifact published through artifact_sftp. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
+description: "Explain any topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Always delivers an audited, standalone HTML artifact published via artifact_sftp.publish (Option 4 inline SVG/lightbox) with executive chat summary. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
 ---
 
 # Show Me
 
-Explain any system, change, workflow, architecture, or codebase topic visually with instant clarity, plain language, and verifiable receipts.
+Explain any system, change, workflow, architecture, or codebase topic visually with instant clarity, plain language, verifiable receipts, and an audited published HTML artifact.
 
 ---
 
 ## 1. The 3 Mandatory Pillars (The Triad of Trust)
 
-Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output (whether a concise inline response or a published HTML artifact) **MUST satisfy all three pillars simultaneously**:
+Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output delivers an **audited HTML artifact published via `artifact_sftp.publish`** accompanied by an **executive chat summary**, and **MUST satisfy all three pillars simultaneously**:
 
 ```text
        ┌────────────────────────────────────────────────────────┐
@@ -32,7 +32,7 @@ Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://e
 ```
 
 1. **🖼️ VISUAL DIAGRAM (แผนภาพประกอบที่ตรงเป้า):**
-   - Must contain a visual representation matched to the depth tier: pseudocode, call tree, shallow file tree, Mermaid sequence/flowchart, diff block, or an audited responsive SVG with Viewport Lightbox.
+   - Must contain a visual representation matched to the depth tier: responsive inline SVG with Viewport Lightbox, sequence/flowchart, pseudocode, call tree, shallow file tree, or diff block.
 2. **✍️ PLAIN LANGUAGE (ภาษาธรรมชาติ กระชับ เข้าใจง่าย):**
    - Explain with human, punchy, anti-slop prose.
    - **Analogy Sits Beside Real Name:** Everyday comparisons sit *beside* real technical names; they never replace them.
@@ -65,6 +65,7 @@ Specify the exact depth using `--depth <tier>` or `--depth <1..4>`:
 /show-me --depth eli10 <topic>     # Level 2
 /show-me --depth eli15 <topic>     # Level 3
 /show-me --depth expert <topic>    # Level 4
+/show-me --inline <topic>          # Skip HTML publish; render inline in chat only
 ```
 
 ### B. Natural Language Intent Routing
@@ -78,9 +79,9 @@ When a reader reviews an `ELI5` explanation and asks a follow-up (*"Go deeper on
 
 ---
 
-## 4. The Visual Forms
+## 4. Visual Diagram Archetypes for the HTML Artifact
 
-Choose the **smallest** form that settles the question:
+Choose the visual archetype that best clarifies the topic inside the standalone HTML artifact:
 
 Logic or an algorithm — **Pseudocode**:
 ```text
@@ -107,7 +108,7 @@ src/artifact_sftp_mcp/
 └── models.py     # what a tool may return
 ```
 
-Interaction over time — **Mermaid**:
+Interaction over time — **Mermaid / Sequence**:
 ```mermaid
 sequenceDiagram
     participant Agent
@@ -130,22 +131,24 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 
 ---
 
-## 5. The Primary Output: Audited, Published HTML Artifact
+## 5. The Mandatory Deliverable: Audited, Published HTML Artifact
 
-For any rich diagram, architectural layout, state comparison, UI wireframe, or visual walkthrough:
+**HARD INVARIANT — CANNOT BYPASS:** Every invocation of `show-me` (including `/show-me` slash commands) **MUST produce and publish an audited HTML artifact via `artifact_sftp.publish`**. An AI agent MUST NOT end the turn with only inline markdown text in chat unless the user explicitly passed the `--inline` or `--no-publish` flag.
 
-1. **Write one focused, standalone HTML page** into the selected absolute `project_path` — inline CSS, JavaScript and assets, responsive layout, large visuals, and few words per the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
-2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform.
+Workflow:
+1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
+2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform when appropriate.
 3. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception:**
    - 🟢 **PASS & private:** Call `artifact_sftp.publish` immediately (pre-authorized).
    - 🟡 **WARN:** Present warnings for user confirmation before publish.
    - 🔴 **BLOCK:** **Halt.** Route to remediation skill, repair source, re-audit. Never publish a BLOCK.
-4. **Report the published URL, local read-back reference, and checkable source links.**
+4. **Report the published URL, local read-back reference, and checkable source links in the executive chat summary.**
 
 ---
 
 ## 6. Core Rules & Invariants
 
+- **Never stop at inline chat markdown.** The artifact on SFTP is the primary deliverable; the chat message is the executive summary.
 - **A number is not a picture, and a picture is not a measurement.** A diagram proves a shape; a measurement proves a quantity. Show both when needed.
 - **Draw what IS, not what was planned.** Read the actual source code before drawing.
 - **Simple is not the same as approximately true.** Reduction buys you fewer boxes and fewer words. It never buys a wrong arrow, a renamed tool, or a fictional step.
