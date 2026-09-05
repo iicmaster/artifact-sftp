@@ -147,8 +147,12 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
 2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform when appropriate.
 3. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception:**
-   - 🟢 **PASS & private:** For publishing runs, check setup readiness via `artifact_sftp.setup_status(verify_connection=true)` first (if not already verified in this session); if ready, call `artifact_sftp.publish` immediately (pre-authorized). Skip publishing if `--no-publish`.
-   - 🟡 **WARN:** Present warnings for user confirmation before publish.
+   - 🟢 **PASS & private:**
+     - **For publishing runs:** Ensure setup readiness via `artifact_sftp.setup_status(verify_connection=true)` first (if not already verified in this session). If `ready: true`, call `artifact_sftp.publish` immediately (pre-authorized). If `ready: false`, call `artifact_sftp.setup` to obtain the structured setup boundary, report the missing prerequisites to the user, and stop without publishing (per `skills/artifact-sftp/SKILL.md`).
+     - **For `--no-publish` runs:** Skip remote publishing and proceed directly to reporting the generated local artifact path.
+   - 🟡 **WARN:**
+     - **For publishing runs:** Present warnings for user confirmation before proceeding with setup verification and publishing.
+     - **For `--no-publish` runs:** Report the audit warnings alongside the generated local HTML path without requiring publish confirmation.
    - 🔴 **BLOCK:** **Halt.** Route to remediation skill, repair source, re-audit. Never publish a BLOCK.
 4. **Report the deliverable reference:** For publishing runs, report the published URL, local read-back reference, and checkable source links in the executive chat summary. For `--no-publish` runs, report the generated local HTML file path and checkable source links (do not report a read-back reference since no upload took place).
 
