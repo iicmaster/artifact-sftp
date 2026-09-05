@@ -64,9 +64,10 @@ Ten skills ship with the plugin. Three move bytes; five shape the document; two 
   archetypes, and a consistent palette instead of default neon.
 - `doc-synchronizer` — Code-to-docs parity auditor. Checks README, SKILL.md, manifests,
   links, anchors, and documented CLI flags against the actual codebase.
-- `show-me` — Explain a topic with the smallest picture that makes it understood;
-  comprehension first, deeper detail on request. Inline diagrams, or one focused HTML page
-  gated by `artifact-audit` and published through `artifact_sftp`.
+- `show-me` — Explain a topic visually with instant clarity;
+  comprehension first, deeper detail on request. Produces an audited standalone HTML
+  artifact published through `artifact_sftp` with an executive chat summary (or inline
+  in chat via `--inline`).
 
 ### Quality gate and lifecycle
 

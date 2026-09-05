@@ -1,6 +1,6 @@
 ---
 name: show-me
-description: "Explain any topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Delivers an audited, standalone HTML artifact published via artifact_sftp.publish (Option 4 inline SVG/lightbox) with executive chat summary (unless invoked with --inline). Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
+description: "Explain any topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Produces an audited, standalone HTML artifact published via artifact_sftp.publish (Option 4 inline SVG/lightbox) with executive chat summary, unless publishing is opted out via --inline or --no-publish. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
 ---
 
 # Show Me
@@ -138,7 +138,7 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 Every invocation of `show-me` (including `/show-me` slash commands) **MUST produce a focused, standalone HTML artifact** and execute the `artifact-audit` pre-flight quality and security gate, with publishing governed by the following strict conditions:
 1. **Explicit Opt-Out Exception:** If the user explicitly passes the `--inline` or `--no-publish` flag, do not publish to SFTP; deliver the complete explanation and visual representation inline within the chat turn.
 2. **Audit Conditioning:** Publishing via `artifact_sftp.publish` is **mandatory only after the artifact achieves 🟢 PASS or an approved 🟡 WARN**. If `artifact-audit` returns 🔴 **BLOCK**, the agent **MUST HALT** and never publish the artifact. The agent must route to the corresponding remediation skill, repair the underlying defect, and re-run the audit. Never bypass the audit gate to satisfy publishing.
-3. **MCP Availability Exception:** If `artifact_sftp.*` MCP tools are unavailable, stop immediately and report `artifact_sftp MCP is not available`. An agent MUST NOT substitute shell commands, direct SFTP, or internal script execution (strictly enforce `AGENTS.md`).
+3. **MCP Availability Exception:** For publishing invocations (when not opted out via `--inline` or `--no-publish`), if `artifact_sftp.*` MCP tools are unavailable, stop immediately and report `artifact_sftp MCP is not available`. An agent MUST NOT substitute shell commands, direct SFTP, or internal script execution (strictly enforce `AGENTS.md`). Invocations with `--inline` or `--no-publish` do not require MCP publishing tools and proceed inline without stopping.
 
 Workflow:
 1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
