@@ -1,17 +1,17 @@
 ---
 name: show-me
-description: "Explain the current topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Pick the smallest view that makes the point — pseudocode, call tree, shallow file tree, Mermaid, diff, or an audited HTML artifact published through artifact_sftp. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
+description: "Explain any topic with 3 mandatory pillars (Visual Diagram, Plain Language, Checkable Sources) across 4 adjustable depths (ELI5, ELI10, ELI15, Expert; default: ELI5) based on eli5.cc. Produces an audited, standalone HTML artifact published via artifact_sftp.publish (Option 4 inline SVG/lightbox) with executive chat summary, unless publishing is opted out via --inline or --no-publish. Use when the user asks what something does, how a change moves through the system, says show me / draw it / eli5 / วาดให้ดู / อธิบายแบบง่ายๆ, or passes --depth eli5|eli10|eli15|expert."
 ---
 
 # Show Me
 
-Explain any system, change, workflow, architecture, or codebase topic visually with instant clarity, plain language, and verifiable receipts.
+Explain any system, change, workflow, architecture, or codebase topic visually with instant clarity, plain language, verifiable receipts, and an audited published HTML artifact.
 
 ---
 
 ## 1. The 3 Mandatory Pillars (The Triad of Trust)
 
-Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output (whether a concise inline response or a published HTML artifact) **MUST satisfy all three pillars simultaneously**:
+Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://eli5.cc/how-it-works>). Every `show-me` output delivers an **audited HTML artifact published via `artifact_sftp.publish`** accompanied by an **executive chat summary** (unless invoked with `--inline` or `--no-publish`), and **MUST satisfy all three pillars simultaneously**:
 
 ```text
        ┌────────────────────────────────────────────────────────┐
@@ -32,7 +32,7 @@ Adapted from the official **ELI5** answer engine (<https://eli5.cc/>, <https://e
 ```
 
 1. **🖼️ VISUAL DIAGRAM (แผนภาพประกอบที่ตรงเป้า):**
-   - Must contain a visual representation matched to the depth tier: pseudocode, call tree, shallow file tree, Mermaid sequence/flowchart, diff block, or an audited responsive SVG with Viewport Lightbox.
+   - Must contain a visual representation matched to the depth tier: responsive inline SVG with Viewport Lightbox, sequence/flowchart, pseudocode, call tree, shallow file tree, or diff block.
 2. **✍️ PLAIN LANGUAGE (ภาษาธรรมชาติ กระชับ เข้าใจง่าย):**
    - Explain with human, punchy, anti-slop prose.
    - **Analogy Sits Beside Real Name:** Everyday comparisons sit *beside* real technical names; they never replace them.
@@ -65,6 +65,8 @@ Specify the exact depth using `--depth <tier>` or `--depth <1..4>`:
 /show-me --depth eli10 <topic>     # Level 2
 /show-me --depth eli15 <topic>     # Level 3
 /show-me --depth expert <topic>    # Level 4
+/show-me --no-publish <topic>      # Generate & audit local HTML; skip remote publish
+/show-me --inline <topic>          # Skip HTML publish; render inline in chat only
 ```
 
 ### B. Natural Language Intent Routing
@@ -78,9 +80,9 @@ When a reader reviews an `ELI5` explanation and asks a follow-up (*"Go deeper on
 
 ---
 
-## 4. The Visual Forms
+## 4. Visual Diagram Archetypes for the HTML Artifact
 
-Choose the **smallest** form that settles the question:
+Choose the visual archetype that best clarifies the topic inside the standalone HTML artifact:
 
 Logic or an algorithm — **Pseudocode**:
 ```text
@@ -107,7 +109,8 @@ src/artifact_sftp_mcp/
 └── models.py     # what a tool may return
 ```
 
-Interaction over time — **Mermaid**:
+Interaction over time — **Sequence / Interaction Flow**:
+*(Note: Mermaid syntax below is authoring syntax only. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4).*
 ```mermaid
 sequenceDiagram
     participant Agent
@@ -130,22 +133,35 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 
 ---
 
-## 5. The Primary Output: Audited, Published HTML Artifact
+## 5. Deliverable Contract & Execution Modes
 
-For any rich diagram, architectural layout, state comparison, UI wireframe, or visual walkthrough:
+### A. Execution Modes & Opt-Out Routing
+- **Standard Run (Default):** Every standard invocation of `show-me` (including `/show-me` slash commands) **MUST produce a focused, standalone HTML artifact**, pass the mandatory `artifact-audit` pre-flight gate, and publish via `artifact_sftp.publish`.
+- **`--inline` Mode (Chat-Only Opt-Out):** Explicitly exempt from the HTML artifact workflow. Bypasses standalone HTML file generation, auditing, and publishing entirely. Delivers the complete visual representation, explanation, and checkable source links directly in chat.
+- **`--no-publish` Mode (Local-First Opt-Out):** Generates and audits the local standalone HTML artifact under `docs/<slug>.html`, but skips remote publishing and reports the generated local file path.
 
-1. **Write one focused, standalone HTML page** into the selected absolute `project_path` — inline CSS, JavaScript and assets, responsive layout, large visuals, and few words per the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
-2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform.
+### B. Invariants & Safety Boundaries
+1. **Audit Conditioning:** For publishing runs, `artifact_sftp.publish` is **mandatory only after achieving 🟢 PASS or an approved 🟡 WARN**. If `artifact-audit` returns 🔴 **BLOCK**, the agent **MUST HALT** and never publish the artifact. The agent must route to the corresponding remediation skill, repair the underlying defect, and re-run the audit. Never bypass the audit gate to satisfy publishing.
+2. **MCP Availability Exception:** For publishing runs, if `artifact_sftp.*` MCP tools are unavailable, stop immediately and report `artifact_sftp MCP is not available`. An agent MUST NOT substitute shell commands, direct SFTP, or internal script execution (strictly enforce `AGENTS.md`). Invocations with `--inline` or `--no-publish` do not require MCP publishing tools and proceed without stopping.
+
+### C. HTML Artifact Workflow (Default & `--no-publish`)
+1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
+2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform when appropriate.
 3. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception:**
-   - 🟢 **PASS & private:** Call `artifact_sftp.publish` immediately (pre-authorized).
-   - 🟡 **WARN:** Present warnings for user confirmation before publish.
+   - 🟢 **PASS & private:**
+     - **For publishing runs:** Ensure setup readiness via `artifact_sftp.setup_status(verify_connection=true)` first (if not already verified in this session). If `ready: true`, call `artifact_sftp.publish` immediately (pre-authorized). If `ready: false`, call `artifact_sftp.setup(verify_connection=true)` to obtain the structured setup boundary, report the missing prerequisites to the user, and stop without publishing (per `skills/artifact-sftp/SKILL.md`).
+     - **For `--no-publish` runs:** Skip remote publishing and proceed directly to reporting the generated local artifact path.
+   - 🟡 **WARN:**
+     - **For publishing runs:** Present warnings for user confirmation before proceeding with setup verification and publishing.
+     - **For `--no-publish` runs:** Report the audit warnings alongside the generated local HTML path without requiring publish confirmation.
    - 🔴 **BLOCK:** **Halt.** Route to remediation skill, repair source, re-audit. Never publish a BLOCK.
-4. **Report the published URL, local read-back reference, and checkable source links.**
+4. **Report the deliverable reference:** For publishing runs, report the published URL, local read-back reference, and checkable source links in the executive chat summary. For `--no-publish` runs, report the generated local HTML file path and checkable source links (do not report a read-back reference since no upload took place).
 
 ---
 
 ## 6. Core Rules & Invariants
 
+- **Never stop at inline chat markdown (unless `--inline` is requested).** For standard and `--no-publish` runs, the HTML artifact is required; the chat message is the executive summary.
 - **A number is not a picture, and a picture is not a measurement.** A diagram proves a shape; a measurement proves a quantity. Show both when needed.
 - **Draw what IS, not what was planned.** Read the actual source code before drawing.
 - **Simple is not the same as approximately true.** Reduction buys you fewer boxes and fewer words. It never buys a wrong arrow, a renamed tool, or a fictional step.
