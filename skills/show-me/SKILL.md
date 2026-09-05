@@ -132,22 +132,25 @@ Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <outp
 
 ---
 
-## 5. The Primary Deliverable: Audited, Published HTML Artifact
+## 5. Deliverable Contract & Execution Modes
 
-**MANDATORY DELIVERABLE INVARIANT:**
-Every invocation of `show-me` (including `/show-me` slash commands) **MUST produce a focused, standalone HTML artifact** and execute the `artifact-audit` pre-flight quality and security gate, with publishing governed by the following strict conditions:
-1. **Explicit Opt-Out Exception:** If the user explicitly passes the `--inline` or `--no-publish` flag, do not publish to SFTP; deliver the complete explanation and visual representation inline within the chat turn.
-2. **Audit Conditioning:** Publishing via `artifact_sftp.publish` is **mandatory only after the artifact achieves 🟢 PASS or an approved 🟡 WARN**. If `artifact-audit` returns 🔴 **BLOCK**, the agent **MUST HALT** and never publish the artifact. The agent must route to the corresponding remediation skill, repair the underlying defect, and re-run the audit. Never bypass the audit gate to satisfy publishing.
-3. **MCP Availability Exception:** For publishing invocations (when not opted out via `--inline` or `--no-publish`), if `artifact_sftp.*` MCP tools are unavailable, stop immediately and report `artifact_sftp MCP is not available`. An agent MUST NOT substitute shell commands, direct SFTP, or internal script execution (strictly enforce `AGENTS.md`). Invocations with `--inline` or `--no-publish` do not require MCP publishing tools and proceed inline without stopping.
+### A. Execution Modes & Opt-Out Routing
+- **Standard Run (Default):** Every standard invocation of `show-me` (including `/show-me` slash commands) **MUST produce a focused, standalone HTML artifact**, pass the mandatory `artifact-audit` pre-flight gate, and publish via `artifact_sftp.publish`.
+- **`--inline` Mode (Chat-Only Opt-Out):** Explicitly exempt from the HTML artifact workflow. Bypasses standalone HTML file generation, auditing, and publishing entirely. Delivers the complete visual representation, explanation, and checkable source links directly in chat.
+- **`--no-publish` Mode (Local-First Opt-Out):** Generates and audits the local standalone HTML artifact under `docs/<slug>.html`, but skips remote publishing and reports the local archive path.
 
-Workflow:
+### B. Invariants & Safety Boundaries
+1. **Audit Conditioning:** For publishing runs, `artifact_sftp.publish` is **mandatory only after achieving 🟢 PASS or an approved 🟡 WARN**. If `artifact-audit` returns 🔴 **BLOCK**, the agent **MUST HALT** and never publish the artifact. The agent must route to the corresponding remediation skill, repair the underlying defect, and re-run the audit. Never bypass the audit gate to satisfy publishing.
+2. **MCP Availability Exception:** For publishing runs, if `artifact_sftp.*` MCP tools are unavailable, stop immediately and report `artifact_sftp MCP is not available`. An agent MUST NOT substitute shell commands, direct SFTP, or internal script execution (strictly enforce `AGENTS.md`). Invocations with `--inline` or `--no-publish` do not require MCP publishing tools and proceed without stopping.
+
+### C. HTML Artifact Workflow (Default & `--no-publish`)
 1. **Write one focused, standalone HTML page** into the selected absolute `project_path` (e.g. `docs/<slug>.html`) — inline CSS, JavaScript and assets, responsive layout, large visuals, and clean text matching the chosen depth tier. Include a visible **Depth Badge** (e.g. `🎯 Level: ELI5` or `🎯 Level: Expert`).
 2. **Published rich-diagram contract:** Rich diagrams MUST follow **Option 4 (Static Sanitized Inline SVG Delivery)**: static, sanitized, responsive inline SVG. Overview fits 100% container (`max-width: 100%; overflow: hidden;` no horizontal scroll). Provide the 100% borderless fullscreen **Viewport Lightbox / Expand Detail** modal with Pan & Zoom transform when appropriate.
 3. **Run the `artifact-audit` pre-flight gate. Every time. There is no exception:**
-   - 🟢 **PASS & private:** Call `artifact_sftp.publish` immediately (pre-authorized).
+   - 🟢 **PASS & private:** Call `artifact_sftp.publish` immediately (pre-authorized; skip if `--no-publish`).
    - 🟡 **WARN:** Present warnings for user confirmation before publish.
    - 🔴 **BLOCK:** **Halt.** Route to remediation skill, repair source, re-audit. Never publish a BLOCK.
-4. **Report the published URL, local read-back reference, and checkable source links in the executive chat summary.**
+4. **Report the deliverable reference:** Report published URL (or local path for `--no-publish`), local read-back reference, and checkable source links in the executive chat summary.
 
 ---
 
