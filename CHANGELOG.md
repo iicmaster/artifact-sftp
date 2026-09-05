@@ -2,6 +2,15 @@
  
 All notable changes to this project are documented here.
  
+## [0.21.1] - 2026-09-05
+
+- **Mandatory HTML Artifact Publishing (`show-me`):**
+  - Clarified frontmatter and Section 5 hard invariant: `show-me` must produce a standalone HTML artifact and publish via `artifact_sftp.publish` with an executive chat summary by default.
+  - Added `--inline` execution mode flag for chat-only output (bypasses HTML artifact creation, auditing, and publishing).
+  - Added `--no-publish` execution mode flag for local-first HTML artifact generation and audit under `docs/<slug>.html` without remote SFTP publishing.
+  - Preserved `verify_connection=true` diagnostic parameter in follow-up `artifact_sftp.setup` call when remote preflight fails.
+  - Synced documentation across `README.md` and `README.th.md`.
+
 ## [0.21.0] - 2026-08-29
 
 - **Two-Tier Read Resolution Engine (`artifact-sftp-read`):**
