@@ -66,8 +66,8 @@ Ten skills ship with the plugin. Three move bytes; five shape the document; two 
   links, anchors, and documented CLI flags against the actual codebase.
 - `show-me` — Explain a topic visually with instant clarity;
   comprehension first, deeper detail on request. Produces an audited standalone HTML
-  artifact published through `artifact_sftp` with an executive chat summary (or inline
-  in chat via `--inline`).
+  artifact published through `artifact_sftp` with an executive chat summary (or local-only
+  via `--no-publish`, or inline in chat via `--inline`).
 
 ### Quality gate and lifecycle
 
