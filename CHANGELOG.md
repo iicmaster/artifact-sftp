@@ -2,6 +2,11 @@
  
 All notable changes to this project are documented here.
  
+## [0.21.3] - 2026-09-21
+
+- **Report the packaged version on the wire.** `build_server()` carried a hand-maintained copy of the version string, which 0.21.2 shipped still reading `0.21.1`. It now reads `importlib.metadata.version("artifact-sftp-mcp")`, so `pyproject.toml` is the only place a release bump has to land.
+- Added `ReportedVersionTests`, which fails when the installed distribution and `pyproject.toml` disagree.
+
 ## [0.21.2] - 2026-09-21
 
 - **MCP stdio connectivity fix — hosts that probe `server/discover` can connect again:**

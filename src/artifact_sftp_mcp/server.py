@@ -7,6 +7,7 @@ frames; shell-script output is captured by the service layer.
 from __future__ import annotations
 
 import json
+from importlib.metadata import version as _package_version
 from typing import Any
 
 import anyio
@@ -38,7 +39,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     adapter = service or ArtifactSftpService()
     server = MCPServer(
         name="artifact-sftp",
-        version="0.21.1",
+        version=_package_version("artifact-sftp-mcp"),
         description="MCP-only AI-agent publishing and local read-back for HTML artifacts through an existing pinned SFTP configuration.",
         instructions=(
             "This is the only Artifact SFTP execution surface for AI agents. Use setup_status before a first "

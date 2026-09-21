@@ -797,3 +797,17 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportedVersionTests(unittest.TestCase):
+    """The version on the wire must be the packaged one, not a copy that drifts."""
+
+    def test_server_reports_the_packaged_version(self) -> None:
+        from importlib.metadata import version
+
+        import tomllib
+
+        root = Path(__file__).resolve().parents[1]
+        declared = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+        self.assertEqual(version("artifact-sftp-mcp"), declared)
+        self.assertEqual(build_server().version, declared)
