@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import anyio
 from mcp.server import MCPServer
+from mcp.server.runner import serve_loop
+from mcp.server.stdio import stdio_server
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 
 from .models import ToolOutput
@@ -193,10 +196,45 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     return server
 
 
-def main() -> None:
-    """Run a blocking local stdio server; MCPServer exclusively owns stdout."""
+async def _serve_stdio_handshake_only(server: MCPServer) -> None:
+    """Serve one stdio connection in handshake era only.
 
-    build_server().run(transport="stdio")
+    Mirrors `Server.run` but swaps `serve_dual_era_loop` for `serve_loop`.
+    """
+
+    # ponytail: MCPServer exposes no public accessor for the low-level server;
+    # reaching for the private one is the whole cost of bypassing `run()`.
+    low = server._lowlevel_server  # noqa: SLF001
+    async with stdio_server() as (read_stream, write_stream):
+        async with low.lifespan(low) as lifespan_state:
+            await serve_loop(
+                low,
+                read_stream,
+                write_stream,
+                lifespan_state=lifespan_state,
+                init_options=low.create_initialization_options(),
+            )
+
+
+def main() -> None:
+    """Run a blocking local stdio server; MCPServer exclusively owns stdout.
+
+    Deliberately avoids `MCPServer.run(transport="stdio")`, which drives
+    `serve_dual_era_loop`.  That loop lets the client's first frame lock the
+    connection's protocol era for good: a `server/discover` carrying the
+    2026-07-28 `_meta` envelope opens a modern connection, and any later
+    `initialize` on it is refused with UNSUPPORTED_PROTOCOL_VERSION (-32022)
+    by design.  Hosts that probe `server/discover` and then still send
+    `initialize` — Claude Code does, for reasons its client does not report —
+    could not connect at all.
+
+    Serving the handshake era only makes the discover probe miss with
+    METHOD_NOT_FOUND, after which the host's `initialize` fallback succeeds.
+    Revisit when hosts stop falling back, or when the SDK stops locking the
+    era on the opening frame.
+    """
+
+    anyio.run(_serve_stdio_handshake_only, build_server())
 
 
 if __name__ == "__main__":

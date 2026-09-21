@@ -266,3 +266,73 @@ printf '403'
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProtocolEraFallbackTests(unittest.IsolatedAsyncioTestCase):
+    """A host may probe `server/discover` and still fall back to `initialize`.
+
+    `MCPServer.run(transport="stdio")` drives `serve_dual_era_loop`, which lets
+    the first frame lock the connection's protocol era: a discover carrying the
+    2026-07-28 `_meta` envelope opens a modern connection and every later
+    `initialize` on it is refused with -32022.  Claude Code probes exactly that
+    way, so serving the handshake era only is what keeps it connectable.
+    """
+
+    MODERN_DISCOVER = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "server/discover",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+        },
+    }
+    INITIALIZE = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2026-07-28",
+            "capabilities": {},
+            "clientInfo": {"name": "era-probe", "version": "1"},
+        },
+    }
+
+    def test_initialize_survives_a_modern_discover_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp) / "home"
+            home.mkdir()
+            parameters = ArtifactSftpMcpStdioTests.portable_parameters(
+                home=home,
+                plugin_data=Path(temp) / "plugin-data",
+            )
+            request = "".join(
+                json.dumps(frame) + "\n" for frame in (self.MODERN_DISCOVER, self.INITIALIZE)
+            )
+            completed = subprocess.run(
+                [parameters.command],
+                cwd=parameters.cwd,
+                env=parameters.env,
+                input=request,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+
+            replies = {}
+            for line in completed.stdout.splitlines():
+                if line.startswith("{"):
+                    frame = json.loads(line)
+                    replies[frame.get("id")] = frame
+
+            self.assertIn(2, replies, f"no reply to initialize; stdout={completed.stdout!r}")
+            initialize = replies[2]
+            self.assertNotIn(
+                "error",
+                initialize,
+                "initialize was refused after a modern discover probe — the connection "
+                "locked into the modern era, which makes the plugin unreachable",
+            )
+            self.assertEqual(initialize["result"]["serverInfo"]["name"], "artifact-sftp")

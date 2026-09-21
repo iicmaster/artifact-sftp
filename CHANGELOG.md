@@ -2,6 +2,15 @@
  
 All notable changes to this project are documented here.
  
+## [0.21.2] - 2026-09-21
+
+- **MCP stdio connectivity fix — hosts that probe `server/discover` can connect again:**
+  - `main()` now drives `serve_loop` (handshake era only) instead of `MCPServer.run(transport="stdio")`, which drives `serve_dual_era_loop`.
+  - The dual-era loop lets the client's opening frame lock the connection's protocol era permanently: a `server/discover` carrying the 2026-07-28 `_meta` envelope opens a modern connection, after which any `initialize` is refused with `UNSUPPORTED_PROTOCOL_VERSION` (-32022) by design. Hosts that probe discover and then fall back to `initialize` — Claude Code does — could not connect at all.
+  - Serving the handshake era only makes the discover probe miss with `METHOD_NOT_FOUND`, after which the host's `initialize` fallback succeeds and tools list normally.
+  - Trade-off recorded in `main()`: the 2026-07-28 per-request-envelope era is not served on stdio until hosts stop falling back.
+  - Added `ProtocolEraFallbackTests` covering the discover-then-initialize sequence; it fails against the previous `run(transport="stdio")` wiring.
+
 ## [0.21.1] - 2026-09-05
 
 - **Mandatory HTML Artifact Publishing (`show-me`):**
