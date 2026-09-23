@@ -19,7 +19,7 @@ are not a command surface.
 
 ## Publish flow
 
-1. Before the first real publish in a session, call `artifact_sftp.setup_status` with
+1. Before the first real publish in a session, call `artifact_sftp.status` with
    `verify_connection: true`. It first checks local prerequisites, then performs a bounded,
    no-write SFTP preflight using the owner-managed configuration.
 2. If it reports `ready: false`, call `artifact_sftp.setup` with the same
@@ -93,7 +93,7 @@ must be updated (for example `git pull`) rather than re-read.
 
 ## Supported MCP operations
 
-- `artifact_sftp.setup_status` — inspect pre-provisioned readiness without mutation; set
+- `artifact_sftp.status` — inspect pre-provisioned readiness without mutation; set
   `verify_connection: true` for its bounded, no-write remote preflight.
 - `artifact_sftp.setup` — report the MCP-only configuration/connection boundary; it never
   exposes a shell setup path or accepts credentials.

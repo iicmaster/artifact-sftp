@@ -9,7 +9,7 @@ credentials.
 Keep credentials, private keys, host-key material, and Cloudflare service-token
 values out of the repository, MCP arguments, agent prompts, chat transcripts,
 and logs. If a diagnostic needs to be shared, share only the redacted
-`setup_status` fields and the non-secret error code.
+`artifact_sftp.status` fields and the non-secret error code.
 
 ## 1. Prerequisites
 
@@ -51,7 +51,7 @@ claude mcp list
 Expect an `artifact-sftp` plugin MCP entry marked `Connected`. If it instead
 reports a launcher error, use the error table below; do not create a second
 hand-written project MCP configuration. Start a new Claude Code session and
-ask it to call `artifact_sftp.setup_status({"verify_connection": true})`
+ask it to call `artifact_sftp.status({"verify_connection": true})`
 before its first real publish.
 
 The launcher also requires:
@@ -83,7 +83,7 @@ visible to the MCP child:
 The password-auth dependency is intentionally outside the MCP adapter's
 locked `uv` environment. The adapter removes its own virtual-environment
 directory from the child `PATH` before running the publisher, so installing
-`paramiko` only into the adapter venv does not satisfy `setup_status`.
+`paramiko` only into the adapter venv does not satisfy `artifact_sftp.status`.
 
 ### Supported host environments
 
@@ -250,7 +250,7 @@ confirm the expected tool names in the host's MCP tool list, then use that
 host's MCP inspector/tool tester to call:
 
 ```text
-artifact_sftp.setup_status({"verify_connection": true})
+artifact_sftp.status({"verify_connection": true})
 ```
 
 This call does not write configuration, artifacts, or remote files. It first
@@ -289,7 +289,7 @@ stored local prerequisites passed and the `remote_connection` object explains
 the safe preflight outcome. The agent may call
 `artifact_sftp.setup({"verify_connection": true})` to receive the structured
 boundary and must then stop. Repair the owner-side files/dependencies or the
-reported remote boundary, then call `setup_status` again through MCP. A
+reported remote boundary, then call `artifact_sftp.status` again through MCP. A
 not-ready result is not permission to run a setup script or collect a
 credential from the agent.
 
@@ -305,14 +305,14 @@ and a publisher that cannot reach the SFTP server are different failures.
 | Launcher reports `trusted plugin root is unavailable` | The host-supplied `PLUGIN_ROOT` does not contain the trusted package files | Repair the host's installed-plugin path and reload it. |
 | Launcher reports `plugin host did not provide PLUGIN_DATA` | Host did not meet the portable stdio launch contract | Use a conformant host integration or repair its per-plugin persistent-data setup; do not use the SFTP config directory as a substitute. |
 | Launcher reports `MCP owner must pre-provision uv on PATH` | `uv` is not visible to the MCP child | Provision a compatible `uv` for the host service and restart it; the agent must not install one. |
-| `artifact_sftp.setup_status` is available but returns `local_ready: false` | The MCP server is connected; local provisioning is incomplete or unsafe | Use only the redacted diagnostics. Check the fixed config/host-key paths, modes, required keys, one auth mode, host-key match, and the dependency named by the diagnostic. |
+| `artifact_sftp.status` is available but returns `local_ready: false` | The MCP server is connected; local provisioning is incomplete or unsafe | Use only the redacted diagnostics. Check the fixed config/host-key paths, modes, required keys, one auth mode, host-key match, and the dependency named by the diagnostic. |
 | `local_ready: true`, `ready: false`, and `remote_connection.status: "failed"` | Local prerequisites passed but the pinned, authenticated SFTP preflight failed | Repair the endpoint, route/firewall, pinned host key, account authorization, or remote SFTP service using the owner's approved operational checks; do not pass secrets to the agent. |
-| `ready: true`, then publish returns `config_or_auth_failed` (exit 3) | The publisher rejected configuration or authentication at operation time | Re-run `setup_status` with `verify_connection: true` under the same MCP host account and repair the owner-side auth/dependency boundary. Do not ask the agent for the secret. |
+| `ready: true`, then publish returns `config_or_auth_failed` (exit 3) | The publisher rejected configuration or authentication at operation time | Re-run `artifact_sftp.status` with `verify_connection: true` under the same MCP host account and repair the owner-side auth/dependency boundary. Do not ask the agent for the secret. |
 | Publish returns `remote_operation_failed` (exit 5) | The MCP process ran, but an SFTP operation failed | Verify the host/port, firewall or route, pinned host key, account authorization, remote directory, and remote storage state using the owner's approved operational checks. Do not use direct SFTP or HTTP from the agent. |
 | Publish returns `command_timed_out` | A trusted local command exceeded its timeout, often while waiting on a host or network | Check local network reachability and the SFTP endpoint before retrying once; do not retry blindly. |
 | Publish or status returns `command_unavailable` | A trusted local command could not be started | Check the shell, executable dependencies, and trusted plugin checkout; reload the host after repair. |
 
-Without `verify_connection`, `setup_status` cannot prove remote reachability
+Without `verify_connection`, `artifact_sftp.status` cannot prove remote reachability
 or credentials accepted by the server. With it, the no-write preflight proves
 the pinned authenticated SFTP connection only—not remote directory permission,
 remote write permission, HTTP availability, private-path protection, remote
@@ -327,7 +327,7 @@ that MCP workflow does not authorize direct SFTP, WebFetch, or a bundled script.
   them. A host that omits either variable is not a usable portable host for
   this plugin.
 - Password authentication depends on owner-managed `python3` plus `paramiko`,
-  separate from the locked MCP adapter environment. `setup_status` reports the
+  separate from the locked MCP adapter environment. `artifact_sftp.status` reports the
   missing dependency but cannot install it.
 - The MCP protocol does not standardize the host UI's generic “cannot connect”
   message. When no tool is available, the host's redacted process/stderr log
