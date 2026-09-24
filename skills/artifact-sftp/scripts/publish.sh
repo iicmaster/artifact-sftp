@@ -172,6 +172,7 @@ FONTED=''
 DEFOOTED=''
 LOCAL_INDEX_TMP=''
 LOCAL_SNAPSHOT_TMP=''
+LIVE_INDEX=''
 cleanup() {
   # if-statements, not &&-lists: a false condition in an EXIT trap under set -e
   # would otherwise override the script's real exit code with 1.
@@ -182,6 +183,7 @@ cleanup() {
   if [ -n "$FONTED" ]; then rm -f "$FONTED"; fi
   if [ -n "$DEFOOTED" ]; then rm -f "$DEFOOTED"; fi
   if [ -n "$LOCAL_INDEX_TMP" ]; then rm -f "$LOCAL_INDEX_TMP"; fi
+  if [ -n "$LIVE_INDEX" ]; then rm -f "$LIVE_INDEX"; fi
   if [ -n "$LOCAL_SNAPSHOT_TMP" ]; then rm -f "$LOCAL_SNAPSHOT_TMP"; fi
 }
 trap cleanup EXIT
@@ -325,38 +327,47 @@ if [ "$DRY" -eq 1 ]; then
 fi
 
 # Overwrite guard: refuse to clobber a remote slug this machine has no custody of.
-# Custody = published from this machine (manifest), or the read-back cache written by the read
-# tool holds the exact bytes now live at index.html (read before edit, e.g. after moving to
-# another machine). A missing, stale, or forged cache does not match, so a newer remote version
-# is never overwritten silently; a project's docs/artifacts copy does not count, because a
-# cloned repo can carry one.
+# Custody = published from this machine (manifest), or a local copy is byte-identical to the live
+# index.html: this project's docs/artifacts archive (a cloned project, e.g. after moving to
+# another machine) or the read-back cache written by the read tool (read before edit). The live
+# bytes are downloaded to compare, so an empty/forged file or a stale copy never matches and a
+# newer remote version is never overwritten silently.
 READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
-GUARD_REFUSAL="remote $TOOL/$VIS/$SLUG already exists and this machine has no custody of it — read it first (the read-back cache must match the live index.html), or use --force to overwrite"
-live_matches_read_cache() { # 0 only when the live index.html equals the read-back cache
-  local live rc=0
-  if [ ! -f "$READ_CACHE_INDEX" ] || [ -L "$READ_CACHE_INDEX" ]; then return 1; fi
-  live=$(mktemp)
+live_index_custody() { # 0: a local copy equals the live index.html, 1: none does, 2: download failed
+  local copy
+  LIVE_INDEX=$(mktemp)
   if [ "$USE_PY" = 1 ]; then
-    _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$live" 2>/dev/null || rc=$?
+    _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
   else
     if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
     BATCH=$(mktemp)
-    printf 'get "%s/index.html" "%s"\n' "$RPATH" "$live" > "$BATCH"
-    run_sftp "$BATCH" 2>/dev/null || rc=$?
+    printf 'get "%s/index.html" "%s"\n' "$RPATH" "$LIVE_INDEX" > "$BATCH"
+    run_sftp "$BATCH" 2>/dev/null || return 2
   fi
-  if [ "$rc" -eq 0 ] && ! cmp -s "$live" "$READ_CACHE_INDEX"; then rc=1; fi
-  rm -f "$live"
-  return "$rc"
+  [ -s "$LIVE_INDEX" ] || return 2
+  for copy in "$LOCAL_INDEX_PATH" "$READ_CACHE_INDEX"; do
+    if [ -f "$copy" ] && [ ! -L "$copy" ] && cmp -s "$LIVE_INDEX" "$copy"; then return 0; fi
+  done
+  return 1
+}
+require_custody() {
+  local rc=0
+  live_index_custody || rc=$?
+  case "$rc" in
+    0) ;;
+    2) die 5 "remote $TOOL/$VIS/$SLUG exists but its live index.html could not be downloaded to verify custody — retry, or use --force to overwrite" ;;
+    *) die 5 "remote $TOOL/$VIS/$SLUG already exists and no local copy (project docs/artifacts or read-back cache) matches its live index.html — read it first, or use --force to overwrite" ;;
+  esac
 }
 if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
   if [ "$USE_PY" = 1 ]; then
     exists=0; _timeout 90 python3 "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
-    if [ "$exists" -eq 0 ] && ! live_matches_read_cache; then die 5 "$GUARD_REFUSAL"; fi
+    if [ "$exists" -eq 0 ]; then require_custody; fi
   else
     BATCH=$(mktemp)
     printf 'ls "%s/index.html"\n' "$RPATH" > "$BATCH"
     if run_sftp "$BATCH" 2>/dev/null; then
-      live_matches_read_cache || die 5 "$GUARD_REFUSAL"
+      require_custody
     fi
   fi
 fi
