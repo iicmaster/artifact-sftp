@@ -1026,7 +1026,7 @@ class ArtifactSftpService:
             2: ("invalid_input", "Publisher rejected the requested input.", "Correct the tool arguments and retry."),
             3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.setup_status and stop; an MCP owner must provision the environment out of band."),
             4: ("secret_scan_blocked", "Publisher detected a possible secret and blocked upload.", "Remove the secret; the MCP server deliberately does not expose the unsafe override."),
-            5: ("remote_operation_failed", "SFTP upload or remote-state operation failed.", "Check the pinned host and account access. If the slug already exists from another machine, call artifact_sftp.read on it first, then publish again."),
+            5: ("remote_operation_failed", "SFTP upload or remote-state operation failed.", "Check the pinned host and account access. If the slug already exists from another machine: update this project's docs/artifacts copy if it has one (e.g. git pull), otherwise call artifact_sftp.read on it first; then publish again."),
             6: ("served_content_mismatch", "Published content did not pass its verification check.", "Do not share the URL; inspect the host and retry only after resolving the mismatch."),
             7: ("private_exposed", "The requested private artifact was publicly reachable.", "URL withheld. Fix the access policy before publishing another private artifact."),
             8: ("privacy_inconclusive", "Private protection could not be verified conclusively.", "URL withheld. Investigate the access gate rather than assuming privacy."),

@@ -331,10 +331,11 @@ fi
 # index.html: this project's docs/artifacts archive (a cloned project, e.g. after moving to
 # another machine) or the read-back cache written by the read tool (read before edit). The live
 # bytes are downloaded to compare, so an empty/forged file or a stale copy never matches and a
-# newer remote version is never overwritten silently.
+# newer remote version is never overwritten silently. For a public artifact the live bytes are not
+# secret, so a match proves the copy is current, not that it came from this user's read.
 READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
 live_index_custody() { # 0: a local copy equals the live index.html, 1: none does, 2: download failed
-  local copy
+  local copy dl
   LIVE_INDEX=$(mktemp)
   if [ "$USE_PY" = 1 ]; then
     _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
@@ -342,7 +343,9 @@ live_index_custody() { # 0: a local copy equals the live index.html, 1: none doe
     if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
     BATCH=$(mktemp)
     printf 'get "%s/index.html" "%s"\n' "$RPATH" "$LIVE_INDEX" > "$BATCH"
-    run_sftp "$BATCH" 2>/dev/null || return 2
+    dl=0; run_sftp "$BATCH" 2>/dev/null || dl=$?
+    rm -f "$BATCH"; BATCH=''
+    [ "$dl" -eq 0 ] || return 2
   fi
   [ -s "$LIVE_INDEX" ] || return 2
   for copy in "$LOCAL_INDEX_PATH" "$READ_CACHE_INDEX"; do
