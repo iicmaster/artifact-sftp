@@ -80,6 +80,12 @@ are not a command surface.
   - Do NOT fetch, crawl, or browse the published URL with curl, fetch, or browser tools.
 - Simply provide the resulting URL and local read-back reference (`docs/artifacts/<tool>/<visibility>/<slug>/...`) to the user.
 
+## Updating an artifact published from another machine
+
+Publish refuses to overwrite a remote slug this machine has no custody of (not published from
+here, not in this project's `docs/artifacts/`). Call `artifact_sftp.read` on the artifact's URL
+first: the remote read-back cache it writes grants custody, and you edit the latest bytes.
+
 ## Supported MCP operations
 
 - `artifact_sftp.setup_status` — inspect pre-provisioned readiness without mutation; set

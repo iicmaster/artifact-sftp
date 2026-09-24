@@ -255,6 +255,17 @@ export MOCK_SFTP_EXIT=1 MOCK_CURL_BODY="$good"
 expect 5 "sftp failure surfaces as exit 5"         -- bash "$PUB" --slug ok4 --force "$good"
 unset MOCK_SFTP_EXIT
 
+# --- overwrite guard: an existing remote slug needs custody (manifest, project archive, read cache) ---
+export MOCK_REMOTE_EXISTS_EXIT=0
+expect 5 "existing remote slug without custody refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+mkdir -p "$HOME/.cache/artifact-sftp/remote/codex/private/foreign"
+cp "$good" "$HOME/.cache/artifact-sftp/remote/codex/private/foreign/index.html"
+expect 0 "existing remote slug in read-back cache updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+mkdir -p "$WORK/project/docs/artifacts/codex/private/cloned"
+cp "$good" "$WORK/project/docs/artifacts/codex/private/cloned/index.html"
+expect 0 "existing remote slug in project archive updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug cloned "$good"
+unset MOCK_REMOTE_EXISTS_EXIT
+
 # --- config guards ---
 chmod 644 "$cfg"
 expect 3 "world-readable config rejected"          -- bash "$PUB" --slug ok "$good"

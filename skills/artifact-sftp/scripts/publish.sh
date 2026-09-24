@@ -324,16 +324,22 @@ if [ "$DRY" -eq 1 ]; then
   exit 0
 fi
 
-# Overwrite guard: a slug this machine never published needs --force to clobber.
-if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
+# Overwrite guard: refuse to clobber a remote slug this machine has no custody of.
+# Custody = published from this machine (manifest), held in this project's archive (e.g. the
+# project was cloned onto a new machine), or fetched into the remote read-back cache (read
+# before edit). Presence only, not freshness: a stale cache can still overwrite a
+# newer remote index; every version stays on the server as a snapshot, so it is recoverable.
+READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
+if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null \
+   && [ ! -f "$LOCAL_INDEX_PATH" ] && [ ! -f "$READ_CACHE_INDEX" ]; then
   if [ "$USE_PY" = 1 ]; then
     exists=0; _timeout 90 python3 "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
-    [ "$exists" -eq 0 ] && die 5 "remote $TOOL/$VIS/$SLUG already exists and is not in the local manifest — use --force to overwrite"
+    [ "$exists" -eq 0 ] && die 5 "remote $TOOL/$VIS/$SLUG already exists and this machine has no custody of it (manifest, project archive, read-back cache) — read it first, or use --force to overwrite"
   else
     BATCH=$(mktemp)
     printf 'ls "%s/index.html"\n' "$RPATH" > "$BATCH"
     if run_sftp "$BATCH" 2>/dev/null; then
-      die 5 "remote $TOOL/$VIS/$SLUG already exists and is not in the local manifest — use --force to overwrite"
+      die 5 "remote $TOOL/$VIS/$SLUG already exists and this machine has no custody of it (manifest, project archive, read-back cache) — read it first, or use --force to overwrite"
     fi
   fi
 fi

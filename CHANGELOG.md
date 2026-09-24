@@ -2,6 +2,14 @@
  
 All notable changes to this project are documented here.
  
+## [Unreleased]
+
+- **Overwrite guard accepts cross-machine custody.** Publishing to an existing remote slug no longer
+  requires this machine's manifest entry: the project's own `docs/artifacts/` archive (e.g. a project
+  cloned onto a new machine) or the remote read-back cache written by `artifact_sftp.read` also
+  grant custody. A slug with none of the three is still refused, so unrelated slugs are not clobbered.
+  The MCP recovery hint for exit 5 now says to read the artifact first.
+
 ## [0.21.3] - 2026-09-21
 
 - **Report the packaged version on the wire.** `build_server()` carried a hand-maintained copy of the version string, which 0.21.2 shipped still reading `0.21.1`. It now reads `importlib.metadata.version("artifact-sftp-mcp")`, so `pyproject.toml` is the only place a release bump has to land.
