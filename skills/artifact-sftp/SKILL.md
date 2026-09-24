@@ -82,9 +82,12 @@ are not a command surface.
 
 ## Updating an artifact published from another machine
 
-Publish refuses to overwrite a remote slug this machine has no custody of (not published from
-here, not in this project's `docs/artifacts/`). Call `artifact_sftp.read` on the artifact's URL
-first: the remote read-back cache it writes grants custody, and you edit the latest bytes.
+Publish refuses to overwrite a remote slug this machine did not publish unless the read-back
+cache holds the exact bytes now live at its `index.html`. Right before editing, call
+`artifact_sftp.read` on the artifact's current URL (not a `--<version>--<timestamp>.html`
+snapshot link) and build on the bytes it returns. If someone publishes in between, the cache no
+longer matches and publish is refused: read again and merge. A project's `docs/artifacts/` copy
+does not count as custody.
 
 ## Supported MCP operations
 

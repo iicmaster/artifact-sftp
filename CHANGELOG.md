@@ -4,11 +4,13 @@ All notable changes to this project are documented here.
  
 ## [Unreleased]
 
-- **Overwrite guard accepts cross-machine custody.** Publishing to an existing remote slug no longer
-  requires this machine's manifest entry: the project's own `docs/artifacts/` archive (e.g. a project
-  cloned onto a new machine) or the remote read-back cache written by `artifact_sftp.read` also
-  grant custody. A slug with none of the three is still refused, so unrelated slugs are not clobbered.
-  The MCP recovery hint for exit 5 now says to read the artifact first.
+- **Overwrite guard accepts read-before-edit custody.** Publishing to an existing remote slug no longer
+  requires this machine's manifest entry when the remote read-back cache written by `artifact_sftp.read`
+  is byte-identical to the live `index.html` (checked with one download at publish time). This lets an
+  artifact be updated after moving to another machine without `--force`. A missing, stale, or forged
+  cache is still refused, so neither unrelated slugs nor newer remote versions are overwritten. A
+  project's `docs/artifacts/` copy does not grant custody. The MCP recovery hint for exit 5 now says
+  to read the artifact first.
 
 ## [0.21.3] - 2026-09-21
 

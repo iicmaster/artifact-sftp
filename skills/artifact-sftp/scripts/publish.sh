@@ -325,21 +325,38 @@ if [ "$DRY" -eq 1 ]; then
 fi
 
 # Overwrite guard: refuse to clobber a remote slug this machine has no custody of.
-# Custody = published from this machine (manifest), held in this project's archive (e.g. the
-# project was cloned onto a new machine), or fetched into the remote read-back cache (read
-# before edit). Presence only, not freshness: a stale cache can still overwrite a
-# newer remote index; every version stays on the server as a snapshot, so it is recoverable.
+# Custody = published from this machine (manifest), or the read-back cache written by the read
+# tool holds the exact bytes now live at index.html (read before edit, e.g. after moving to
+# another machine). A missing, stale, or forged cache does not match, so a newer remote version
+# is never overwritten silently; a project's docs/artifacts copy does not count, because a
+# cloned repo can carry one.
 READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
-if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null \
-   && [ ! -f "$LOCAL_INDEX_PATH" ] && [ ! -f "$READ_CACHE_INDEX" ]; then
+GUARD_REFUSAL="remote $TOOL/$VIS/$SLUG already exists and this machine has no custody of it — read it first (the read-back cache must match the live index.html), or use --force to overwrite"
+live_matches_read_cache() { # 0 only when the live index.html equals the read-back cache
+  local live rc=0
+  if [ ! -f "$READ_CACHE_INDEX" ] || [ -L "$READ_CACHE_INDEX" ]; then return 1; fi
+  live=$(mktemp)
+  if [ "$USE_PY" = 1 ]; then
+    _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$live" 2>/dev/null || rc=$?
+  else
+    if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
+    BATCH=$(mktemp)
+    printf 'get "%s/index.html" "%s"\n' "$RPATH" "$live" > "$BATCH"
+    run_sftp "$BATCH" 2>/dev/null || rc=$?
+  fi
+  if [ "$rc" -eq 0 ] && ! cmp -s "$live" "$READ_CACHE_INDEX"; then rc=1; fi
+  rm -f "$live"
+  return "$rc"
+}
+if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
   if [ "$USE_PY" = 1 ]; then
     exists=0; _timeout 90 python3 "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
-    [ "$exists" -eq 0 ] && die 5 "remote $TOOL/$VIS/$SLUG already exists and this machine has no custody of it (manifest, project archive, read-back cache) — read it first, or use --force to overwrite"
+    if [ "$exists" -eq 0 ] && ! live_matches_read_cache; then die 5 "$GUARD_REFUSAL"; fi
   else
     BATCH=$(mktemp)
     printf 'ls "%s/index.html"\n' "$RPATH" > "$BATCH"
     if run_sftp "$BATCH" 2>/dev/null; then
-      die 5 "remote $TOOL/$VIS/$SLUG already exists and this machine has no custody of it (manifest, project archive, read-back cache) — read it first, or use --force to overwrite"
+      live_matches_read_cache || die 5 "$GUARD_REFUSAL"
     fi
   fi
 fi

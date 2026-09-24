@@ -33,6 +33,9 @@ if [ -n "$batch" ]; then
   # capture the last uploaded body (publish.sh stamps into a temp deleted on exit)
   src=$(sed -n 's/^put "\([^"]*\)".*/\1/p' "$batch" | tail -1)
   [ -n "$src" ] && cp "$src" "${MOCK_LAST_PUT:?}"
+  # download batch ("get <remote> <local>"): serve MOCK_REMOTE_INDEX as the live remote file
+  dst=$(sed -n 's/^get "[^"]*" "\([^"]*\)".*/\1/p' "$batch" | tail -1)
+  if [ -n "$dst" ] && [ -n "${MOCK_REMOTE_INDEX:-}" ]; then cp "$MOCK_REMOTE_INDEX" "$dst"; fi
   # existence-check batch (first line "ls ..."): default = slug not found
   if head -n1 "$batch" | grep -q '^ls '; then
     exit "${MOCK_REMOTE_EXISTS_EXIT:-1}"
@@ -255,16 +258,22 @@ export MOCK_SFTP_EXIT=1 MOCK_CURL_BODY="$good"
 expect 5 "sftp failure surfaces as exit 5"         -- bash "$PUB" --slug ok4 --force "$good"
 unset MOCK_SFTP_EXIT
 
-# --- overwrite guard: an existing remote slug needs custody (manifest, project archive, read cache) ---
+# --- overwrite guard: an existing remote slug needs custody (manifest, or a read-back cache
+# byte-identical to the live index.html) ---
 export MOCK_REMOTE_EXISTS_EXIT=0
 expect 5 "existing remote slug without custody refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
-mkdir -p "$HOME/.cache/artifact-sftp/remote/codex/private/foreign"
-cp "$good" "$HOME/.cache/artifact-sftp/remote/codex/private/foreign/index.html"
-expect 0 "existing remote slug in read-back cache updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
-mkdir -p "$WORK/project/docs/artifacts/codex/private/cloned"
-cp "$good" "$WORK/project/docs/artifacts/codex/private/cloned/index.html"
-expect 0 "existing remote slug in project archive updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug cloned "$good"
-unset MOCK_REMOTE_EXISTS_EXIT
+mkdir -p "$WORK/project/docs/artifacts/codex/private/foreign"
+cp "$good" "$WORK/project/docs/artifacts/codex/private/foreign/index.html"
+expect 5 "project archive alone grants no custody" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+cache="$HOME/.cache/artifact-sftp/remote/codex/private/foreign"
+mkdir -p "$cache"
+printf '<p>live v1</p>\n' > "$WORK/live-index.html"
+printf '<p>stale</p>\n' > "$cache/index.html"
+export MOCK_REMOTE_INDEX="$WORK/live-index.html"
+expect 5 "stale read-back cache refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+cp "$WORK/live-index.html" "$cache/index.html"
+expect 0 "read-back cache matching live index updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+unset MOCK_REMOTE_EXISTS_EXIT MOCK_REMOTE_INDEX
 
 # --- config guards ---
 chmod 644 "$cfg"
