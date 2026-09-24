@@ -57,7 +57,7 @@ class ArtifactSftpMcpStdioTests(unittest.IsolatedAsyncioTestCase):
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
                     status = await session.call_tool(
-                        "artifact_sftp.setup_status",
+                        "artifact_sftp.status",
                         {"verify_connection": True},
                     )
                     boundary = await session.call_tool(
@@ -181,7 +181,7 @@ printf '403'
                     listing = await session.list_tools()
                     names = {tool.name for tool in listing.tools}
                     setup_status = await session.call_tool(
-                        "artifact_sftp.setup_status",
+                        "artifact_sftp.status",
                         {"verify_connection": True},
                     )
                     setup = await session.call_tool(
@@ -234,7 +234,7 @@ printf '403'
         self.assertIn("artifact_sftp.unpublish", names)
         self.assertIn("artifact_sftp.read", names)
         self.assertIn("artifact_sftp.list", names)
-        self.assertIn("artifact_sftp.setup_status", names)
+        self.assertIn("artifact_sftp.status", names)
         self.assertFalse(setup_status.is_error)
         setup_status_result = setup_status.structured_content["result"]
         self.assertTrue(setup_status_result["ready"])

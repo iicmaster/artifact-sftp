@@ -24,7 +24,7 @@ Before an agent can publish, the MCP owner provisions and verifies the following
 
 ## Agent-visible contract
 
-An agent starts with `artifact_sftp.setup_status`.
+An agent starts with `artifact_sftp.status`.
 
 - `ready: true` permits the requested MCP operation.
 - `ready: false` means the agent may call `artifact_sftp.setup` to receive a structured stop

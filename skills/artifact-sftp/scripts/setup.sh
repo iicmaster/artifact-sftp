@@ -18,7 +18,7 @@ set +x
 umask 077
 
 if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
-  printf '%s\n' 'ERROR: setup.sh is internal to Artifact SFTP MCP; AI agents must use artifact_sftp.setup_status.' >&2
+  printf '%s\n' 'ERROR: setup.sh is internal to Artifact SFTP MCP; AI agents must use artifact_sftp.status.' >&2
   exit 10
 fi
 

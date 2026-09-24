@@ -4,6 +4,9 @@ All notable changes to this project are documented here.
  
 ## [Unreleased]
 
+- **Breaking: `artifact_sftp.setup_status` is renamed to `artifact_sftp.status`.** Claude Code exposes plugin tools as `mcp__plugin_artifact-sftp_artifact-sftp__<tool>`, so the old name became 67 characters. OpenAI-style model APIs reject tool names over 64 (`name must be at most 64 characters, got 67`), which made every request of a gateway-routed session fail with HTTP 400. No alias is kept, since an alias would re-register the long name.
+  - Migration: agents, skills, and permission rules that reference `setup_status` (for example `mcp__plugin_artifact-sftp_artifact-sftp__artifact_sftp_setup_status`) must use `status` (`mcp__plugin_artifact-sftp_artifact-sftp__artifact_sftp_status`). The response payload is unchanged, including `"operation": "setup_status"`.
+- Added a regression test that fails when any registered tool, in Claude Code's exposed form, is longer than 64 characters.
 - **Overwrite guard accepts cross-machine custody verified against live bytes.** Publishing to an
   existing remote slug no longer requires this machine's manifest entry when this project's
   `docs/artifacts` copy or the read-back cache written by `artifact_sftp.read` is byte-identical to

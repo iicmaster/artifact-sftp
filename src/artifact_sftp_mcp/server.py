@@ -42,7 +42,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         version=_package_version("artifact-sftp-mcp"),
         description="MCP-only AI-agent publishing and local read-back for HTML artifacts through an existing pinned SFTP configuration.",
         instructions=(
-            "This is the only Artifact SFTP execution surface for AI agents. Use setup_status before a first "
+            "This is the only Artifact SFTP execution surface for AI agents. Use artifact_sftp.status before a first "
             "publish; pass verify_connection=true when a no-write remote preflight is required. If the server is "
             "not ready, stop rather than invoking a direct setup script. Private URLs "
             "are viewer links, not read sources: call artifact_sftp.read on the local read-back reference instead. "
@@ -54,7 +54,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
     )
 
     @server.tool(
-        name="artifact_sftp.setup_status",
+        name="artifact_sftp.status",
         title="Check Artifact SFTP setup",
         description=(
             "Read local Artifact SFTP readiness without changing configuration. Set verify_connection=true "
@@ -65,7 +65,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         # local-only.
         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
     )
-    def setup_status(verify_connection: bool = False) -> ToolOutput:
+    def status(verify_connection: bool = False) -> ToolOutput:
         return _tool_result(adapter.setup_status(verify_connection=verify_connection))  # type: ignore[return-value]
 
     @server.tool(

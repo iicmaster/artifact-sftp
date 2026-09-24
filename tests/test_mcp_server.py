@@ -69,7 +69,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             set(tools),
             {
-                "artifact_sftp.setup_status",
+                "artifact_sftp.status",
                 "artifact_sftp.setup",
                 "artifact_sftp.publish",
                 "artifact_sftp.unpublish",
@@ -87,10 +87,10 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("password", unpublish_properties)
         self.assertTrue(tools["artifact_sftp.unpublish"].annotations.destructive_hint)
         self.assertNotIn("reconfigure", tools["artifact_sftp.setup"].input_schema["properties"])
-        self.assertIn("verify_connection", tools["artifact_sftp.setup_status"].input_schema["properties"])
+        self.assertIn("verify_connection", tools["artifact_sftp.status"].input_schema["properties"])
         self.assertIn("verify_connection", tools["artifact_sftp.setup"].input_schema["properties"])
         self.assertEqual(
-            tools["artifact_sftp.setup_status"].input_schema["properties"]["verify_connection"]["type"],
+            tools["artifact_sftp.status"].input_schema["properties"]["verify_connection"]["type"],
             "boolean",
         )
         self.assertEqual(
@@ -101,8 +101,31 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(tools["artifact_sftp.list"].annotations.read_only_hint)
         self.assertTrue(tools["artifact_sftp.publish"].annotations.open_world_hint)
         self.assertTrue(tools["artifact_sftp.unpublish"].annotations.open_world_hint)
-        self.assertTrue(tools["artifact_sftp.setup_status"].annotations.open_world_hint)
+        self.assertTrue(tools["artifact_sftp.status"].annotations.open_world_hint)
         self.assertTrue(tools["artifact_sftp.setup"].annotations.open_world_hint)
+
+    async def test_tool_names_fit_the_64_char_limit_as_exposed_by_claude_code(self) -> None:
+        # Claude Code exposes plugin MCP tools as
+        # ``mcp__plugin_<plugin>_<server>__<tool>`` with ``.`` turned into ``_``.
+        # OpenAI-style model APIs reject tool names over 64 characters
+        # ("name must be at most 64 characters, got 67"), so one long name makes
+        # every request of a gateway-routed session fail with HTTP 400.
+        prefix = "mcp__plugin_artifact-sftp_artifact-sftp__"
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            server = build_server(
+                ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project)
+            )
+            async with Client(server) as client:
+                listing = await client.list_tools()
+
+        self.assertTrue(listing.tools)
+        too_long = {
+            exposed: len(exposed)
+            for exposed in (prefix + tool.name.replace(".", "_") for tool in listing.tools)
+            if len(exposed) > 64
+        }
+        self.assertEqual(too_long, {})
 
     async def test_publish_requires_confirmation_without_starting_a_subprocess(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -335,7 +358,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             )
             fake = FakeRunner(not_ready, not_ready)
             server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
-            status = await self.call(server, "artifact_sftp.setup_status", {})
+            status = await self.call(server, "artifact_sftp.status", {})
             setup = await self.call(server, "artifact_sftp.setup", {})
 
         self.assertFalse(status.is_error)
@@ -373,7 +396,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             )
             fake = FakeRunner(not_ready)
             server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
-            response = await self.call(server, "artifact_sftp.setup_status", {})
+            response = await self.call(server, "artifact_sftp.status", {})
 
         self.assertFalse(response.is_error)
         result = response.structured_content["result"]
@@ -408,7 +431,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             )
             fake = FakeRunner(ready)
             server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
-            response = await self.call(server, "artifact_sftp.setup_status", {})
+            response = await self.call(server, "artifact_sftp.status", {})
 
         result = response.structured_content["result"]
         self.assertFalse(response.is_error)
@@ -529,7 +552,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
             response = await self.call(
                 server,
-                "artifact_sftp.setup_status",
+                "artifact_sftp.status",
                 {"verify_connection": True},
             )
 
@@ -557,7 +580,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
             )
             fake = FakeRunner(local_not_ready)
             server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
-            response = await self.call(server, "artifact_sftp.setup_status", {})
+            response = await self.call(server, "artifact_sftp.status", {})
 
         self.assertFalse(response.is_error)
         result = response.structured_content["result"]

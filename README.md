@@ -126,7 +126,7 @@ The package includes a Claude Code compatibility [`.mcp.json`](.mcp.json) in add
 portable [mcp.json](mcp.json); the two have different host-variable contracts. The Claude entry
 uses its official persistent `${CLAUDE_PLUGIN_DATA}` location for the locked runtime, so a plugin
 update does not discard it. If the plugin looks installed but the host lists zero Artifact SFTP
-tools, reload/approve the host registration first; `setup_status` cannot run until the MCP server
+tools, reload/approve the host registration first; `artifact_sftp.status` cannot run until the MCP server
 is discoverable. A conformant Agent Plugins host supplies the portable `PLUGIN_ROOT` and
 `PLUGIN_DATA` variables automatically; a host that omits either one has a plugin-launch problem,
 not an SFTP credential problem.
@@ -168,7 +168,7 @@ fallback.
 
 If a host reports that it cannot connect before any tools are listed, diagnose the launcher
 environment (plugin root, writable plugin data, `uv`, and the host's MCP process scope) using
-[docs/setup.md](docs/setup.md). If `artifact_sftp.setup_status` is available but returns
+[docs/setup.md](docs/setup.md). If `artifact_sftp.status` is available but returns
 `ready: false`, the MCP server is connected. Use `verify_connection: true` on a fresh machine:
 it adds a bounded, no-write SFTP preflight using only the stored owner configuration. A result
 with `local_ready: true` and a failed `remote_connection` points to the SFTP boundary rather
@@ -180,7 +180,7 @@ filesystem access; enforce that stronger boundary in the AI host's tool or sandb
 
 The agent tool surface is deliberately small:
 
-- `artifact_sftp.setup_status` checks readiness without writing configuration.
+- `artifact_sftp.status` checks readiness without writing configuration.
 - `artifact_sftp.setup` reports the pre-provisioning boundary. It never exposes a terminal
   command or collects a password, Cloudflare token, or private key.
 - `artifact_sftp.publish` accepts a regular project-local `.html`/`.htm` file. It is
@@ -198,7 +198,7 @@ The agent tool surface is deliberately small:
 
 ## Agent workflow
 
-Call `artifact_sftp.setup_status` with `verify_connection: true` before a first real publish.
+Call `artifact_sftp.status` with `verify_connection: true` before a first real publish.
 A ready result has `agent_action: "continue"`; a not-ready result has `agent_action: "stop"`.
 `local_ready: false` means the owner-side configuration/dependency boundary needs repair;
 `local_ready: true` plus a failed remote preflight means the SFTP boundary needs repair. When
@@ -210,7 +210,7 @@ writes the stamped bytes to `docs/artifacts/<tool>/<visibility>/<slug>/`.
 When setup is not ready, call `artifact_sftp.setup` only to receive its structured boundary,
 then stop. Do not ask an agent to inspect or paste the config, run a bundled setup script,
 install a dependency, or try direct SFTP/HTTP. The environment owner repairs the boundary and
-the agent re-runs `setup_status` through MCP.
+the agent re-runs `artifact_sftp.status` through MCP.
 
 The local layout mirrors the remote artifact identity:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fresh-machine launch failures must be short, safe, and distinguishable.
 
-These cases happen before the MCP server can answer ``setup_status``.  Test
+These cases happen before the MCP server can answer ``artifact_sftp.status``.  Test
 the packaged launcher directly so an installer does not turn every failure
 into the unhelpful generic "cannot connect" message.
 """

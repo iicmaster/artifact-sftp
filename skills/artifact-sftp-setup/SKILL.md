@@ -10,7 +10,7 @@ environment owner. It separates **Configuration Structure** (automated/public) f
 (user-only).
 
 Host discoverability and configuration readiness are separate. If the host does not list
-`artifact_sftp.setup_status` at all, report `artifact_sftp MCP is not available` and stop; do not
+`artifact_sftp.status` at all, report `artifact_sftp MCP is not available` and stop; do not
 infer that SFTP configuration is missing. The environment owner must repair the host/plugin
 registration (the package includes a Claude Code root `.mcp.json` compatibility entry) before
 an agent can call this skill.
@@ -18,7 +18,7 @@ an agent can call this skill.
 ## Mandatory routing
 
 1. On a fresh machine or before the first real publish in a session, call
-   `artifact_sftp.setup_status` with `verify_connection: true`.
+   `artifact_sftp.status` with `verify_connection: true`.
 2. If `ready: true`, report only the safe readiness fields and continue with the requested MCP
    operation. This proves the local prerequisites and a bounded, no-write SFTP preflight;
    it does not publish, change configuration, create an artifact archive, or change remote

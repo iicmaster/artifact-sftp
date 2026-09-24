@@ -36,7 +36,7 @@ MCP_SERVER_FIELDS = {"type", "command", "cwd", "env"}
 MCP_ONLY_SKILLS = {
     "artifact-sftp": "artifact_sftp.publish",
     "artifact-sftp-read": "artifact_sftp.read",
-    "artifact-sftp-setup": "artifact_sftp.setup_status",
+    "artifact-sftp-setup": "artifact_sftp.status",
     "artifact-groom": "artifact_sftp.list",
 }
 INTERNAL_SCRIPT_NAMES = {"publish.sh", "read-artifact.sh", "setup.sh", "setup-wizard.sh"}
