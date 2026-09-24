@@ -172,6 +172,7 @@ FONTED=''
 DEFOOTED=''
 LOCAL_INDEX_TMP=''
 LOCAL_SNAPSHOT_TMP=''
+LIVE_INDEX=''
 cleanup() {
   # if-statements, not &&-lists: a false condition in an EXIT trap under set -e
   # would otherwise override the script's real exit code with 1.
@@ -182,6 +183,7 @@ cleanup() {
   if [ -n "$FONTED" ]; then rm -f "$FONTED"; fi
   if [ -n "$DEFOOTED" ]; then rm -f "$DEFOOTED"; fi
   if [ -n "$LOCAL_INDEX_TMP" ]; then rm -f "$LOCAL_INDEX_TMP"; fi
+  if [ -n "$LIVE_INDEX" ]; then rm -f "$LIVE_INDEX"; fi
   if [ -n "$LOCAL_SNAPSHOT_TMP" ]; then rm -f "$LOCAL_SNAPSHOT_TMP"; fi
 }
 trap cleanup EXIT
@@ -324,16 +326,51 @@ if [ "$DRY" -eq 1 ]; then
   exit 0
 fi
 
-# Overwrite guard: a slug this machine never published needs --force to clobber.
+# Overwrite guard: refuse to clobber a remote slug this machine has no custody of.
+# Custody = published from this machine (manifest), or a local copy is byte-identical to the live
+# index.html: this project's docs/artifacts archive (a cloned project, e.g. after moving to
+# another machine) or the read-back cache written by the read tool (read before edit). The live
+# bytes are downloaded to compare, so an empty/forged file or a stale copy never matches and a
+# newer remote version is never overwritten silently. For a public artifact the live bytes are not
+# secret, so a match proves the copy is current, not that it came from this user's read.
+READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
+live_index_custody() { # 0: a local copy equals the live index.html, 1: none does, 2: download failed
+  local copy dl
+  LIVE_INDEX=$(mktemp)
+  if [ "$USE_PY" = 1 ]; then
+    _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
+  else
+    if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
+    BATCH=$(mktemp)
+    printf 'get "%s/index.html" "%s"\n' "$RPATH" "$LIVE_INDEX" > "$BATCH"
+    dl=0; run_sftp "$BATCH" 2>/dev/null || dl=$?
+    rm -f "$BATCH"; BATCH=''
+    [ "$dl" -eq 0 ] || return 2
+  fi
+  [ -s "$LIVE_INDEX" ] || return 2
+  for copy in "$LOCAL_INDEX_PATH" "$READ_CACHE_INDEX"; do
+    if [ -f "$copy" ] && [ ! -L "$copy" ] && cmp -s "$LIVE_INDEX" "$copy"; then return 0; fi
+  done
+  return 1
+}
+require_custody() {
+  local rc=0
+  live_index_custody || rc=$?
+  case "$rc" in
+    0) ;;
+    2) die 5 "remote $TOOL/$VIS/$SLUG exists but its live index.html could not be downloaded to verify custody — retry, or use --force to overwrite" ;;
+    *) die 5 "remote $TOOL/$VIS/$SLUG already exists and no local copy (project docs/artifacts or read-back cache) matches its live index.html — read it first, or use --force to overwrite" ;;
+  esac
+}
 if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
   if [ "$USE_PY" = 1 ]; then
     exists=0; _timeout 90 python3 "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
-    [ "$exists" -eq 0 ] && die 5 "remote $TOOL/$VIS/$SLUG already exists and is not in the local manifest — use --force to overwrite"
+    if [ "$exists" -eq 0 ]; then require_custody; fi
   else
     BATCH=$(mktemp)
     printf 'ls "%s/index.html"\n' "$RPATH" > "$BATCH"
     if run_sftp "$BATCH" 2>/dev/null; then
-      die 5 "remote $TOOL/$VIS/$SLUG already exists and is not in the local manifest — use --force to overwrite"
+      require_custody
     fi
   fi
 fi

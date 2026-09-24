@@ -80,6 +80,17 @@ are not a command surface.
   - Do NOT fetch, crawl, or browse the published URL with curl, fetch, or browser tools.
 - Simply provide the resulting URL and local read-back reference (`docs/artifacts/<tool>/<visibility>/<slug>/...`) to the user.
 
+## Updating an artifact published from another machine
+
+Publish refuses to overwrite a remote slug this machine did not publish unless a local copy is
+byte-identical to its live `index.html`: this project's `docs/artifacts/<tool>/<vis>/<slug>/index.html`
+(for example a project cloned onto a new machine) or the read-back cache. Without an up-to-date
+project copy, call `artifact_sftp.read` on the artifact's current URL (not a
+`--<version>--<timestamp>.html` snapshot link) right before editing, and build on the bytes it
+returns. If someone publishes in between, nothing matches and publish is refused: read again and
+merge. `artifact_sftp.read` returns a project copy before the remote one, so a stale project copy
+must be updated (for example `git pull`) rather than re-read.
+
 ## Supported MCP operations
 
 - `artifact_sftp.setup_status` — inspect pre-provisioned readiness without mutation; set

@@ -33,6 +33,9 @@ if [ -n "$batch" ]; then
   # capture the last uploaded body (publish.sh stamps into a temp deleted on exit)
   src=$(sed -n 's/^put "\([^"]*\)".*/\1/p' "$batch" | tail -1)
   [ -n "$src" ] && cp "$src" "${MOCK_LAST_PUT:?}"
+  # download batch ("get <remote> <local>"): serve MOCK_REMOTE_INDEX as the live remote file
+  dst=$(sed -n 's/^get "[^"]*" "\([^"]*\)".*/\1/p' "$batch" | tail -1)
+  if [ -n "$dst" ] && [ -n "${MOCK_REMOTE_INDEX:-}" ]; then cp "$MOCK_REMOTE_INDEX" "$dst"; fi
   # existence-check batch (first line "ls ..."): default = slug not found
   if head -n1 "$batch" | grep -q '^ls '; then
     exit "${MOCK_REMOTE_EXISTS_EXIT:-1}"
@@ -254,6 +257,31 @@ expect 6 "public verify detects content mismatch"  -- bash "$PUB" --slug ok3 --p
 export MOCK_SFTP_EXIT=1 MOCK_CURL_BODY="$good"
 expect 5 "sftp failure surfaces as exit 5"         -- bash "$PUB" --slug ok4 --force "$good"
 unset MOCK_SFTP_EXIT
+
+# --- overwrite guard: an existing remote slug needs custody (manifest, or a project archive /
+# read-back cache copy byte-identical to the live index.html) ---
+export MOCK_REMOTE_EXISTS_EXIT=0
+printf '<p>live v1</p>\n' > "$WORK/live-index.html"
+export MOCK_REMOTE_INDEX="$WORK/live-index.html"
+expect 5 "existing remote slug without custody refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+mkdir -p "$WORK/project/docs/artifacts/codex/private/foreign"
+: > "$WORK/project/docs/artifacts/codex/private/foreign/index.html"
+expect 5 "empty (forged) project archive refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+cache="$HOME/.cache/artifact-sftp/remote/codex/private/foreign"
+mkdir -p "$cache"
+printf '<p>stale</p>\n' > "$cache/index.html"
+expect 5 "stale read-back cache refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+cp "$WORK/live-index.html" "$cache/index.html"
+expect 0 "read-back cache matching live index updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug foreign "$good"
+mkdir -p "$WORK/project/docs/artifacts/codex/private/cloned"
+cp "$WORK/live-index.html" "$WORK/project/docs/artifacts/codex/private/cloned/index.html"
+expect 0 "project archive matching live index updatable" -- env -u MOCK_CURL_BODY bash "$PUB" --slug cloned "$good"
+unset MOCK_REMOTE_INDEX
+expect 5 "undownloadable live index refused" -- env -u MOCK_CURL_BODY bash "$PUB" --slug unverifiable "$good"
+grep -q 'could not be downloaded' "$WORK/errout" \
+  && echo "PASS download failure is reported as such" \
+  || { echo "FAIL: download failure not distinguished"; fails=$((fails+1)); }
+unset MOCK_REMOTE_EXISTS_EXIT
 
 # --- config guards ---
 chmod 644 "$cfg"
