@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
  
 ## [Unreleased]
 
+- **Docs: Claude Code on Windows.** `docs/setup.md` now explains why the plugin's MCP server does not start on Windows. The session log shows `/bin/bash: C:\...\bin\artifact-sftp-mcp: No such file or directory`, because the launcher runs under the WSL `bash.exe`, which comes first on the Windows `PATH`. The doc adds a verified workaround: a user-scope `claude mcp add-json` entry that runs the launcher through Git Bash. The `.mcp.json` launch contract is unchanged.
+
 - **Breaking: `artifact_sftp.setup_status` is renamed to `artifact_sftp.status`.** Claude Code exposes plugin tools as `mcp__plugin_artifact-sftp_artifact-sftp__<tool>`, so the old name became 67 characters. OpenAI-style model APIs reject tool names over 64 (`name must be at most 64 characters, got 67`), which made every request of a gateway-routed session fail with HTTP 400. No alias is kept, since an alias would re-register the long name.
   - Migration: agents, skills, and permission rules that reference `setup_status` (for example `mcp__plugin_artifact-sftp_artifact-sftp__artifact_sftp_setup_status`) must use `status` (`mcp__plugin_artifact-sftp_artifact-sftp__artifact_sftp_status`). The response payload is unchanged, including `"operation": "setup_status"`.
 - Added a regression test that fails when any registered tool, in Claude Code's exposed form, is longer than 64 characters.

@@ -95,6 +95,51 @@ the MCP child inside WSL or Git Bash, with the matching Unix-like `HOME`,
 that interoperability path as an owner-side preflight requirement rather than
 assuming a Windows desktop installation alone is sufficient.
 
+#### Claude Code on Windows: point the server at Git Bash
+
+On a Windows host the plugin installs and its skills load, but the plugin's own
+server does not start. The session's MCP log
+(`%LOCALAPPDATA%\claude-cli-nodejs\Cache\<project>\mcp-logs-plugin-artifact-sftp-artifact-sftp\*.jsonl`)
+shows:
+
+```text
+Server stderr: /bin/bash: C:\Users\<you>\.claude\plugins\cache\artifact-sftp\artifact-sftp\<version>\bin\artifact-sftp-mcp: No such file or directory
+Connection failed (CONNECTION_CLOSED): Connection closed
+```
+
+The extensionless launcher is run by the first `bash` on the Windows `PATH`.
+On a stock install that is `%LOCALAPPDATA%\Microsoft\WindowsApps\bash.exe`,
+the WSL launcher, and a `C:\...` path does not exist inside the Linux
+filesystem. Git Bash is usually not on the Windows `PATH`, so `where.exe bash`
+lists only the WSL entry.
+
+The launcher works under Git Bash. Register a user-scope server that names Git
+Bash explicitly and uses forward-slash paths:
+
+```bash
+R='C:/Users/<you>/.claude/plugins/cache/artifact-sftp/artifact-sftp/<version>'
+claude mcp add-json --scope user artifact-sftp-win "{
+  \"type\": \"stdio\",
+  \"command\": \"C:/Program Files/Git/bin/bash.exe\",
+  \"args\": [\"$R/bin/artifact-sftp-mcp\"],
+  \"env\": {
+    \"PLUGIN_ROOT\": \"$R\",
+    \"ARTIFACT_SFTP_PLUGIN_ROOT\": \"$R\",
+    \"PLUGIN_DATA\": \"C:/Users/<you>/.local/share/artifact-sftp\"
+  }
+}"
+claude mcp get artifact-sftp-win   # expect: Status: ✔ Connected
+```
+
+`uv` must be on the `PATH` that Git Bash sees. After a reload the tools appear
+as `mcp__artifact-sftp-win__artifact_sftp_*` rather than under the plugin
+prefix, and the plugin's own server keeps logging the failure above. The entry
+is pinned to one plugin version, so re-point `R` after `claude plugin update`.
+
+Running `claude mcp get` from a Git Bash shell can report a plugin-style entry
+as connected, because that shell resolves `bash` to Git Bash. Check the MCP log
+of the Claude Code session to see which `bash` the session actually ran.
+
 The SFTP side must already exist: a least-privilege account, a static web
 origin serving the upload root, a verified host key for the exact host and
 port, and an access policy that protects every private path. If Cloudflare
