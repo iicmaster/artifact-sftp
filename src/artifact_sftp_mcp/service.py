@@ -28,11 +28,14 @@ PUBLISHED_RE = re.compile(r"^published v([1-9][0-9]*) \(snapshot: ([^)]+)\)$")
 def _posix_to_win(value: str) -> str:
     # Windows hosts: Git Bash child scripts print POSIX drive paths (/e/...);
     # Windows pathlib treats those as relative. Normalize to e:/... before use.
+    # POSIX hosts must pass through untouched — /e/... is a genuine path there.
+    if os.name != "nt":
+        return value
     m = re.match(r"^/([A-Za-z])/(.+)$", value)
     return f"{m.group(1)}:/{m.group(2)}" if m else value
 
-READ_BACK_RE = re.compile(r"^read-back: ((?:/|[A-Za-z]:[\\/]).+)$")
-SNAPSHOT_PATH_RE = re.compile(r"^snapshot: ((?:/|[A-Za-z]:[\\/]).+)$")
+READ_BACK_RE = re.compile(r"^read-back: ((?:/|[A-Za-z]:[\\/]|\\\\).+)$")
+SNAPSHOT_PATH_RE = re.compile(r"^snapshot: ((?:/|[A-Za-z]:[\\/]|\\\\).+)$")
 AUTH_RE = re.compile(r"^auth: (password|ssh-key|1password)$")
 DEFAULT_TOOL_RE = re.compile(r"^default tool: (codex|openclaw|claude)$")
 TOOLS = frozenset({"codex", "openclaw", "claude"})

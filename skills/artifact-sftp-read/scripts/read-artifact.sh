@@ -85,6 +85,10 @@ case "$reference" in
 esac
 [ -n "$reference" ] || fail 2 "artifact reference is empty"
 
+# Windows hosts emit drive/UNC references with backslashes (cygpath -w); MSYS
+# resolves the same locations with forward slashes.
+reference=${reference//\\//}
+
 tool=''
 vis=''
 slug=''
@@ -124,7 +128,7 @@ elif [[ "$reference" == https://* ]]; then
     fail 2 "not an artifact-sftp URL: $reference"
   fi
   candidate="$project/docs/artifacts/$tool/$vis/$slug/$target_file"
-elif [[ "$reference" = /* ]]; then
+elif [[ "$reference" = /* || "$reference" = [A-Za-z]:/* || "$reference" = //* ]]; then
   abs_re='^.*/docs/artifacts/(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
   if [[ "$reference" =~ $abs_re ]]; then
     tool=${BASH_REMATCH[1]}

@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from mcp import Client
@@ -18,6 +19,9 @@ from artifact_sftp_mcp.server import build_server  # noqa: E402
 from artifact_sftp_mcp.service import (  # noqa: E402
     ArtifactSftpService,
     CommandResult,
+    READ_BACK_RE,
+    SNAPSHOT_PATH_RE,
+    _posix_to_win,
 )
 
 
@@ -816,6 +820,45 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         result = response.structured_content["result"]
         paths = [d["path"] for d in result["local_drafts"]]
         self.assertIn("docs/artifacts/sources/draft_source.html", paths)
+
+
+class WindowsPathMarkerTests(unittest.TestCase):
+    """Git Bash publishers emit Windows drive and UNC archive paths; the
+    contract must accept them without corrupting genuine POSIX paths."""
+
+    POSIX = "/e/project/docs/artifacts/codex/private/report/index.html"
+    DRIVE = "E:\\project\\docs\\artifacts\\codex\\private\\report\\index.html"
+    UNC = "\\\\server\\share\\docs\\artifacts\\codex\\private\\report\\index.html"
+
+    def test_posix_hosts_keep_posix_markers_verbatim(self) -> None:
+        # On POSIX hosts /e/... is a genuine absolute path; rewriting it would
+        # make the archive check reject a valid publish.
+        self.assertEqual(_posix_to_win(self.POSIX), self.POSIX)
+        self.assertEqual(_posix_to_win(self.DRIVE), self.DRIVE)
+        self.assertEqual(_posix_to_win(self.UNC), self.UNC)
+
+    @unittest.mock.patch("os.name", "nt")
+    def test_windows_hosts_normalize_only_the_git_bash_drive_form(self) -> None:
+        # The drive letter keeps its case from the POSIX form (/e/... -> e:/...).
+        self.assertEqual(
+            _posix_to_win(self.POSIX),
+            "e:/project/docs/artifacts/codex/private/report/index.html",
+        )
+        self.assertEqual(_posix_to_win(self.DRIVE), self.DRIVE)
+        self.assertEqual(_posix_to_win(self.UNC), self.UNC)
+        self.assertEqual(
+            _posix_to_win("/Users/master/project/docs/artifacts/codex/private/report/index.html"),
+            "/Users/master/project/docs/artifacts/codex/private/report/index.html",
+        )
+
+    def test_markers_accept_posix_drive_and_unc_paths(self) -> None:
+        for value in (self.POSIX, self.DRIVE, self.UNC):
+            self.assertEqual(READ_BACK_RE.match(f"read-back: {value}").group(1), value)
+            self.assertEqual(SNAPSHOT_PATH_RE.match(f"snapshot: {value}").group(1), value)
+
+    def test_markers_reject_relative_paths(self) -> None:
+        self.assertIsNone(READ_BACK_RE.match("read-back: docs/artifacts/codex/private/report/index.html"))
+        self.assertIsNone(SNAPSHOT_PATH_RE.match("snapshot: report--1--20260810T120000Z.html"))
 
 
 if __name__ == "__main__":

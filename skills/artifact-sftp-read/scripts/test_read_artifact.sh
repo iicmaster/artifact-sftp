@@ -87,6 +87,17 @@ expect_exit 2 "path outside local archive is rejected" -- bash "$READ" "$WORK/ou
 expect_exit 3 "symlinked archive is rejected" -- \
   bash "$READ" 'docs/artifacts/codex/private/report/symlink.html'
 
+drive_rc=0
+bash "$READ" 'E:\nonexistent\drive\index.html' >"$WORK/out" 2>"$WORK/err" || drive_rc=$?
+if [ "$drive_rc" -eq 3 ] \
+  && grep -Fq 'unavailable: E:/nonexistent/drive/index.html' "$WORK/err" \
+  && ! grep -Fq "$PROJECT/E:" "$WORK/err"; then
+  echo "PASS windows drive reference is absolute with slashes normalized"
+else
+  echo "FAIL: windows drive reference handling — want exit 3 with a normalized absolute candidate"
+  sed 's/^/  | /' "$WORK/err"; fails=$((fails+1))
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "ALL CHECKS PASSED"
 else
