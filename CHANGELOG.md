@@ -2,9 +2,46 @@
  
 All notable changes to this project are documented here.
  
-## [Unreleased]
+## [0.22.0] - 2026-09-28
 
-- **Docs: Claude Code on Windows.** `docs/setup.md` now explains why the plugin's MCP server does not start on Windows. The session log shows `/bin/bash: C:\...\bin\artifact-sftp-mcp: No such file or directory`, because the launcher runs under the WSL `bash.exe`, which comes first on the Windows `PATH`. The doc adds a verified workaround: a user-scope `claude mcp add-json` entry that runs the launcher through Git Bash. The `.mcp.json` launch contract is unchanged.
+- **S3-compatible storage driver: Cloudflare R2, AWS S3, and MinIO (ADR 0001, Option 1).**
+  Publishing no longer requires an SSH server. `STORAGE_DRIVER=s3` profiles carry
+  `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `PUBLIC_BASE_URL`;
+  the transport is a pure-stdlib AWS SigV4 client (`skills/artifact-sftp/scripts/s3_helper.py`,
+  `urllib.request`/`hmac`/`hashlib`/`xml.etree` — no boto3). Private artifacts ship with
+  `Cache-Control: private, no-cache` and are expected to sit behind Cloudflare Access; public
+  artifacts ship `public, max-age=300`. The ADR records the full Cloudflare recipe, including the
+  trailing-slash index-rewrite Transform Rule.
+  - `artifact_sftp.setup` writes and validates S3 profiles; `artifact_sftp.status` reports
+    `storage driver: s3` and `auth: s3-api-token`, and readiness no longer requires `known_hosts`
+    for S3. Endpoints the request builder cannot preserve (no authority, or a path prefix) are
+    rejected at setup time.
+  - Custody and safety semantics carry over from SFTP: the overwrite guard demands the manifest or
+    a byte-identical local copy (project archive or either read cache) even on S3, HEAD failures
+    exit with a distinct code 4 so a refused probe is never mistaken for a missing slug, the
+    immutable snapshot uploads before the live index, and every response body is read through a
+    5 MiB bounded reader. `setup_status(verify_connection=True)` probes S3 with a single
+    `max-keys=1` request (`publish.sh --ping`) instead of a full inventory walk.
+  - Reads fall back to the S3 public base URL, and S3 downloads cache under
+    `.cache/artifact-sftp/remote-s3/` so the service reports `source: remote_s3` instead of
+    mislabeling provenance.
+  - Offline tests include the official AWS SigV4 get-vanilla and IAM vectors; the new tests are
+    plain `unittest`, so the CI matrix needs no extra dependency.
+- **Windows drive and UNC paths work end to end.** Child scripts emit `cygpath -w` paths; the
+  marker contract accepts `E:\...` and `\\server\share\...`, the POSIX `/e/...` normalization is
+  gated to Windows hosts so genuine POSIX paths pass through untouched, and the read resolver
+  accepts drive/UNC references as absolute. Covered by unit tests and an offline shell regression.
+- **Docs: Claude Code on Windows.** `docs/setup.md` explains why the plugin's MCP server does not
+  start under the WSL `bash.exe` that comes first on the Windows `PATH`, with a verified
+  user-scope `claude mcp add-json` workaround that runs the launcher through Git Bash. The
+  `.mcp.json` launch contract is unchanged.
+
+## [0.21.3] - 2026-09-21
+
+- **Report the packaged version on the wire.** `build_server()` carried a hand-maintained copy of the version string, which 0.21.2 shipped still reading `0.21.1`. It now reads `importlib.metadata.version("artifact-sftp-mcp")`, so `pyproject.toml` is the only place a release bump has to land.
+- Added `ReportedVersionTests`, which fails when the installed distribution and `pyproject.toml` disagree.
+
+## [0.21.2] - 2026-09-21
 
 - **Breaking: `artifact_sftp.setup_status` is renamed to `artifact_sftp.status`.** Claude Code exposes plugin tools as `mcp__plugin_artifact-sftp_artifact-sftp__<tool>`, so the old name became 67 characters. OpenAI-style model APIs reject tool names over 64 (`name must be at most 64 characters, got 67`), which made every request of a gateway-routed session fail with HTTP 400. No alias is kept, since an alias would re-register the long name.
   - Migration: agents, skills, and permission rules that reference `setup_status` (for example `mcp__plugin_artifact-sftp_artifact-sftp__artifact_sftp_setup_status`) must use `status` (`mcp__plugin_artifact-sftp_artifact-sftp__artifact_sftp_status`). The response payload is unchanged, including `"operation": "setup_status"`.
@@ -17,13 +54,6 @@ All notable changes to this project are documented here.
   unrelated slugs nor newer remote versions are overwritten. A failed download of the live index is
   reported separately from a mismatch. The MCP recovery hint for exit 5 now says to read the artifact
   first.
-
-## [0.21.3] - 2026-09-21
-
-- **Report the packaged version on the wire.** `build_server()` carried a hand-maintained copy of the version string, which 0.21.2 shipped still reading `0.21.1`. It now reads `importlib.metadata.version("artifact-sftp-mcp")`, so `pyproject.toml` is the only place a release bump has to land.
-- Added `ReportedVersionTests`, which fails when the installed distribution and `pyproject.toml` disagree.
-
-## [0.21.2] - 2026-09-21
 
 - **MCP stdio connectivity fix — hosts that probe `server/discover` can connect again:**
   - `main()` now drives `serve_loop` (handshake era only) instead of `MCPServer.run(transport="stdio")`, which drives `serve_dual_era_loop`.
