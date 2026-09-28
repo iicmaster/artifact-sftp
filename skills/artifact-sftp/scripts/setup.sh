@@ -40,9 +40,13 @@ _config_count() { awk -F= -v key="$1" '$1 == key { count++ } END { print count +
 _config_value() { sed -n "s/^$1=//p" "$CONFIG" | tail -n 1; }
 _shell_safe() { case "$1" in *[!A-Za-z0-9_.:/@%+-]*) return 1;; *) return 0;; esac; }
 _s3_endpoint_valid() {
-  local url=$1
+  local url=$1 authority
   case "$url" in https://*) ;; *) return 1 ;; esac
   case "$url" in *'?'*|*'#'*) return 1 ;; esac
+  # S3Client builds requests from scheme+authority only, so an endpoint with
+  # no authority or any path prefix would be silently mangled or redirected.
+  authority=${url#https://}
+  case "$authority" in ''|*/*|*@*) return 1 ;; esac
   return 0
 }
 _public_base_url_valid() {

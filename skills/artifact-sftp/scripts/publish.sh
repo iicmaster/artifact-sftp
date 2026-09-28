@@ -77,6 +77,7 @@ while [ $# -gt 0 ]; do
     --dry-run) DRY=1; shift ;;
     --allow-sensitive) ALLOW_SENSITIVE=1; shift ;;
     --list) MODE=list; shift ;;
+    --ping) MODE=ping; shift ;;
     --delete|--unpublish) [ $# -ge 2 ] || usage; MODE=delete; SLUG=$2; shift 2 ;;
     -h|--help) usage ;;
     -*) err "unknown option: $1"; usage ;;
@@ -236,6 +237,26 @@ if [ "$MODE" = list ]; then
   exit 0
 fi
 
+# ---------- ping (bounded, no-write connection preflight) ----------
+# setup_status(verify_connection=True) probes through here. For S3 this is a
+# single max-keys=1 request instead of a full inventory walk, so a large
+# bucket cannot blow the preflight timeout or memory. SFTP keeps its
+# established two-directory listing probe.
+if [ "$MODE" = ping ]; then
+  if [ "$STORAGE_DRIVER" = "s3" ]; then
+    _timeout 90 python3 "$S3_HELPER" test_connection >&2 || die 3 "s3 connection preflight failed"
+  elif [ "$USE_PY" = 1 ]; then
+    _timeout 90 python3 "$HELPER" list "$REMOTE_DIR/$TOOL" >&2 || die 3 "sftp connection preflight failed"
+  else
+    BATCH=$(mktemp)
+    printf -- '-ls -1 %s/%s/private\n-ls -1 %s/%s/public\n' \
+      "$REMOTE_DIR" "$TOOL" "$REMOTE_DIR" "$TOOL" > "$BATCH"
+    run_sftp "$BATCH" || die 3 "sftp connection preflight failed"
+    rm -f "$BATCH"; BATCH=''
+  fi
+  exit 0
+fi
+
 # ---------- shared slug validation ----------
 [ -n "$SLUG" ] || { err "--slug is required"; usage; }
 [[ "$SLUG" =~ $SLUG_RE ]] || die 2 "invalid slug '$SLUG' (must match $SLUG_RE)"
@@ -336,10 +357,13 @@ fi
 # newer remote version is never overwritten silently. For a public artifact the live bytes are not
 # secret, so a match proves the copy is current, not that it came from this user's read.
 READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
+S3_READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote-s3/$TOOL/$VIS/$SLUG/index.html"
 live_index_custody() { # 0: a local copy equals the live index.html, 1: none does, 2: download failed
   local copy dl
   LIVE_INDEX=$(mktemp)
-  if [ "$USE_PY" = 1 ]; then
+  if [ "$STORAGE_DRIVER" = "s3" ]; then
+    _timeout 90 python3 "$S3_HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
+  elif [ "$USE_PY" = 1 ]; then
     _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
   else
     if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
@@ -350,7 +374,7 @@ live_index_custody() { # 0: a local copy equals the live index.html, 1: none doe
     [ "$dl" -eq 0 ] || return 2
   fi
   [ -s "$LIVE_INDEX" ] || return 2
-  for copy in "$LOCAL_INDEX_PATH" "$READ_CACHE_INDEX"; do
+  for copy in "$LOCAL_INDEX_PATH" "$READ_CACHE_INDEX" "$S3_READ_CACHE_INDEX"; do
     if [ -f "$copy" ] && [ ! -L "$copy" ] && cmp -s "$LIVE_INDEX" "$copy"; then return 0; fi
   done
   return 1
@@ -367,7 +391,11 @@ require_custody() {
 if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
   if [ "$STORAGE_DRIVER" = "s3" ]; then
     exists=0; _timeout 90 python3 "$S3_HELPER" exists "$RPATH/index.html" 2>/dev/null || exists=$?
-    [ "$exists" -eq 0 ] && die 5 "remote $TOOL/$VIS/$SLUG already exists and is not in the local manifest — use --force to overwrite"
+    case "$exists" in
+      0) require_custody ;;
+      1) : ;; # the slug is genuinely absent — safe to create
+      *) die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (s3 exists exit $exists) — refusing to risk overwriting an artifact without custody" ;;
+    esac
   elif [ "$USE_PY" = 1 ]; then
     exists=0; _timeout 90 python3 "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
     if [ "$exists" -eq 0 ]; then require_custody; fi

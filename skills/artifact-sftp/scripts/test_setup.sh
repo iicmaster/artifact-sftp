@@ -498,6 +498,23 @@ run_capture "$S3_SETUP_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" 
 assert_rc 0 "S3 setup should succeed"
 assert_not_contains "$S3_SETUP_OUT" "$S3_TEST_SECRET" "S3 setup leaked stdin secret"
 
+# Endpoints the S3 request builder cannot preserve (no authority, or a path
+# prefix it would silently discard) must be rejected at setup time.
+for bad_endpoint in 'https://' 'https://host.example/prefix'; do
+  S3_BAD_EP_OUT="$TMP_ROOT/s3-bad-endpoint.out"
+  run_capture "$S3_BAD_EP_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" \
+    --driver s3 \
+    --s3-endpoint "$bad_endpoint" \
+    --s3-bucket test-artifacts \
+    --s3-key-id TEST-ACCESS-KEY-ID-EXAMPLE \
+    --s3-secret - \
+    --s3-region auto \
+    --url https://artifacts.test.invalid \
+    --tool codex \
+    <"$S3_SECRET_INPUT"
+  assert_rc 2 "setup should reject the S3 endpoint '$bad_endpoint'"
+done
+
 [ -f "$S3_CFG_DIR/config" ] || fail "S3 setup did not create config"
 [ ! -f "$S3_CFG_DIR/known_hosts" ] || fail "S3 setup unexpectedly created known_hosts"
 grep -Fqx 'STORAGE_DRIVER=s3' "$S3_CFG_DIR/config" || fail "STORAGE_DRIVER=s3 was not recorded"

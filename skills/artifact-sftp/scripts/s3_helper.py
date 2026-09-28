@@ -14,7 +14,7 @@ Operations:
   test_connection
 
 Exit codes:
-  0 ok | 1 not-found/failed | 10 internal bypass attempt
+  0 ok | 1 not-found/failed | 4 storage refused or errored (distinct from not-found) | 10 internal bypass attempt
 """
 import datetime
 import hashlib
@@ -63,6 +63,17 @@ def _get_signature_key(key, date_stamp, region_name, service_name):
     k_region = hmac.new(k_date, region_name.encode("utf-8"), hashlib.sha256).digest()
     k_service = hmac.new(k_region, service_name.encode("utf-8"), hashlib.sha256).digest()
     return hmac.new(k_service, b"aws4_request", hashlib.sha256).digest()
+
+
+def _bounded_read(resp):
+    """Read a response body without ever buffering more than MAX_BYTES."""
+    length = resp.headers.get("Content-Length") if resp.headers is not None else None
+    if length is not None and length.strip().isdigit() and int(length) > MAX_BYTES:
+        sys.exit(f"response exceeds {MAX_BYTES} byte safety ceiling (Content-Length: {length})")
+    data = resp.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        sys.exit(f"response exceeds {MAX_BYTES} byte safety ceiling (streamed past the limit)")
+    return data
 
 
 class S3Client:
@@ -166,9 +177,9 @@ class S3Client:
         )
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return resp.status, resp.read(), resp.headers
+                return resp.status, _bounded_read(resp), resp.headers
         except urllib.error.HTTPError as e:
-            return e.code, e.read(), e.headers
+            return e.code, _bounded_read(e), e.headers
         except Exception as e:
             sys.exit(f"S3 request failed ({method} {path}): {e}")
 
@@ -178,8 +189,11 @@ class S3Client:
             return True
         if status == 404:
             return False
-        # If permission denied or server error, fail fast rather than misinterpreting as missing
-        sys.exit(f"S3 HEAD failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
+        # Storage refused or errored: exit 4 so callers never confuse "probe
+        # failed" with "probe answered 404" — the overwrite guard depends on
+        # that distinction before it may treat a slug as absent.
+        print(f"S3 HEAD failed ({status}): {resp_body.decode('utf-8', errors='replace')}", file=sys.stderr)
+        sys.exit(4)
 
     def put_object(self, key, data, content_type="text/html; charset=utf-8", cache_control="private, no-cache"):
         headers = {
@@ -305,15 +319,9 @@ def main():
             index_cache = "private, no-cache"
             vname_cache = "private, no-cache"
 
-        # 1. Upload index.html
-        client.put_object(
-            f"{prefix}/index.html",
-            data,
-            content_type="text/html; charset=utf-8",
-            cache_control=index_cache,
-        )
-
-        # 2. Upload immutable snapshot version if specified
+        # Upload the immutable snapshot FIRST: if it fails, the live index is
+        # left untouched, so the served artifact never loses its promised
+        # snapshot while the manifest still points at the previous version.
         if vname:
             client.put_object(
                 f"{prefix}/{vname}",
@@ -321,6 +329,13 @@ def main():
                 content_type="text/html; charset=utf-8",
                 cache_control=vname_cache,
             )
+
+        client.put_object(
+            f"{prefix}/index.html",
+            data,
+            content_type="text/html; charset=utf-8",
+            cache_control=index_cache,
+        )
 
     elif op == "get":
         if len(sys.argv) < 4:

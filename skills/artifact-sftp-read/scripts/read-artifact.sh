@@ -226,7 +226,13 @@ _load_config
 STORAGE_DRIVER=${STORAGE_DRIVER:-sftp}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
-CACHE_DIR="$HOME/.cache/artifact-sftp/remote/$tool/$vis/$slug"
+# The cache directory encodes the driver so the MCP service can report
+# correct provenance (remote_sftp vs remote_s3) for cached read-backs.
+if [ "$STORAGE_DRIVER" = "s3" ]; then
+  CACHE_DIR="$HOME/.cache/artifact-sftp/remote-s3/$tool/$vis/$slug"
+else
+  CACHE_DIR="$HOME/.cache/artifact-sftp/remote/$tool/$vis/$slug"
+fi
 CACHE_FILE="$CACHE_DIR/$target_file"
 mkdir -p "$CACHE_DIR"
 

@@ -293,6 +293,36 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result["artifact"]["slug"], "remote-doc")
                 self.assertIn("Remote SFTP Content", result["content"])
 
+    async def test_read_remote_s3_cache_reports_s3_provenance(self) -> None:
+        """S3 downloads cache under remote-s3/ so provenance names the delivering driver."""
+        with tempfile.TemporaryDirectory() as temp:
+            mock_home = Path(temp) / "home"
+            mock_home.mkdir()
+            project = Path(temp) / "project"
+            project.mkdir()
+            cache_file = mock_home / ".cache/artifact-sftp/remote-s3/codex/private/remote-doc/index.html"
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text("<!DOCTYPE html><html><body>Remote S3 Content</body></html>", encoding="utf-8")
+
+            with unittest.mock.patch.object(Path, "home", return_value=mock_home):
+                fake = FakeRunner(command_result(0, stdout=f"{cache_file.resolve()}\n"))
+                server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+                response = await self.call(
+                    server,
+                    "artifact_sftp.read",
+                    {
+                        "project_path": str(project),
+                        "reference": "https://artifacts.example/codex/private/remote-doc/",
+                        "max_bytes": 100,
+                    },
+                )
+                self.assertFalse(response.is_error)
+                result = response.structured_content["result"]
+                self.assertEqual(result["source"], "remote_s3")
+                self.assertTrue(result["network_accessed"])
+                self.assertEqual(result["archive_path"], str(cache_file.resolve()))
+                self.assertIn("Remote S3 Content", result["content"])
+
     async def test_publish_verification_rejects_remote_cache_paths(self) -> None:
         """Verify that publisher custody verification strictly forbids paths outside project docs/artifacts."""
         with tempfile.TemporaryDirectory() as temp:
@@ -486,7 +516,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("example.invalid", str(result))
         self.assertEqual(
             fake.calls[1][0],
-            ("bash", str(ROOT / "skills/artifact-sftp/scripts/publish.sh"), "--list", "--tool", "codex"),
+            ("bash", str(ROOT / "skills/artifact-sftp/scripts/publish.sh"), "--ping", "--tool", "codex"),
         )
 
     async def test_remote_preflight_does_not_run_when_local_setup_is_not_ready(self) -> None:
@@ -533,7 +563,7 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["setup_status"]["ready"])
         self.assertEqual(
             result["setup_status"]["remote_connection"]["operation"],
-            "authenticated_sftp_preflight",
+            "authenticated_storage_preflight",
         )
         self.assertNotIn("private/report", str(result))
 

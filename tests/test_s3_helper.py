@@ -5,9 +5,12 @@ import hmac
 import importlib.util
 import io
 import os
+import sys
+import tempfile
 import unittest
 import unittest.mock
 import urllib.error
+import urllib.parse
 from pathlib import Path
 
 # Load s3_helper module dynamically
@@ -153,8 +156,60 @@ class S3HelperTests(unittest.TestCase):
             raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, io.BytesIO(b"Access Denied"))
 
         with unittest.mock.patch.object(urllib.request, "urlopen", side_effect=mock_403):
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(SystemExit) as ctx:
                 client.head_object("key.html")
+            self.assertEqual(ctx.exception.code, 4)
+
+    def test_upload_orders_snapshot_before_live_index(self) -> None:
+        """The immutable snapshot uploads first: a failed snapshot PUT must
+        never leave the live index serving content without its snapshot."""
+        client = s3_helper.S3Client(CONFIG)
+        uploaded_keys = []
+
+        def mock_urlopen(req, timeout=30):
+            uploaded_keys.append(urllib.parse.unquote(req.full_url))
+            return fake_response()
+
+        with tempfile.TemporaryDirectory() as temp:
+            local = Path(temp) / "artifact.html"
+            local.write_bytes(b"<html></html>")
+            config_file = Path(temp) / "config"
+            config_file.write_text(
+                "\n".join(f"{key}={value}" for key, value in CONFIG.items()) + "\n",
+                encoding="utf-8",
+            )
+            with unittest.mock.patch.object(s3_helper, "CONFIG", str(config_file)), \
+                 unittest.mock.patch.object(sys, "argv", [
+                     "s3_helper.py", "upload", str(local), "codex/private/slug",
+                     "slug--1--20260101T000000Z.html", "private",
+                 ]), \
+                 unittest.mock.patch.dict(os.environ, {"ARTIFACT_SFTP_MCP_CALL": "1"}), \
+                 unittest.mock.patch.object(urllib.request, "urlopen", side_effect=mock_urlopen):
+                s3_helper.main()
+
+        self.assertEqual(len(uploaded_keys), 2)
+        self.assertIn("slug--1--20260101T000000Z.html", uploaded_keys[0])
+        self.assertIn("index.html", uploaded_keys[1])
+
+    def test_get_rejects_oversized_content_length_before_reading(self) -> None:
+        """A Content-Length above the 5 MiB ceiling is rejected before buffering the body."""
+        client = s3_helper.S3Client(CONFIG)
+        oversized = fake_response()
+        oversized.headers = {"Content-Length": str(6 * 1024 * 1024)}
+        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=oversized):
+            with self.assertRaises(SystemExit) as ctx:
+                client.get_object("key.html")
+        self.assertIn("safety ceiling", str(ctx.exception))
+
+    def test_get_rejects_bodies_streaming_past_the_ceiling(self) -> None:
+        """Without Content-Length, reading stops just past the ceiling instead of buffering the object."""
+        client = s3_helper.S3Client(CONFIG)
+        streaming = fake_response(b"A" * (5 * 1024 * 1024 + 1))
+        streaming.headers = {}
+        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=streaming):
+            with self.assertRaises(SystemExit) as ctx:
+                client.get_object("key.html")
+        self.assertIn("safety ceiling", str(ctx.exception))
 
 
 if __name__ == "__main__":
