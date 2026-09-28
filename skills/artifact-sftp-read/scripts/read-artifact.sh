@@ -73,12 +73,21 @@ done
 [ -d "$project" ] || fail 2 "project directory does not exist: $project"
 project=$(cd -P "$project" && pwd)
 
+# Windows hosts: emit Windows drive paths so the Python host's pathlib accepts
+# them (Git Bash prints /e/... which Windows resolves as a relative path).
+wpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
+
 reference=$1
 case "$reference" in
   'read-back: '*) reference=${reference#read-back: } ;;
   'snapshot: '*) reference=${reference#snapshot: } ;;
 esac
 [ -n "$reference" ] || fail 2 "artifact reference is empty"
+
+# Windows hosts emit drive/UNC references with backslashes (cygpath -w); MSYS
+# resolves the same locations with forward slashes.
+reference=${reference//\\//}
 
 tool=''
 vis=''
@@ -119,7 +128,7 @@ elif [[ "$reference" == https://* ]]; then
     fail 2 "not an artifact-sftp URL: $reference"
   fi
   candidate="$project/docs/artifacts/$tool/$vis/$slug/$target_file"
-elif [[ "$reference" = /* ]]; then
+elif [[ "$reference" = /* || "$reference" = [A-Za-z]:/* || "$reference" = //* ]]; then
   abs_re='^.*/docs/artifacts/(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
   if [[ "$reference" =~ $abs_re ]]; then
     tool=${BASH_REMATCH[1]}
@@ -167,7 +176,7 @@ if [ -f "$candidate" ] && [ ! -L "$candidate" ]; then
         if [ "$mode" = cat ]; then
           cat "$resolved"
         else
-          printf '%s\n' "$resolved"
+          printf '%s\n' "$(wpath "$resolved")"
         fi
         exit 0
       fi
