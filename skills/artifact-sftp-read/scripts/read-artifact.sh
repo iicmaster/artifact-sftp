@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Resolve an artifact-sftp URL or `read-back:` line to local archived bytes or remote SFTP fallback.
+# Resolve an artifact-sftp URL or `read-back:` line to local archived bytes or remote SFTP/S3 fallback.
 # Tier 1: Local archive resolution in the selected project's docs/artifacts/ tree (zero network I/O).
-# Tier 2: Remote SFTP fetch fallback when reading cross-project, cross-machine, or private URLs.
+# Tier 2: Remote SFTP/S3 fetch fallback when reading cross-project, cross-machine, or private URLs.
 set -euo pipefail
 umask 077
 
@@ -17,7 +17,7 @@ usage() {
   cat <<'EOF'
 Usage: read-artifact.sh [--project DIR] [--cat] <artifact-url | read-back-path | archive-path>
 
-Resolve an artifact-sftp reference to its local archive (Tier 1) or fetch it from remote SFTP (Tier 2).
+Resolve an artifact-sftp reference to its local archive (Tier 1) or fetch it from remote storage (Tier 2).
 With no option, print the absolute path on stdout. --cat streams the resolved artifact bytes instead.
 EOF
 }
@@ -190,20 +190,21 @@ elif [ -L "$candidate" ]; then
 fi
 
 # ==============================================================================
-# Tier 2: Remote SFTP Fetch Fallback
+# Tier 2: Remote Fetch Fallback (SFTP or S3)
 # ==============================================================================
 if [ -z "$tool" ] || [ -z "$vis" ] || [ -z "$slug" ] || [ -z "$target_file" ]; then
   fail 3 "local artifact archive is unavailable: $candidate (run from the publishing project or pass --project)"
 fi
 
 if [ ! -f "$CONFIG" ]; then
-  fail 3 "local artifact archive is unavailable: $candidate (and remote SFTP config is not configured at $CONFIG)"
+  fail 3 "local artifact archive is unavailable: $candidate (and remote config is not configured at $CONFIG)"
 fi
 
 perm=$(_stat_perm "$CONFIG")
 case "$perm" in 600|400) ;; *) fail 3 "config $CONFIG must be mode 0600 (is $perm)";; esac
 
-unset SFTP_HOST SFTP_USER REMOTE_DIR SFTP_PORT KNOWN_HOSTS SFTP_PASS SSH_KEY OP_KEY_REF PUBLIC_BASE_URL
+unset STORAGE_DRIVER SFTP_HOST SFTP_USER REMOTE_DIR SFTP_PORT KNOWN_HOSTS SFTP_PASS SSH_KEY OP_KEY_REF PUBLIC_BASE_URL \
+      S3_ENDPOINT S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_REGION
 _load_config() {
   local line key value
   while IFS= read -r line || [ -n "$line" ]; do
@@ -213,7 +214,8 @@ _load_config() {
     key=${line%%=*}
     value=${line#*=}
     case "$key" in
-      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|KNOWN_HOSTS|SFTP_PASS|SSH_KEY|OP_KEY_REF|PUBLIC_BASE_URL)
+      STORAGE_DRIVER|SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|KNOWN_HOSTS|SFTP_PASS|SSH_KEY|OP_KEY_REF|PUBLIC_BASE_URL|\
+      S3_ENDPOINT|S3_BUCKET|S3_ACCESS_KEY_ID|S3_SECRET_ACCESS_KEY|S3_REGION)
         printf -v "$key" '%s' "$value"
         ;;
     esac
@@ -221,32 +223,18 @@ _load_config() {
 }
 _load_config
 
-: "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
-: "${REMOTE_DIR:?missing in config}"
-SFTP_PORT=${SFTP_PORT:-22}
-KNOWN_HOSTS=${KNOWN_HOSTS:-$HOME/.config/artifact-sftp/known_hosts}
-[ -f "$KNOWN_HOSTS" ] || fail 3 "pinned known_hosts missing: $KNOWN_HOSTS (see references/setup.md)"
-
+STORAGE_DRIVER=${STORAGE_DRIVER:-sftp}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-HELPER="$SCRIPT_DIR/../../artifact-sftp/scripts/sftp_helper.py"
-if [ -n "${ARTIFACT_SFTP_PLUGIN_ROOT:-}" ] && [ -f "$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/sftp_helper.py" ]; then
-  HELPER="$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/sftp_helper.py"
-fi
 
-USE_PY=0
-if [ -n "${SFTP_PASS:-}" ]; then
-  python3 -c 'import paramiko' 2>/dev/null \
-    || fail 3 "SFTP_PASS is set but python3-paramiko is not installed"
-  USE_PY=1
-fi
+CACHE_DIR="$HOME/.cache/artifact-sftp/remote/$tool/$vis/$slug"
+CACHE_FILE="$CACHE_DIR/$target_file"
+mkdir -p "$CACHE_DIR"
 
-SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15
-          -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$KNOWN_HOSTS"
-          -P "$SFTP_PORT")
-
+TMP_DOWNLOAD=$(mktemp "$CACHE_DIR/dl.XXXXXX")
+chmod 0600 "$TMP_DOWNLOAD"
 CLEANUP_KEY=''
 BATCH=''
-TMP_DOWNLOAD=''
+
 cleanup() {
   if [ -n "$CLEANUP_KEY" ]; then rm -f "$CLEANUP_KEY"; fi
   if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
@@ -254,42 +242,69 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [ "$USE_PY" = 1 ]; then
-  : # paramiko helper
-elif [ -n "${SSH_KEY:-}" ]; then
-  SSH_OPTS+=(-i "$SSH_KEY")
-elif [ -n "${OP_KEY_REF:-}" ]; then
-  OP_BIN=$(command -v op || true)
-  if [ -z "$OP_BIN" ]; then OP_BIN=$(command -v op.exe || true); fi
-  [ -n "$OP_BIN" ] || fail 3 "no SSH_KEY in config and no op/op.exe found"
-  CLEANUP_KEY=$(mktemp)
-  _timeout 30 "$OP_BIN" read "$OP_KEY_REF" 2>/dev/null | tr -d '\r' > "$CLEANUP_KEY" \
-    || fail 3 "op read failed ($OP_KEY_REF)"
-  [ -s "$CLEANUP_KEY" ] || fail 3 "op returned an empty key"
-  SSH_OPTS+=(-i "$CLEANUP_KEY")
-fi
-
-RPATH="$REMOTE_DIR/$tool/$vis/$slug/$target_file"
-CACHE_DIR="$HOME/.cache/artifact-sftp/remote/$tool/$vis/$slug"
-CACHE_FILE="$CACHE_DIR/$target_file"
-mkdir -p "$CACHE_DIR"
-
-TMP_DOWNLOAD=$(mktemp "$CACHE_DIR/dl.XXXXXX")
-chmod 0600 "$TMP_DOWNLOAD"
-
 dl_rc=0
-if [ "$USE_PY" = 1 ]; then
-  _timeout 30 python3 "$HELPER" get "$RPATH" "$TMP_DOWNLOAD" 2>/dev/null || dl_rc=$?
+
+if [ "$STORAGE_DRIVER" = "s3" ]; then
+  : "${S3_ENDPOINT:?missing in config}" "${S3_BUCKET:?missing in config}"
+  : "${S3_ACCESS_KEY_ID:?missing in config}" "${S3_SECRET_ACCESS_KEY:?missing in config}"
+  S3_HELPER="$SCRIPT_DIR/../../artifact-sftp/scripts/s3_helper.py"
+  if [ -n "${ARTIFACT_SFTP_PLUGIN_ROOT:-}" ] && [ -f "$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/s3_helper.py" ]; then
+    S3_HELPER="$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/s3_helper.py"
+  fi
+  _timeout 30 python3 "$S3_HELPER" get "$tool/$vis/$slug/$target_file" "$TMP_DOWNLOAD" 2>/dev/null || dl_rc=$?
 else
-  BATCH=$(mktemp)
-  printf -- 'get "%s" "%s"\n' "$RPATH" "$TMP_DOWNLOAD" > "$BATCH"
-  _timeout 30 sftp -q "${SSH_OPTS[@]}" -b "$BATCH" "$SFTP_USER@$SFTP_HOST" 2>/dev/null || dl_rc=$?
-  rm -f "$BATCH"
-  BATCH=''
+  : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
+  : "${REMOTE_DIR:?missing in config}"
+  SFTP_PORT=${SFTP_PORT:-22}
+  KNOWN_HOSTS=${KNOWN_HOSTS:-$HOME/.config/artifact-sftp/known_hosts}
+  [ -f "$KNOWN_HOSTS" ] || fail 3 "pinned known_hosts missing: $KNOWN_HOSTS (see references/setup.md)"
+
+  HELPER="$SCRIPT_DIR/../../artifact-sftp/scripts/sftp_helper.py"
+  if [ -n "${ARTIFACT_SFTP_PLUGIN_ROOT:-}" ] && [ -f "$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/sftp_helper.py" ]; then
+    HELPER="$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/sftp_helper.py"
+  fi
+
+  USE_PY=0
+  if [ -n "${SFTP_PASS:-}" ]; then
+    python3 -c 'import paramiko' 2>/dev/null \
+      || fail 3 "SFTP_PASS is set but python3-paramiko is not installed"
+    USE_PY=1
+  fi
+
+  SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$KNOWN_HOSTS"
+            -P "$SFTP_PORT")
+
+  if [ "$USE_PY" = 1 ]; then
+    :
+  elif [ -n "${SSH_KEY:-}" ]; then
+    SSH_OPTS+=(-i "$SSH_KEY")
+  elif [ -n "${OP_KEY_REF:-}" ]; then
+    OP_BIN=$(command -v op || true)
+    if [ -z "$OP_BIN" ]; then OP_BIN=$(command -v op.exe || true); fi
+    [ -n "$OP_BIN" ] || fail 3 "no SSH_KEY in config and no op/op.exe found"
+    CLEANUP_KEY=$(mktemp)
+    _timeout 30 "$OP_BIN" read "$OP_KEY_REF" 2>/dev/null | tr -d '\r' > "$CLEANUP_KEY" \
+      || fail 3 "op read failed ($OP_KEY_REF)"
+    [ -s "$CLEANUP_KEY" ] || fail 3 "op returned an empty key"
+    SSH_OPTS+=(-i "$CLEANUP_KEY")
+  fi
+
+  RPATH="$REMOTE_DIR/$tool/$vis/$slug/$target_file"
+
+  if [ "$USE_PY" = 1 ]; then
+    _timeout 30 python3 "$HELPER" get "$RPATH" "$TMP_DOWNLOAD" 2>/dev/null || dl_rc=$?
+  else
+    BATCH=$(mktemp)
+    printf -- 'get "%s" "%s"\n' "$RPATH" "$TMP_DOWNLOAD" > "$BATCH"
+    _timeout 30 sftp -q "${SSH_OPTS[@]}" -b "$BATCH" "$SFTP_USER@$SFTP_HOST" 2>/dev/null || dl_rc=$?
+    rm -f "$BATCH"
+    BATCH=''
+  fi
 fi
 
 if [ "$dl_rc" -ne 0 ] || [ ! -s "$TMP_DOWNLOAD" ]; then
-  fail 3 "artifact not found locally in docs/artifacts nor on remote SFTP server: $tool/$vis/$slug/$target_file"
+  fail 3 "artifact not found locally in docs/artifacts nor on remote storage: $tool/$vis/$slug/$target_file"
 fi
 
 dl_size=$(_stat_size "$TMP_DOWNLOAD")
