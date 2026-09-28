@@ -24,8 +24,15 @@ from .models import ErrorDetail, ToolOutput
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 SNAPSHOT_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$")
 PUBLISHED_RE = re.compile(r"^published v([1-9][0-9]*) \(snapshot: ([^)]+)\)$")
-READ_BACK_RE = re.compile(r"^read-back: (/.+)$")
-SNAPSHOT_PATH_RE = re.compile(r"^snapshot: (/.+)$")
+
+def _posix_to_win(value: str) -> str:
+    # Windows hosts: Git Bash child scripts print POSIX drive paths (/e/...);
+    # Windows pathlib treats those as relative. Normalize to e:/... before use.
+    m = re.match(r"^/([A-Za-z])/(.+)$", value)
+    return f"{m.group(1)}:/{m.group(2)}" if m else value
+
+READ_BACK_RE = re.compile(r"^read-back: ((?:/|[A-Za-z]:[\\/]).+)$")
+SNAPSHOT_PATH_RE = re.compile(r"^snapshot: ((?:/|[A-Za-z]:[\\/]).+)$")
 AUTH_RE = re.compile(r"^auth: (password|ssh-key|1password)$")
 DEFAULT_TOOL_RE = re.compile(r"^default tool: (codex|openclaw|claude)$")
 TOOLS = frozenset({"codex", "openclaw", "claude"})
@@ -447,8 +454,8 @@ class ArtifactSftpService:
                 "Publisher succeeded without the required local archive markers.",
                 "Do not treat the remote URL as readable evidence; inspect the local archive gate.",
             )
-        current = self._archive_details(read_back, project, "publish")
-        snapshot_details = self._archive_details(snapshot, project, "publish")
+        current = self._archive_details(_posix_to_win(read_back), project, "publish")
+        snapshot_details = self._archive_details(_posix_to_win(snapshot), project, "publish")
         if isinstance(current, ServiceResponse):
             return current
         if isinstance(snapshot_details, ServiceResponse):

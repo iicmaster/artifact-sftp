@@ -73,6 +73,11 @@ done
 [ -d "$project" ] || fail 2 "project directory does not exist: $project"
 project=$(cd -P "$project" && pwd)
 
+# Windows hosts: emit Windows drive paths so the Python host's pathlib accepts
+# them (Git Bash prints /e/... which Windows resolves as a relative path).
+wpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
+
 reference=$1
 case "$reference" in
   'read-back: '*) reference=${reference#read-back: } ;;
@@ -167,7 +172,7 @@ if [ -f "$candidate" ] && [ ! -L "$candidate" ]; then
         if [ "$mode" = cat ]; then
           cat "$resolved"
         else
-          printf '%s\n' "$resolved"
+          printf '%s\n' "$(wpath "$resolved")"
         fi
         exit 0
       fi

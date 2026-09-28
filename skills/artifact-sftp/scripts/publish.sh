@@ -565,6 +565,11 @@ else
 fi
 rm -f "$PREINJECT"; PREINJECT=''
 
+
+# Windows hosts: emit Windows drive paths so the Python host's pathlib accepts
+# them (Git Bash prints /e/... which Windows resolves as a relative path).
+wpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
 LOCAL_SNAPSHOT_PATH="$LOCAL_ARTIFACT_DIR/$VFILE"
 
 # Archive before the network operation. If local custody cannot be established,
@@ -588,8 +593,8 @@ LOCAL_INDEX_TMP=''
 mv -f "$LOCAL_SNAPSHOT_TMP" "$LOCAL_SNAPSHOT_PATH" \
   || die 9 "could not install local snapshot copy: $LOCAL_SNAPSHOT_PATH"
 LOCAL_SNAPSHOT_TMP=''
-err "read-back: $LOCAL_INDEX_PATH"
-err "snapshot: $LOCAL_SNAPSHOT_PATH"
+err "read-back: $(wpath "$LOCAL_INDEX_PATH")"
+err "snapshot: $(wpath "$LOCAL_SNAPSHOT_PATH")"
 
 # ---------- upload (atomic: put tmp, then rename; plus versioned snapshot) ----------
 if [ "$USE_PY" = 1 ]; then
