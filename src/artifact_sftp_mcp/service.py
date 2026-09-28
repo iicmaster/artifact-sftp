@@ -24,7 +24,6 @@ from .models import ErrorDetail, ToolOutput
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 SNAPSHOT_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$")
 PUBLISHED_RE = re.compile(r"^published v([1-9][0-9]*) \(snapshot: ([^)]+)\)$")
-
 def _posix_to_win(value: str) -> str:
     # Windows hosts: Git Bash child scripts print POSIX drive paths (/e/...);
     # Windows pathlib treats those as relative. Normalize to e:/... before use.
@@ -36,7 +35,8 @@ def _posix_to_win(value: str) -> str:
 
 READ_BACK_RE = re.compile(r"^read-back: ((?:/|[A-Za-z]:[\\/]|\\\\).+)$")
 SNAPSHOT_PATH_RE = re.compile(r"^snapshot: ((?:/|[A-Za-z]:[\\/]|\\\\).+)$")
-AUTH_RE = re.compile(r"^auth: (password|ssh-key|1password)$")
+AUTH_RE = re.compile(r"^auth: (password|ssh-key|1password|s3-api-token)$")
+STORAGE_DRIVER_RE = re.compile(r"^storage driver: (sftp|s3)$")
 DEFAULT_TOOL_RE = re.compile(r"^default tool: (codex|openclaw|claude)$")
 TOOLS = frozenset({"codex", "openclaw", "claude"})
 VISIBILITIES = frozenset({"private", "public"})
@@ -246,9 +246,9 @@ class ArtifactSftpService:
 
         The default remains a local-only status check for API compatibility.
         When ``verify_connection`` is requested, the service invokes the
-        publisher's existing ``--list`` contract with the selected default
+        publisher's existing ``--ping`` contract with the selected default
         tool. That path authenticates with the owner-managed configuration and
-        performs a bounded no-write SFTP preflight; it never receives credentials in
+        performs a bounded no-write storage preflight; it never receives credentials in
         MCP arguments and never writes configuration, artifacts, or remote
         state. Authentication may use secure temporary files that are removed
         by the publisher before it returns.
@@ -271,6 +271,7 @@ class ArtifactSftpService:
 
         lines = self._safe_lines(command.stdout)
         local_ready = command.returncode == 0 and any(line == "READY" for line in lines)
+        storage_driver = self._first_match(lines, STORAGE_DRIVER_RE) or "sftp"
         auth_mode = self._first_match(lines, AUTH_RE)
         default_tool = self._first_match(lines, DEFAULT_TOOL_RE)
         prerequisites, missing = self._setup_prerequisites(lines, overall_ready=local_ready)
@@ -278,7 +279,7 @@ class ArtifactSftpService:
             "requested": verify_connection,
             "attempted": False,
             "status": "not_requested" if not verify_connection else "not_run",
-            "operation": "authenticated_sftp_preflight",
+            "operation": "authenticated_storage_preflight",
         }
         if verify_connection and local_ready:
             connection_probe = self._verify_connection(default_tool)
@@ -298,6 +299,7 @@ class ArtifactSftpService:
         result = {
             "ready": ready,
             "local_ready": local_ready,
+            "storage_driver": storage_driver,
             "auth_mode": auth_mode,
             "default_tool": default_tool,
             "diagnostics": lines,
@@ -949,14 +951,21 @@ class ArtifactSftpService:
 
         # Remote cache paths are ONLY accepted for read operations (never for publish custody verification)
         if relative is None and operation == "read":
-            try:
-                resolved = candidate.resolve(strict=True)
-                cache_root = (Path.home() / ".cache/artifact-sftp/remote").resolve(strict=True)
-                relative = resolved.relative_to(cache_root)
-                source = "remote_sftp"
-                network_accessed = True
-            except (OSError, ValueError):
-                pass
+            # The cache directory encodes the driver, so provenance reflects
+            # which transport actually delivered the bytes.
+            for cache_name, cache_source in (
+                ("remote", "remote_sftp"),
+                ("remote-s3", "remote_s3"),
+            ):
+                try:
+                    resolved = candidate.resolve(strict=True)
+                    cache_root = (Path.home() / ".cache/artifact-sftp" / cache_name).resolve(strict=True)
+                    relative = resolved.relative_to(cache_root)
+                    source = cache_source
+                    network_accessed = True
+                    break
+                except (OSError, ValueError):
+                    continue
 
         if relative is None:
             return self._error(
@@ -1102,7 +1111,7 @@ class ArtifactSftpService:
             "requested": True,
             "attempted": False,
             "status": "not_run",
-            "operation": "authenticated_sftp_preflight",
+            "operation": "authenticated_storage_preflight",
         }
         if default_tool not in TOOLS:
             probe.update(
@@ -1127,7 +1136,7 @@ class ArtifactSftpService:
             return probe
 
         command = self.runner.run(
-            ("bash", str(script), "--list", "--tool", default_tool),
+            ("bash", str(script), "--ping", "--tool", default_tool),
             cwd=self.start_cwd,
             timeout=100,
         )
@@ -1244,7 +1253,7 @@ class ArtifactSftpService:
         prefix = line.split(":", 1)[0].strip().lower()
         if prefix == "dependency":
             return "runtime"
-        if prefix in {"config directory", "config", "config key", "default tool"}:
+        if prefix in {"config directory", "config", "config key", "default tool", "storage driver"}:
             return "config"
         if prefix in {"auth", "config port", "known_hosts", "ssh key"}:
             return "connection"

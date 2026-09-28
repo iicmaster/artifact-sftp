@@ -477,7 +477,57 @@ chmod 600 "$METACHAR_CFG_DIR/config"
 run_capture "$UNSAFE_HOST_OUT" env HOME="$METACHAR_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
 assert_rc 3 "status should still reject shell metacharacters in a non-secret value"
 assert_contains "$UNSAFE_HOST_OUT" 'invalid or unsafe line' "unsafe SFTP_HOST was not reported"
-mv "$TMP_ROOT/metachar-config.hold" "$METACHAR_CFG_DIR/config"
-chmod 600 "$METACHAR_CFG_DIR/config"
+# S3 / Cloudflare R2 driver setup and status tests
+S3_HOME="$TMP_ROOT/s3 home"
+S3_CFG_DIR="$S3_HOME/.config/artifact-sftp"
+S3_SECRET_INPUT="$TMP_ROOT/s3.stdin"
+S3_TEST_SECRET='test-s3-secret-key/+=with-base64'  # pragma: allowlist secret
+printf '%s\n' "$S3_TEST_SECRET" >"$S3_SECRET_INPUT"
+S3_SETUP_OUT="$TMP_ROOT/s3-setup.out"
+
+run_capture "$S3_SETUP_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" \
+  --driver s3 \
+  --s3-endpoint https://account123.r2.cloudflarestorage.com \
+  --s3-bucket test-artifacts \
+  --s3-key-id TEST-ACCESS-KEY-ID-EXAMPLE \
+  --s3-secret - \
+  --s3-region auto \
+  --url https://artifacts.test.invalid \
+  --tool codex \
+  <"$S3_SECRET_INPUT"
+assert_rc 0 "S3 setup should succeed"
+assert_not_contains "$S3_SETUP_OUT" "$S3_TEST_SECRET" "S3 setup leaked stdin secret"
+
+# Endpoints the S3 request builder cannot preserve (no authority, or a path
+# prefix it would silently discard) must be rejected at setup time.
+for bad_endpoint in 'https://' 'https://host.example/prefix'; do
+  S3_BAD_EP_OUT="$TMP_ROOT/s3-bad-endpoint.out"
+  run_capture "$S3_BAD_EP_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" \
+    --driver s3 \
+    --s3-endpoint "$bad_endpoint" \
+    --s3-bucket test-artifacts \
+    --s3-key-id TEST-ACCESS-KEY-ID-EXAMPLE \
+    --s3-secret - \
+    --s3-region auto \
+    --url https://artifacts.test.invalid \
+    --tool codex \
+    <"$S3_SECRET_INPUT"
+  assert_rc 2 "setup should reject the S3 endpoint '$bad_endpoint'"
+done
+
+[ -f "$S3_CFG_DIR/config" ] || fail "S3 setup did not create config"
+[ ! -f "$S3_CFG_DIR/known_hosts" ] || fail "S3 setup unexpectedly created known_hosts"
+grep -Fqx 'STORAGE_DRIVER=s3' "$S3_CFG_DIR/config" || fail "STORAGE_DRIVER=s3 was not recorded"
+grep -Fqx 'S3_BUCKET=test-artifacts' "$S3_CFG_DIR/config" || fail "S3_BUCKET was not recorded"
+grep -Fqx "S3_SECRET_ACCESS_KEY=$S3_TEST_SECRET" "$S3_CFG_DIR/config" || fail "S3 secret was not recorded"
+
+S3_STATUS_OUT="$TMP_ROOT/status-s3-ready.out"
+run_capture "$S3_STATUS_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+assert_rc 0 "S3 status should be ready without known_hosts"
+assert_contains "$S3_STATUS_OUT" 'storage driver: s3' "S3 storage driver was not reported"
+assert_contains "$S3_STATUS_OUT" 'auth: s3-api-token' "S3 auth mode was not reported"
+assert_contains "$S3_STATUS_OUT" 'READY' "S3 readiness was not reported"
+assert_not_contains "$S3_STATUS_OUT" "$S3_TEST_SECRET" "S3 status leaked secret"
 
 printf 'PASS: artifact-sftp setup offline regression tests\n'
+

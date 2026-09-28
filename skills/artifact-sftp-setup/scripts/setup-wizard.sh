@@ -129,23 +129,41 @@ prompt_safe_secret() {
   done
 }
 
+driver_choice='sftp'
 host='' sftp_user='' port='' remote_dir='' public_url='' default_tool=''
 lang='th' timezone='Asia/Bangkok'
 auth_choice='' auth_mode='' ssh_key='' op_ref=''
-sftp_pass='' cf_access_id='' cf_access_secret=''
+sftp_pass='' s3_endpoint='' s3_bucket='' s3_key_id='' s3_secret='' s3_region='auto'
+cf_access_id='' cf_access_secret=''
 use_cf=0 host_keys=''
 cleanup() {
   if [ -n "$host_keys" ]; then rm -f "$host_keys"; fi
-  unset sftp_pass cf_access_secret
+  unset sftp_pass s3_secret cf_access_secret
 }
 trap cleanup EXIT
 
 err "Enter connection settings. Press Return to accept a default."
-prompt_default host "SFTP host" "sftp.artifacts.ngs.bz"
-prompt_default sftp_user "SFTP user" "artifacts"
-prompt_default port "SFTP port" "22"
-prompt_default remote_dir "Remote base directory" "/files"
-prompt_default public_url "Public base URL" "https://artifacts.ngs.bz"
+
+while :; do
+  prompt_default driver_choice "Storage Driver (sftp/s3)" "sftp"
+  case "$driver_choice" in sftp|s3) break ;; *) err "Choose sftp or s3." ;; esac
+done
+
+if [ "$driver_choice" = "s3" ]; then
+  prompt_required s3_endpoint "S3 Endpoint URL (e.g. https://<account>.r2.cloudflarestorage.com)"
+  prompt_required s3_bucket "S3 Bucket Name"
+  prompt_required s3_key_id "S3 Access Key ID"
+  prompt_secret s3_secret "S3 Secret Access Key (hidden)"
+  prompt_default s3_region "S3 Region" "auto"
+  prompt_default public_url "Public base URL (Custom Domain)" "https://artifacts.ngs.bz"
+else
+  prompt_default host "SFTP host" "sftp.artifacts.ngs.bz"
+  prompt_default sftp_user "SFTP user" "artifacts"
+  prompt_default port "SFTP port" "22"
+  prompt_default remote_dir "Remote base directory" "/files"
+  prompt_default public_url "Public base URL" "https://artifacts.ngs.bz"
+fi
+
 prompt_default lang "Default page language (html lang)" "th"
 prompt_default timezone "Footer timezone" "Asia/Bangkok"
 
@@ -154,38 +172,37 @@ while :; do
   case "$default_tool" in codex|openclaw|claude) break ;; *) err "Choose codex, openclaw or claude." ;; esac
 done
 
-while :; do
-  prompt_default auth_choice "Authentication (password/ssh-key/1password)" "password"
-  case "$auth_choice" in
-    password)
-      command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
-        || die "password auth requires python3-paramiko; install it locally, then rerun setup"
-      auth_mode=password
-      # Not prompt_safe_secret: the password is only ever written as a config value and read
-      # back by a parser, so it does not need the shell/curl-safe character allowlist that
-      # the Cloudflare secret below still needs.
-      prompt_secret sftp_pass "SFTP password (hidden)"
-      break
-      ;;
-    ssh-key)
-      command -v sftp >/dev/null 2>&1 || die "SSH-key auth requires sftp"
-      auth_mode=ssh-key
-      prompt_required ssh_key "SSH private-key path"
-      case "$ssh_key" in '~/'*) ssh_key="$HOME/${ssh_key#\~/}" ;; esac
-      break
-      ;;
-    1password)
-      command -v op >/dev/null 2>&1 || command -v op.exe >/dev/null 2>&1 \
-        || die "1Password auth requires op or op.exe"
-      command -v sftp >/dev/null 2>&1 || die "1Password auth requires sftp"
-      auth_mode=1password
-      err "Use vault/item IDs when names contain spaces, for example op://vault-id/item-id/private-key."
-      prompt_required op_ref "1Password secret reference"
-      break
-      ;;
-    *) err "Choose password, ssh-key, or 1password." ;;
-  esac
-done
+if [ "$driver_choice" = "sftp" ]; then
+  while :; do
+    prompt_default auth_choice "Authentication (password/ssh-key/1password)" "password"
+    case "$auth_choice" in
+      password)
+        command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
+          || die "password auth requires python3-paramiko; install it locally, then rerun setup"
+        auth_mode=password
+        prompt_secret sftp_pass "SFTP password (hidden)"
+        break
+        ;;
+      ssh-key)
+        command -v sftp >/dev/null 2>&1 || die "SSH-key auth requires sftp"
+        auth_mode=ssh-key
+        prompt_required ssh_key "SSH private-key path"
+        case "$ssh_key" in '~/'*) ssh_key="$HOME/${ssh_key#\~/}" ;; esac
+        break
+        ;;
+      1password)
+        command -v op >/dev/null 2>&1 || command -v op.exe >/dev/null 2>&1 \
+          || die "1Password auth requires op or op.exe"
+        command -v sftp >/dev/null 2>&1 || die "1Password auth requires sftp"
+        auth_mode=1password
+        err "Use vault/item IDs when names contain spaces, for example op://vault-id/item-id/private-key."
+        prompt_required op_ref "1Password secret reference"
+        break
+        ;;
+      *) err "Choose password, ssh-key, or 1password." ;;
+    esac
+  done
+fi
 
 if confirm "Configure a Cloudflare Zero Trust service token? (lets the publisher verify private artifacts)"; then
   use_cf=1
@@ -193,29 +210,45 @@ if confirm "Configure a Cloudflare Zero Trust service token? (lets the publisher
   prompt_safe_secret cf_access_secret "Cloudflare Access client secret (hidden)"
 fi
 
-case "$port" in ''|*[!0-9]*) die "SFTP port must be an integer" ;; esac
-[ "$port" -ge 1 ] && [ "$port" -le 65535 ] || die "SFTP port must be between 1 and 65535"
-for field in "$host" "$sftp_user" "$remote_dir" "$public_url" "$default_tool" "$lang" "$timezone" "$ssh_key" "$op_ref" "$cf_access_id"; do
-  [ -z "$field" ] || config_safe "$field" \
-    || die "a non-secret setting contains unsupported characters (allowed: A-Z a-z 0-9 _ . : / @ % + -)"
-done
+if [ "$driver_choice" = "sftp" ]; then
+  case "$port" in ''|*[!0-9]*) die "SFTP port must be an integer" ;; esac
+  [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || die "SFTP port must be between 1 and 65535"
+  for field in "$host" "$sftp_user" "$remote_dir" "$public_url" "$default_tool" "$lang" "$timezone" "$ssh_key" "$op_ref" "$cf_access_id"; do
+    [ -z "$field" ] || config_safe "$field" \
+      || die "a non-secret setting contains unsupported characters (allowed: A-Z a-z 0-9 _ . : / @ % + -)"
+  done
 
-command -v ssh-keyscan >/dev/null 2>&1 || die "ssh-keyscan is required"
-host_keys=$(mktemp "${TMPDIR:-/tmp}/artifact-sftp-known-hosts.XXXXXX")
-if ! ssh-keyscan -p "$port" "$host" >"$host_keys" 2>/dev/null || [ ! -s "$host_keys" ]; then
-  die "ssh-keyscan returned no key for $host:$port; check the host, port, and network"
-fi
-err "SFTP host-key fingerprints (verify these with the server owner):"
-if command -v ssh-keygen >/dev/null 2>&1; then
-  ssh-keygen -lf "$host_keys" -E sha256 >&2 || die "could not fingerprint the scanned host keys"
-else
-  err "  ssh-keygen is unavailable; the key was scanned but cannot be fingerprinted safely"
-  exit 2
+  command -v ssh-keyscan >/dev/null 2>&1 || die "ssh-keyscan is required"
+  host_keys=$(mktemp "${TMPDIR:-/tmp}/artifact-sftp-known-hosts.XXXXXX")
+  if ! ssh-keyscan -p "$port" "$host" >"$host_keys" 2>/dev/null || [ ! -s "$host_keys" ]; then
+    die "ssh-keyscan returned no key for $host:$port; check the host, port, and network"
+  fi
+  err "SFTP host-key fingerprints (verify these with the server owner):"
+  if command -v ssh-keygen >/dev/null 2>&1; then
+    ssh-keygen -lf "$host_keys" -E sha256 >&2 || die "could not fingerprint the scanned host keys"
+  else
+    err "  ssh-keygen is unavailable; the key was scanned but cannot be fingerprinted safely"
+    exit 2
+  fi
 fi
 
 cat >&2 <<EOF
 
 Redacted setup summary
+  Driver:     $driver_choice
+EOF
+if [ "$driver_choice" = "s3" ]; then
+  cat >&2 <<EOF
+  Endpoint:   $s3_endpoint
+  Bucket:     $s3_bucket
+  Access Key: $s3_key_id
+  Region:     $s3_region
+  Public URL: $public_url
+  Runtime:    $default_tool
+  CF Access:  $(if [ "$use_cf" -eq 1 ]; then printf configured; else printf omitted; fi)
+EOF
+else
+  cat >&2 <<EOF
   SFTP:       $sftp_user@$host:$port
   Remote dir: $remote_dir
   Public URL: $public_url
@@ -223,39 +256,59 @@ Redacted setup summary
   Auth mode:  $auth_mode
   CF Access:  $(if [ "$use_cf" -eq 1 ]; then printf configured; else printf omitted; fi)
 EOF
+fi
 
-if ! confirm "Trust these host keys and write the private config?"; then
+if ! confirm "Write the private config?"; then
   err "Cancelled. No configuration was written."
   exit 1
 fi
 
 setup_args=(
-  --host "$host"
-  --user "$sftp_user"
-  --port "$port"
-  --remote-dir "$remote_dir"
+  --driver "$driver_choice"
   --url "$public_url"
   --tool "$default_tool"
   --lang "$lang"
   --timezone "$timezone"
 )
-case "$auth_mode" in
-  password) setup_args+=(--pass -) ;;
-  ssh-key) setup_args+=(--ssh-key "$ssh_key") ;;
-  1password) setup_args+=(--op-ref "$op_ref") ;;
-esac
+
+if [ "$driver_choice" = "s3" ]; then
+  setup_args+=(
+    --s3-endpoint "$s3_endpoint"
+    --s3-bucket "$s3_bucket"
+    --s3-key-id "$s3_key_id"
+    --s3-secret -
+    --s3-region "$s3_region"
+  )
+else
+  setup_args+=(
+    --host "$host"
+    --user "$sftp_user"
+    --port "$port"
+    --remote-dir "$remote_dir"
+    --known-hosts-file "$host_keys"
+  )
+  case "$auth_mode" in
+    password) setup_args+=(--pass -) ;;
+    ssh-key) setup_args+=(--ssh-key "$ssh_key") ;;
+    1password) setup_args+=(--op-ref "$op_ref") ;;
+  esac
+fi
+
 if [ "$use_cf" -eq 1 ]; then
   setup_args+=(--cf-access-id "$cf_access_id" --cf-access-secret -)
 fi
 [ "$existing" -eq 0 ] || setup_args+=(--replace)
-setup_args+=(--known-hosts-file "$host_keys")
 
 forward_secrets() {
-  [ "$auth_mode" != password ] || printf '%s\n' "$sftp_pass"
+  if [ "$driver_choice" = "s3" ]; then
+    printf '%s\n' "$s3_secret"
+  elif [ "$auth_mode" = password ]; then
+    printf '%s\n' "$sftp_pass"
+  fi
   [ "$use_cf" -eq 0 ] || printf '%s\n' "$cf_access_secret"
 }
 
 forward_secrets | bash "$SETUP_SH" "${setup_args[@]}"
-unset sftp_pass cf_access_secret
+unset sftp_pass s3_secret cf_access_secret
 bash "$SETUP_SH" --status
 printf 'Setup complete. No artifact was published.\n'

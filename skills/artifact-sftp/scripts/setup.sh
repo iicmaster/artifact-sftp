@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# artifact-sftp setup — pin the SFTP host key and write ~/.config/artifact-sftp/config (0600).
-# Flag-driven so an agent can run it non-interactively. The password (if any) is read from
-# STDIN, never argv, so it never lands in a process listing or shell history.
+# artifact-sftp setup — configure SFTP or S3/Cloudflare R2 and write ~/.config/artifact-sftp/config (0600).
+# Flag-driven so an agent can run it non-interactively. Secrets are read from STDIN,
+# never argv, so they never land in a process listing or shell history.
 #
 # usage:
 #   setup.sh --status
-#   setup.sh --host H --user U [--port 22] --remote-dir /files --url https://host [--tool codex]
+#   # SFTP driver:
+#   setup.sh --driver sftp --host H --user U [--port 22] --remote-dir /files --url https://host [--tool codex]
 #            [--cf-access-id ID --cf-access-secret -] [--lang th] [--timezone Asia/Bangkok]
 #            --known-hosts-file FILE [--replace]
 #            ( --pass - | --ssh-key PATH | --op-ref op://... )
+#   # S3 / Cloudflare R2 driver:
+#   setup.sh --driver s3 --s3-endpoint https://<account>.r2.cloudflarestorage.com --s3-bucket NAME
+#            --s3-key-id ID --s3-secret - [--s3-region auto] --url https://artifacts.example.com
+#            [--tool codex] [--cf-access-id ID --cf-access-secret -] [--lang th] [--timezone Asia/Bangkok]
+#            [--replace]
+#
 #   Secrets are read from stdin, ONE PER LINE, in this fixed order (only the ones you
-#   requested with -): SFTP password, cf-access-secret. Example:
-#   Cloudflare Zero Trust service token verifies private artifacts:
-#   printf '%s' "$CF_SECRET" | setup.sh ... --ssh-key K --cf-access-id "$CF_ID" --cf-access-secret -
+#   requested with -):
+#     For SFTP: SFTP password, cf-access-secret
+#     For S3:   S3 secret access key, cf-access-secret
 set -euo pipefail
 set +x
 umask 077
@@ -32,11 +39,16 @@ _stat_perm() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 _config_count() { awk -F= -v key="$1" '$1 == key { count++ } END { print count + 0 }' "$CONFIG"; }
 _config_value() { sed -n "s/^$1=//p" "$CONFIG" | tail -n 1; }
 _shell_safe() { case "$1" in *[!A-Za-z0-9_.:/@%+-]*) return 1;; *) return 0;; esac; }
-# PUBLIC_BASE_URL is appended with /<tool>/<visibility>/<slug>/ by publish.sh.
-# Keep it an HTTPS origin with an authority, no path/query/fragment, and no
-# trailing slash. The MCP result contract maps the origin directly to
-# /<tool>/<visibility>/<slug>/, so accepting a path here could publish bytes
-# successfully but make the returned URL fail that contract.
+_s3_endpoint_valid() {
+  local url=$1 authority
+  case "$url" in https://*) ;; *) return 1 ;; esac
+  case "$url" in *'?'*|*'#'*) return 1 ;; esac
+  # S3Client builds requests from scheme+authority only, so an endpoint with
+  # no authority or any path prefix would be silently mangled or redirected.
+  authority=${url#https://}
+  case "$authority" in ''|*/*|*@*) return 1 ;; esac
+  return 0
+}
 _public_base_url_valid() {
   local url=$1 authority host port
   case "$url" in https://*) ;; *) return 1 ;; esac
@@ -63,15 +75,10 @@ _config_shape_valid() {
     value=${line#*=}
     [ -n "$value" ] || return 1
     case "$key" in
-      # publish.sh parses the config instead of sourcing it and sftp_helper.py splits on the
-      # first '=', so the password is never handed back to a shell. Every byte is safe here
-      # except CR, which would corrupt the one-value-per-line format.
-      SFTP_PASS)
+      SFTP_PASS|S3_SECRET_ACCESS_KEY)
         case "$value" in *$'\r'*) return 1 ;; esac
         ;;
-      # These still reach a shell word, a `curl -K` directive, or interpolated HTML, so they
-      # keep the conservative allowlist.
-      SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE)
+      STORAGE_DRIVER|SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE|S3_ENDPOINT|S3_BUCKET|S3_ACCESS_KEY_ID|S3_REGION)
         _shell_safe "$value" || return 1
         ;;
       *) return 1 ;;
@@ -91,7 +98,7 @@ _known_hosts_has_target() {
 
 status() {
   local issues=0 perm auth_count=0 auth='none' tool='' count config_ok=1 shape_ok=1
-  local host='' port='' ssh_key=''
+  local host='' port='' ssh_key='' driver='sftp'
   printf 'artifact-sftp setup status\n'
 
   if [ -L "$CFG_DIR" ]; then
@@ -131,12 +138,104 @@ status() {
     if ! _config_keys_unique; then
       printf 'config: duplicate keys\n'; issues=$((issues + 1)); config_ok=0
     fi
-    for key in SFTP_HOST SFTP_USER SFTP_PORT REMOTE_DIR PUBLIC_BASE_URL DEFAULT_TOOL; do
-      count=$(_config_count "$key")
-      if [ "$count" -ne 1 ] || [ -z "$(_config_value "$key")" ]; then
-        printf 'config key: %s missing or duplicated\n' "$key"; issues=$((issues + 1)); config_ok=0
+
+    driver=$(_config_value STORAGE_DRIVER)
+    driver=${driver:-sftp}
+    case "$driver" in
+      sftp|s3) printf 'storage driver: %s\n' "$driver" ;;
+      *) printf 'storage driver: invalid (%s)\n' "$driver"; issues=$((issues + 1)); driver=sftp ;;
+    esac
+
+    if [ "$driver" = "s3" ]; then
+      for key in S3_ENDPOINT S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY PUBLIC_BASE_URL DEFAULT_TOOL; do
+        count=$(_config_count "$key")
+        if [ "$count" -ne 1 ] || [ -z "$(_config_value "$key")" ]; then
+          printf 'config key: %s missing or duplicated\n' "$key"; issues=$((issues + 1)); config_ok=0
+        fi
+      done
+      if [ "$shape_ok" -eq 1 ] && [ "$(_config_count S3_ENDPOINT)" -eq 1 ] \
+         && [ -n "$(_config_value S3_ENDPOINT)" ] \
+         && ! _s3_endpoint_valid "$(_config_value S3_ENDPOINT)"; then
+        printf 'config: S3_ENDPOINT is invalid (must be an HTTPS URL)\n'
+        issues=$((issues + 1)); config_ok=0
       fi
-    done
+      auth='s3-api-token'
+      printf 'auth: %s\n' "$auth"
+
+      if ! command -v python3 >/dev/null 2>&1; then
+        printf 'dependency: python3 missing\n'; issues=$((issues + 1))
+      fi
+    else
+      for key in SFTP_HOST SFTP_USER SFTP_PORT REMOTE_DIR PUBLIC_BASE_URL DEFAULT_TOOL; do
+        count=$(_config_count "$key")
+        if [ "$count" -ne 1 ] || [ -z "$(_config_value "$key")" ]; then
+          printf 'config key: %s missing or duplicated\n' "$key"; issues=$((issues + 1)); config_ok=0
+        fi
+      done
+      if [ "$(_config_count SFTP_PASS)" -eq 1 ]; then auth='password'; auth_count=$((auth_count + 1)); fi
+      if [ "$(_config_count SSH_KEY)" -eq 1 ]; then auth='ssh-key'; auth_count=$((auth_count + 1)); fi
+      if [ "$(_config_count OP_KEY_REF)" -eq 1 ]; then auth='1password'; auth_count=$((auth_count + 1)); fi
+      if [ "$auth_count" -ne 1 ]; then
+        printf 'auth: invalid (%s methods configured)\n' "$auth_count"; issues=$((issues + 1))
+      else
+        printf 'auth: %s\n' "$auth"
+      fi
+
+      case "$auth" in
+        password)
+          if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import paramiko' 2>/dev/null; then
+            printf 'dependency: python3-paramiko missing\n'; issues=$((issues + 1))
+          fi
+          ;;
+        ssh-key)
+          ssh_key=$(_config_value SSH_KEY)
+          if [ ! -f "$ssh_key" ] || [ ! -r "$ssh_key" ]; then
+            printf 'ssh key: missing or unreadable\n'; issues=$((issues + 1))
+          fi
+          if ! command -v sftp >/dev/null 2>&1; then
+            printf 'dependency: sftp missing\n'; issues=$((issues + 1))
+          fi
+          ;;
+        1password)
+          if ! command -v op >/dev/null 2>&1 && ! command -v op.exe >/dev/null 2>&1; then
+            printf 'dependency: op/op.exe missing\n'; issues=$((issues + 1))
+          fi
+          if ! command -v sftp >/dev/null 2>&1; then
+            printf 'dependency: sftp missing\n'; issues=$((issues + 1))
+          fi
+          ;;
+      esac
+
+      if [ -L "$KNOWN" ]; then
+        printf 'known_hosts: unsafe symlink\n'; issues=$((issues + 1))
+      elif [ -e "$KNOWN" ] && [ ! -f "$KNOWN" ]; then
+        printf 'known_hosts: not a regular file\n'; issues=$((issues + 1))
+      elif [ ! -s "$KNOWN" ]; then
+        printf 'known_hosts: missing or empty\n'; issues=$((issues + 1))
+      else
+        perm=$(_stat_perm "$KNOWN")
+        case "$perm" in
+          600|400) printf 'known_hosts: present (mode %s)\n' "$perm" ;;
+          *) printf 'known_hosts: unsafe mode %s (need 600 or 400)\n' "$perm"; issues=$((issues + 1)) ;;
+        esac
+        if ! command -v ssh-keygen >/dev/null 2>&1; then
+          printf 'dependency: ssh-keygen missing\n'; issues=$((issues + 1))
+        elif ! ssh-keygen -lf "$KNOWN" -E sha256 >/dev/null 2>&1; then
+          printf 'known_hosts: malformed key data\n'; issues=$((issues + 1))
+        fi
+        if [ "$config_ok" -eq 1 ]; then
+          host=$(_config_value SFTP_HOST)
+          port=$(_config_value SFTP_PORT)
+          case "$port" in ''|*[!0-9]*) port=invalid ;; esac
+          if [ "$port" = invalid ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+            printf 'config port: invalid\n'; issues=$((issues + 1))
+          elif ! _known_hosts_has_target "$KNOWN" "$host" "$port"; then
+            printf 'known_hosts: no valid key for configured host and port\n'; issues=$((issues + 1))
+          fi
+        fi
+      fi
+    fi
+
     if [ "$shape_ok" -eq 1 ] && [ "$(_config_count PUBLIC_BASE_URL)" -eq 1 ] \
        && [ -n "$(_config_value PUBLIC_BASE_URL)" ] \
        && ! _public_base_url_valid "$(_config_value PUBLIC_BASE_URL)"; then
@@ -144,74 +243,11 @@ status() {
       issues=$((issues + 1)); config_ok=0
     fi
 
-    if [ "$(_config_count SFTP_PASS)" -eq 1 ]; then auth='password'; auth_count=$((auth_count + 1)); fi
-    if [ "$(_config_count SSH_KEY)" -eq 1 ]; then auth='ssh-key'; auth_count=$((auth_count + 1)); fi
-    if [ "$(_config_count OP_KEY_REF)" -eq 1 ]; then auth='1password'; auth_count=$((auth_count + 1)); fi
-    if [ "$auth_count" -ne 1 ]; then
-      printf 'auth: invalid (%s methods configured)\n' "$auth_count"; issues=$((issues + 1))
-    else
-      printf 'auth: %s\n' "$auth"
-    fi
-
     tool=$(_config_value DEFAULT_TOOL)
     case "$tool" in
       codex|openclaw|claude) printf 'default tool: %s\n' "$tool" ;;
       *) printf 'default tool: invalid\n'; issues=$((issues + 1)) ;;
     esac
-
-    case "$auth" in
-      password)
-        if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import paramiko' 2>/dev/null; then
-          printf 'dependency: python3-paramiko missing\n'; issues=$((issues + 1))
-        fi
-        ;;
-      ssh-key)
-        ssh_key=$(_config_value SSH_KEY)
-        if [ ! -f "$ssh_key" ] || [ ! -r "$ssh_key" ]; then
-          printf 'ssh key: missing or unreadable\n'; issues=$((issues + 1))
-        fi
-        if ! command -v sftp >/dev/null 2>&1; then
-          printf 'dependency: sftp missing\n'; issues=$((issues + 1))
-        fi
-        ;;
-      1password)
-        if ! command -v op >/dev/null 2>&1 && ! command -v op.exe >/dev/null 2>&1; then
-          printf 'dependency: op/op.exe missing\n'; issues=$((issues + 1))
-        fi
-        if ! command -v sftp >/dev/null 2>&1; then
-          printf 'dependency: sftp missing\n'; issues=$((issues + 1))
-        fi
-        ;;
-    esac
-  fi
-
-  if [ -L "$KNOWN" ]; then
-    printf 'known_hosts: unsafe symlink\n'; issues=$((issues + 1))
-  elif [ -e "$KNOWN" ] && [ ! -f "$KNOWN" ]; then
-    printf 'known_hosts: not a regular file\n'; issues=$((issues + 1))
-  elif [ ! -s "$KNOWN" ]; then
-    printf 'known_hosts: missing or empty\n'; issues=$((issues + 1))
-  else
-    perm=$(_stat_perm "$KNOWN")
-    case "$perm" in
-      600|400) printf 'known_hosts: present (mode %s)\n' "$perm" ;;
-      *) printf 'known_hosts: unsafe mode %s (need 600 or 400)\n' "$perm"; issues=$((issues + 1)) ;;
-    esac
-    if ! command -v ssh-keygen >/dev/null 2>&1; then
-      printf 'dependency: ssh-keygen missing\n'; issues=$((issues + 1))
-    elif ! ssh-keygen -lf "$KNOWN" -E sha256 >/dev/null 2>&1; then
-      printf 'known_hosts: malformed key data\n'; issues=$((issues + 1))
-    fi
-    if [ "$config_ok" -eq 1 ]; then
-      host=$(_config_value SFTP_HOST)
-      port=$(_config_value SFTP_PORT)
-      case "$port" in ''|*[!0-9]*) port=invalid ;; esac
-      if [ "$port" = invalid ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-        printf 'config port: invalid\n'; issues=$((issues + 1))
-      elif ! _known_hosts_has_target "$KNOWN" "$host" "$port"; then
-        printf 'known_hosts: no valid key for configured host and port\n'; issues=$((issues + 1))
-      fi
-    fi
   fi
 
   if ! command -v curl >/dev/null 2>&1; then
@@ -235,15 +271,24 @@ if [ "${1:-}" = --status ]; then
   exit $?
 fi
 
+DRIVER='sftp'
 HOST='' SUSER='' PORT=22 REMOTE='' URL='' TOOL=codex AUTH_MODE='' SSH_KEY='' OP_REF='' READ_PASS=0 REPLACE=0 AUTH_CHOICES=0 LANG_VAL='' TZ_VAL=''
 KNOWN_SOURCE=''
+S3_ENDPOINT='' S3_BUCKET='' S3_KEY_ID='' S3_REGION='auto' READ_S3SEC=0
 CF_ID='' CF_SECRET='' READ_CFSEC=0
+
 while [ $# -gt 0 ]; do
   case "$1" in
+    --driver)      [ $# -ge 2 ] || die "--driver needs a value (sftp or s3)"; DRIVER=$2; shift 2 ;;
     --host)        [ $# -ge 2 ] || die "--host needs a value"; HOST=$2; shift 2 ;;
     --user)        [ $# -ge 2 ] || die "--user needs a value"; SUSER=$2; shift 2 ;;
     --port)        [ $# -ge 2 ] || die "--port needs a value"; PORT=$2; shift 2 ;;
     --remote-dir)  [ $# -ge 2 ] || die "--remote-dir needs a value"; REMOTE=$2; shift 2 ;;
+    --s3-endpoint) [ $# -ge 2 ] || die "--s3-endpoint needs a value"; S3_ENDPOINT=$2; shift 2 ;;
+    --s3-bucket)   [ $# -ge 2 ] || die "--s3-bucket needs a value"; S3_BUCKET=$2; shift 2 ;;
+    --s3-key-id)   [ $# -ge 2 ] || die "--s3-key-id needs a value"; S3_KEY_ID=$2; shift 2 ;;
+    --s3-secret)   [ "${2:-}" = - ] || die "--s3-secret only accepts '-' (secret is read from stdin)"; READ_S3SEC=1; shift 2 ;;
+    --s3-region)   [ $# -ge 2 ] || die "--s3-region needs a value"; S3_REGION=$2; shift 2 ;;
     --url)         [ $# -ge 2 ] || die "--url needs a value"; URL=$2; shift 2 ;;
     --tool)        [ $# -ge 2 ] || die "--tool needs a value"; TOOL=$2; shift 2 ;;
     --pass)        [ "${2:-}" = - ] || die "--pass only accepts '-' (password is read from stdin)"; AUTH_MODE=pass; READ_PASS=1; AUTH_CHOICES=$((AUTH_CHOICES + 1)); shift 2 ;;
@@ -255,30 +300,39 @@ while [ $# -gt 0 ]; do
     --timezone)    [ $# -ge 2 ] || die "--timezone needs a value"; TZ_VAL=$2; shift 2 ;;
     --known-hosts-file) [ $# -ge 2 ] || die "--known-hosts-file needs a value"; KNOWN_SOURCE=$2; shift 2 ;;
     --replace)      REPLACE=1; shift ;;
-    -h|--help)     sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 0 ;;
+    -h|--help)     sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 0 ;;
     *)             die "unknown arg: $1" ;;
   esac
 done
 
-[ -n "$HOST" ] && [ -n "$SUSER" ] && [ -n "$REMOTE" ] && [ -n "$URL" ] \
-  || die "required: --host --user --remote-dir --url"
+case "$DRIVER" in
+  sftp|s3) ;;
+  *) die "--driver must be 'sftp' or 's3' (got '$DRIVER')" ;;
+esac
+
+if [ "$DRIVER" = "s3" ]; then
+  [ -n "$S3_ENDPOINT" ] && [ -n "$S3_BUCKET" ] && [ -n "$S3_KEY_ID" ] && [ -n "$URL" ] \
+    || die "required for S3: --s3-endpoint --s3-bucket --s3-key-id --url"
+  _s3_endpoint_valid "$S3_ENDPOINT" || die "--s3-endpoint must be an HTTPS URL"
+  [ "$READ_S3SEC" -eq 1 ] || die "--s3-secret - is required for S3"
+else
+  [ -n "$HOST" ] && [ -n "$SUSER" ] && [ -n "$REMOTE" ] && [ -n "$URL" ] \
+    || die "required: --host --user --remote-dir --url"
+  [ "$AUTH_CHOICES" -eq 1 ] || die "pick exactly one auth mode: --pass - | --ssh-key PATH | --op-ref op://..."
+  case "$PORT" in ''|*[!0-9]*) die "--port must be an integer";; esac
+  [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "--port must be between 1 and 65535"
+fi
+
 [ -n "$URL" ] && _public_base_url_valid "$URL" \
   || die "--url must be an HTTPS origin with a host, no path/query/fragment, and no trailing slash"
-[ "$AUTH_CHOICES" -eq 1 ] || die "pick exactly one auth mode: --pass - | --ssh-key PATH | --op-ref op://..."
 case "$TOOL" in openclaw|codex|claude) ;; *) die "--tool must be openclaw, codex or claude (got '$TOOL')";; esac
-case "$PORT" in ''|*[!0-9]*) die "--port must be an integer";; esac
-[ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "--port must be between 1 and 65535"
-# Cloudflare Access service token (optional) — needs BOTH parts or neither.
+
+# Cloudflare Access service token (optional)
 if [ -n "$CF_ID" ] || [ "$READ_CFSEC" = 1 ]; then
   { [ -n "$CF_ID" ] && [ "$READ_CFSEC" = 1 ]; } || die "Cloudflare Access needs BOTH --cf-access-id and --cf-access-secret -"
 fi
 
-# Config is BOTH sourced by bash (publish.sh) AND split on first '=' (sftp_helper.py), so every
-# value must be raw and shell-safe. Reject values that would break `. config` — no quoting can
-# satisfy both readers. Keys/urls are unlikely to contain these; a password might.
-# Allowlist (robust): only chars that are safe both as an unquoted `KEY=value` bash source
-# AND as a raw split value in sftp_helper.py. Anything else is rejected. '-' is last = literal.
-for v in "$HOST" "$SUSER" "$PORT" "$REMOTE" "$URL" "$TOOL" "$SSH_KEY" "$OP_REF" "$CF_ID" "$LANG_VAL" "$TZ_VAL"; do
+for v in "$DRIVER" "$HOST" "$SUSER" "$PORT" "$REMOTE" "$URL" "$TOOL" "$SSH_KEY" "$OP_REF" "$CF_ID" "$LANG_VAL" "$TZ_VAL" "$S3_ENDPOINT" "$S3_BUCKET" "$S3_KEY_ID" "$S3_REGION"; do
   [ -z "$v" ] || _shell_safe "$v" || die "value contains characters that break config sourcing: '$v'"
 done
 
@@ -291,42 +345,59 @@ done
 if { [ -e "$CONFIG" ] || [ -e "$KNOWN" ]; } && [ "$REPLACE" -ne 1 ]; then
   die "configuration already exists; inspect with --status, then rerun with --replace to back it up and replace it"
 fi
-[ -n "$KNOWN_SOURCE" ] || die "--known-hosts-file is required; use the interactive setup command to scan and confirm fingerprints"
-[ ! -L "$KNOWN_SOURCE" ] || die "refusing: --known-hosts-file is a symlink"
-[ -f "$KNOWN_SOURCE" ] && [ -s "$KNOWN_SOURCE" ] && [ -r "$KNOWN_SOURCE" ] \
-  || die "--known-hosts-file must be a readable, non-empty regular file"
-command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen is required"
-ssh-keygen -lf "$KNOWN_SOURCE" -E sha256 >/dev/null 2>&1 \
-  || die "--known-hosts-file contains malformed host-key data"
-_known_hosts_has_target "$KNOWN_SOURCE" "$HOST" "$PORT" \
-  || die "--known-hosts-file has no valid key for $HOST:$PORT"
-case "$AUTH_MODE" in
-  pass)
-    command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
-      || die "password auth requires python3-paramiko"
+
+if [ "$DRIVER" = "sftp" ]; then
+  [ -n "$KNOWN_SOURCE" ] || die "--known-hosts-file is required; use the interactive setup command to scan and confirm fingerprints"
+  [ ! -L "$KNOWN_SOURCE" ] || die "refusing: --known-hosts-file is a symlink"
+  [ -f "$KNOWN_SOURCE" ] && [ -s "$KNOWN_SOURCE" ] && [ -r "$KNOWN_SOURCE" ] \
+    || die "--known-hosts-file must be a readable, non-empty regular file"
+  command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen is required"
+  ssh-keygen -lf "$KNOWN_SOURCE" -E sha256 >/dev/null 2>&1 \
+    || die "--known-hosts-file contains malformed host-key data"
+  _known_hosts_has_target "$KNOWN_SOURCE" "$HOST" "$PORT" \
+    || die "--known-hosts-file has no valid key for $HOST:$PORT"
+fi
+
+case "$DRIVER" in
+  s3)
+    command -v python3 >/dev/null 2>&1 || die "python3 is required for S3 driver"
     ;;
-  key)
-    [ -f "$SSH_KEY" ] && [ -r "$SSH_KEY" ] || die "SSH key is not a readable file: $SSH_KEY"
-    command -v sftp >/dev/null 2>&1 || die "SSH-key auth requires sftp"
-    ;;
-  op)
-    command -v op >/dev/null 2>&1 || command -v op.exe >/dev/null 2>&1 \
-      || die "1Password auth requires op or op.exe"
-    command -v sftp >/dev/null 2>&1 || die "1Password auth requires sftp"
+  sftp)
+    case "$AUTH_MODE" in
+      pass)
+        command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
+          || die "password auth requires python3-paramiko"
+        ;;
+      key)
+        [ -f "$SSH_KEY" ] && [ -r "$SSH_KEY" ] || die "SSH key is not a readable file: $SSH_KEY"
+        command -v sftp >/dev/null 2>&1 || die "SSH-key auth requires sftp"
+        ;;
+      op)
+        command -v op >/dev/null 2>&1 || command -v op.exe >/dev/null 2>&1 \
+          || die "1Password auth requires op or op.exe"
+        command -v sftp >/dev/null 2>&1 || die "1Password auth requires sftp"
+        ;;
+    esac
     ;;
 esac
+
 command -v curl >/dev/null 2>&1 || die "curl is required"
 command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 \
   || die "sha256sum or shasum is required"
 
-# Secrets come from stdin, never argv (argv leaks via ps/history). Fixed line order for the
-# ones requested with -: SFTP password, cf-access-secret. Validated before any side effect
-# so a bad secret fails fast.
+# Read secrets from stdin
 PASS=''
+S3_SECRET=''
+CF_SECRET=''
 if [ "$READ_PASS" = 1 ]; then
   IFS= read -r PASS || true
   [ -n "$PASS" ] || die "--pass - was given but stdin was empty"
   _shell_safe "$PASS" || die "password contains characters this config format cannot store (space, quote, \$, backtick, backslash, or leading #) — use --ssh-key instead"
+fi
+if [ "$READ_S3SEC" = 1 ]; then
+  IFS= read -r S3_SECRET || true
+  [ -n "$S3_SECRET" ] || die "--s3-secret - was given but stdin was empty"
+  case "$S3_SECRET" in *$'\r'*) die "S3 secret contains invalid carriage return" ;; esac
 fi
 if [ "$READ_CFSEC" = 1 ]; then
   IFS= read -r CF_SECRET || true
@@ -344,28 +415,38 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Stage both files at mode 0600 before replacing either destination.
-tmpkh=$(mktemp "$CFG_DIR/known_hosts.XXXXXX")
-cp "$KNOWN_SOURCE" "$tmpkh"
-chmod 600 "$tmpkh"
+if [ "$DRIVER" = "sftp" ]; then
+  tmpkh=$(mktemp "$CFG_DIR/known_hosts.XXXXXX")
+  cp "$KNOWN_SOURCE" "$tmpkh"
+  chmod 600 "$tmpkh"
+fi
 
 tmpcfg=$(mktemp "$CFG_DIR/config.XXXXXX")
 {
-  printf 'SFTP_HOST=%s\n' "$HOST"
-  printf 'SFTP_USER=%s\n' "$SUSER"
-  printf 'SFTP_PORT=%s\n' "$PORT"
-  printf 'REMOTE_DIR=%s\n' "$REMOTE"
+  if [ "$DRIVER" = "s3" ]; then
+    printf 'STORAGE_DRIVER=s3\n'
+    printf 'S3_ENDPOINT=%s\n' "$S3_ENDPOINT"
+    printf 'S3_BUCKET=%s\n' "$S3_BUCKET"
+    printf 'S3_ACCESS_KEY_ID=%s\n' "$S3_KEY_ID"
+    printf 'S3_SECRET_ACCESS_KEY=%s\n' "$S3_SECRET"
+    [ -n "$S3_REGION" ] && printf 'S3_REGION=%s\n' "$S3_REGION"
+  else
+    printf 'SFTP_HOST=%s\n' "$HOST"
+    printf 'SFTP_USER=%s\n' "$SUSER"
+    printf 'SFTP_PORT=%s\n' "$PORT"
+    printf 'REMOTE_DIR=%s\n' "$REMOTE"
+    case "$AUTH_MODE" in
+      pass) printf 'SFTP_PASS=%s\n' "$PASS" ;;
+      key)  printf 'SSH_KEY=%s\n'   "$SSH_KEY" ;;
+      op)   printf 'OP_KEY_REF=%s\n' "$OP_REF" ;;
+    esac
+  fi
   printf 'PUBLIC_BASE_URL=%s\n' "$URL"
   [ -n "$TOOL" ]  && printf 'DEFAULT_TOOL=%s\n' "$TOOL"
   [ -n "$LANG_VAL" ] && printf 'DEFAULT_LANG=%s\n' "$LANG_VAL"
   [ -n "$TZ_VAL" ] && printf 'DEFAULT_TIMEZONE=%s\n' "$TZ_VAL"
   [ -n "$CF_ID" ] && printf 'CF_ACCESS_CLIENT_ID=%s\n' "$CF_ID"
   [ -n "$CF_SECRET" ] && printf 'CF_ACCESS_CLIENT_SECRET=%s\n' "$CF_SECRET"
-  case "$AUTH_MODE" in
-    pass) printf 'SFTP_PASS=%s\n' "$PASS" ;;
-    key)  printf 'SSH_KEY=%s\n'   "$SSH_KEY" ;;
-    op)   printf 'OP_KEY_REF=%s\n' "$OP_REF" ;;
-  esac
 } > "$tmpcfg"
 chmod 600 "$tmpcfg"
 
@@ -384,8 +465,11 @@ if [ "$REPLACE" -eq 1 ]; then
   [ ! -f "$CONFIG" ] || backup_one "$CONFIG" config
   [ ! -f "$KNOWN" ] || backup_one "$KNOWN" known_hosts
 fi
-mv -f "$tmpkh" "$KNOWN"; tmpkh=''
+
+if [ -n "$tmpkh" ]; then
+  mv -f "$tmpkh" "$KNOWN"; tmpkh=''
+  err "pinned host key -> $KNOWN"
+fi
 mv -f "$tmpcfg" "$CONFIG"; tmpcfg=''
-err "pinned host key -> $KNOWN"
 err "wrote config -> $CONFIG (mode 600)"
 err "setup complete; no artifact was published"
