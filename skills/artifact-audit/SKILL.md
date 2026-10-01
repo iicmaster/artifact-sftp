@@ -115,6 +115,16 @@ inline chat and pure Markdown.
   - Flags and rejects consecutive or nested callout blocks.
 - **Comparative Data Density:**
   - Checks that multi-variable data is rendered as structured Markdown comparison tables rather than long unstructured lists.
+- **Reader-First Table Rules (🔴 BLOCK / 🟡 WARN):**
+  - A table is a **summary surface, not a container**. If a cell holds material a reader must open to understand anything, the table has failed.
+  - 🔴 **BLOCK — Raw Data Never Lives in a Cell:** Any of `<details>`, `<summary>`, `<pre>`, or a fenced code block nested inside `<td>`/`<th>`. This includes Request/Response bodies, JSON payloads, stack traces, and raw logs.
+    - Detectable pattern: `<t[dh][^>]*>((?:(?!</t[dh]>)[\s\S])*?)(<details|<summary|<pre)` — covers both cell types, and the inner guard on the closing tag is required. The shorter `<td[^>]*>[\s\S]*?(<details|<pre)` form scans past the closing cell and flags any clean table on a page that happens to use `<details>` or `<pre>` elsewhere, which is a false positive on every evidence page.
+    - Required remediation: move the payload out of the table into a native `<dialog>` opened by a "view raw data" control (use `showModal()`, not a hand-rolled overlay), or into a separate deep-dive page.
+    - Rationale: a collapsed `<details>` in a narrow column is still a column. The cell gets clipped, the reader cannot see the shape of the payload, and the row becomes unreadable at any viewport narrower than the content.
+  - 🟡 **WARN — Identifiers Must Not Wrap:** API method + path pairs (`GET /api/latest/...`), endpoint identifiers, and code symbols rendered in table cells must sit under `white-space: nowrap` (or an equivalent non-wrapping treatment). A wrapped `GET /api/latest/` is indistinguishable from a different endpoint at a glance.
+  - 🟡 **WARN — Multi-Row Pages Need a Table of Contents Table:** A page carrying more than one table with more than roughly five data rows each must lead with a summary table. Otherwise the reader lands mid-document with no index of what follows.
+  - 🟡 **WARN — Blocking Findings Need a Visible Box:** If the document reports any blocking finding (a `🔴 BLOCK` item from any dimension), it must surface that in an alert callout directly under the `<h1>`. A blocking issue buried in the appendix is functionally invisible.
+  - 🟡 **WARN — Keep Protocol Vocabulary in English:** `Method`, `Endpoint`, `Response`, `Status code`, `Request`/`Response` in HTTP context, and comparable protocol terms stay in English. Translate the surrounding prose, not the protocol vocabulary — a translated protocol term breaks find-in-page for every engineer who searches the codebase for the English token.
 - **File & Code Symbol Links:**
   - Enforces valid clickable link syntax: `[utils.py](file:///path/to/utils.py)` (never `[utils.py](`file:///...`)`).
 
