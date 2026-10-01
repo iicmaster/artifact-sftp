@@ -326,5 +326,5 @@ chmod 0600 "$CACHE_FILE"
 if [ "$mode" = cat ]; then
   cat "$CACHE_FILE"
 else
-  printf '%s\n' "$CACHE_FILE"
+  printf '%s\n' "$(wpath "$CACHE_FILE")"
 fi
