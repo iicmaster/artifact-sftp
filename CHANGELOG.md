@@ -2,6 +2,11 @@
  
 All notable changes to this project are documented here.
  
+## [0.22.1] - 2026-10-04
+
+- **Windows: remote (Tier 2) read results now emit Windows drive paths.** The read resolver's remote-fetch branch wraps its cached-file path in the same `wpath()` (`cygpath -w`) wrapper the local-archive branch already used, so the MCP host receives an absolute drive path instead of a Git Bash `/e/...` path that Windows pathlib treats as relative. A new offline regression pins the converted output (stub `sftp` serving a fixture, stub `cygpath` turning `-w` into a deterministic drive path) and pins `--cat` to stream raw bytes without the wrapper.
+- **artifact-audit: Reader-First Table Rules in Dimension 3.** 🔴 BLOCK: raw payloads (`<details>`, `<summary>`, `<pre>`, serialized fences) inside table cells, with a cell-scoped detection pattern — run case-insensitively against the serialized HTML the artifact serves — whose inner closing-tag guard avoids the shorter pattern's cross-cell false positives. 🟡 WARN: endpoint identifiers must not wrap, multi-table pages need a leading summary table, blocking findings must surface in a callout under the document's top-level heading (HTML `<h1>`, Markdown level-1 heading), and protocol vocabulary stays in English so find-in-page works across the codebase.
+
 ## [0.22.0] - 2026-09-28
 
 - **S3-compatible storage driver: Cloudflare R2, AWS S3, and MinIO (ADR 0001, Option 1).**
