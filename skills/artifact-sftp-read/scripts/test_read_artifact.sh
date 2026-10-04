@@ -98,6 +98,65 @@ else
   sed 's/^/  | /' "$WORK/err"; fails=$((fails+1))
 fi
 
+# Tier 2 success path: a remote fetch must emit its cache path through wpath()
+# exactly like Tier 1 does. A stub sftp serves the fixture and a stub cygpath
+# turns every -w call into a deterministic drive path, so the converted output
+# is pinned here on any POSIX runner.
+TIER2_FAKEBIN="$WORK/fakebin"
+mkdir -p "$TIER2_FAKEBIN"
+cat >"$TIER2_FAKEBIN/sftp" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+batch='' prev=''
+for a in "$@"; do
+  if [ "$prev" = '-b' ]; then batch=$a; fi
+  prev=$a
+done
+[ -n "$batch" ] || exit 42
+line=$(head -n1 "$batch")
+case "$line" in
+  get\ *)
+    local_path=$(printf '%s' "$line" | sed -E 's/^get "[^"]*" "([^"]*)".*/\1/')
+    cat "$TIER2_FIXTURE" > "$local_path"
+    ;;
+  *) exit 43 ;;
+esac
+STUB
+cat >"$TIER2_FAKEBIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+printf 'E:\\fake%s\n' "$(printf '%s' "$2" | sed 's#/#\\#g')"
+STUB
+chmod 0755 "$TIER2_FAKEBIN/sftp" "$TIER2_FAKEBIN/cygpath"
+
+TIER2_FIXTURE="$WORK/tier2-fixture.html"
+printf 'tier 2 remote artifact bytes' > "$TIER2_FIXTURE"
+TIER2_HOME="$WORK/tier2-home"
+mkdir -p "$TIER2_HOME/.config/artifact-sftp"
+: > "$TIER2_HOME/.config/artifact-sftp/known_hosts"
+TIER2_CONFIG="$TIER2_HOME/.config/artifact-sftp/config"
+printf 'SFTP_HOST=sftp.example\nSFTP_USER=tester\nREMOTE_DIR=/srv/artifacts\n' > "$TIER2_CONFIG"
+chmod 0600 "$TIER2_CONFIG"
+
+tier2_rc=0
+tier2_got=$(env HOME="$TIER2_HOME" PATH="$TIER2_FAKEBIN:$PATH" TIER2_FIXTURE="$TIER2_FIXTURE" \
+  bash "$READ" 'https://artifacts.example/codex/private/remote-doc/' 2>"$WORK/err") || tier2_rc=$?
+tier2_want=$("$TIER2_FAKEBIN/cygpath" -w "$TIER2_HOME/.cache/artifact-sftp/remote/codex/private/remote-doc/index.html")
+if [ "$tier2_rc" -eq 0 ] && [ "$tier2_got" = "$tier2_want" ]; then
+  echo "PASS tier 2 remote fetch emits its cache path through wpath"
+else
+  echo "FAIL: tier 2 remote fetch — want '$tier2_want', got exit $tier2_rc '$tier2_got'"
+  sed 's/^/  | /' "$WORK/err"; fails=$((fails+1))
+fi
+
+tier2_cat=$(env HOME="$TIER2_HOME" PATH="$TIER2_FAKEBIN:$PATH" TIER2_FIXTURE="$TIER2_FIXTURE" \
+  bash "$READ" --cat 'https://artifacts.example/codex/private/remote-doc/' 2>"$WORK/err")
+if [ "$tier2_cat" = 'tier 2 remote artifact bytes' ]; then
+  echo "PASS tier 2 --cat streams raw bytes without the drive-path wrapper"
+else
+  echo "FAIL: tier 2 --cat must stream raw bytes — got '$tier2_cat'"
+  sed 's/^/  | /' "$WORK/err"; fails=$((fails+1))
+fi
+
 if [ "$fails" -eq 0 ]; then
   echo "ALL CHECKS PASSED"
 else
