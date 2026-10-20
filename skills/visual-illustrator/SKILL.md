@@ -66,11 +66,33 @@ Archify uses a typed JSON Intermediate Representation (IR) to compile determinis
 
 While **Archify** serves as the authoritative engine for complex interactive showcase maps (with 9/9 geometric composition checks, semantic lenses, and sharecards), authoring manual 2D CAD coordinate JSON is verbose and high-friction for everyday documentation.
 
-For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**:
+For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**.
+
+### Execution via Quoted Heredoc or Stdin (Shell Injection Safe)
+To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Always pipe through a quoted heredoc (`<<'EOF'`) or read from a `.mmd` source file:
 
 ```bash
-printf '%s\n' '<mermaid-code>' | npx --yes ondine@0.0.3
+# Recommended: Pipe via quoted heredoc (immune to internal apostrophes and special characters)
+cat <<'EOF' | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+sequenceDiagram
+    autonumber
+    User->>System: Submit transaction
+    System-->>User: Approval receipt
+EOF
+
+# Or pipe from a source file:
+cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
 ```
+
+### Host Availability & Offline Fallback Path
+On offline, air-gapped, or registry-restricted agent hosts without pre-cached npm packages, `npx --yes` cannot fetch `ondine@0.0.3` dynamically.
+- **Availability Check**: Test compiler readiness before invoking:
+  ```bash
+  command -v ondine >/dev/null 2>&1 || npx --yes --prefer-offline ondine@0.0.3 --version >/dev/null 2>&1
+  ```
+- **Offline Fallback**: If `ondine` is unavailable and the host is offline, fall back to:
+  1. **Archify Engine** (`tools/archify/`): Fully vendored in the local repository and runs 100% offline with zero external network dependencies.
+  2. **Direct Handcrafted SVG**: Use visual-illustrator's section 2 / section 4 templates with pre-tested zero-collision geometry.
 
 ### Supported Declarative Archetypes
 - **`sequenceDiagram`**: Automatic step numbering (`autonumber`), actor/participant shapes, dashed returns, and built-in edge label background pills.
@@ -84,12 +106,13 @@ printf '%s\n' '<mermaid-code>' | npx --yes ondine@0.0.3
 1. **Option 4 Compliance (Zero Client JS / No Remote Workers):**
    - The compiled SVG is static and self-contained. Never load `https://ondine.sh` worker endpoints or client-side runtime parsers in the published artifact.
    - Embed the raw `<svg>...</svg>` element directly into the HTML document.
-2. **Thai Typography & Line Breaking (`<br/>`):**
+2. **Mandatory ID Namespacing on Every Render (`artifact-audit:82`):**
+   - Per `skills/artifact-audit/SKILL.md:82`, reusable SVG resources (`defs`, `marker`, `clipPath`, `linearGradient`) must use unique, namespaced IDs even when rendering a single diagram on a page (e.g. prefixing all IDs with `dia1-` or a diagram slug: `id="dia1-arrow"`, `url(#dia1-arrow)`).
+   - Because the stdin CLI compiler does not automatically attach per-file prefixes (unlike the Vite plugin), authoring agents **MUST namespace all generated IDs and matching references** (e.g. via regex or sed replacement) before embedding into the HTML artifact.
+3. **Thai Typography & Line Breaking (`<br/>`):**
    - Ondine estimates text advances using monospace character metrics in Rust, which comfortably fits proportional Thai fonts (e.g. [Sarabun](https://fonts.google.com/specimen/Sarabun)) without horizontal truncation.
    - However, Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
    - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`.
-3. **SVG Namespace & ID Hygiene:**
-   - When placing multiple Ondine diagrams within the same HTML page, prefix diagram markers, clips, and internal IDs to avoid collisions (e.g. `id="diag1-..."`).
 4. **Theme Synchronization via CSS Variables:**
    - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette:
      ```css
