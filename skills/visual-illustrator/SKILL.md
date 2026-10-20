@@ -109,12 +109,12 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
 2. **Mandatory ID Namespacing on Every Render (`artifact-audit:82`):**
    - Per `skills/artifact-audit/SKILL.md:82`, reusable SVG resources (`defs`, `marker`, `clipPath`, `linearGradient`) must use unique, namespaced IDs even when rendering a single diagram on a page (e.g. prefixing all IDs with `dia1-` or a diagram slug: `id="dia1-arrow"`, `url(#dia1-arrow)`).
    - Because the stdin CLI compiler does not automatically attach per-file prefixes (unlike the Vite plugin), authoring agents **MUST namespace all generated IDs and matching references** (e.g. via regex or sed replacement) before embedding into the HTML artifact.
-3. **Thai Typography & Line Breaking (`<br/>`):**
-   - Ondine estimates text advances using monospace character metrics in Rust, which comfortably fits proportional Thai fonts (e.g. [Sarabun](https://fonts.google.com/specimen/Sarabun)) without horizontal truncation.
-   - However, Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
+3. **Typography, Monospace Metrics & Line Breaking (`<br/>`):**
+   - Ondine measures character advances at a fixed 0.6em based on monospace metrics in Rust. To guarantee that rendered labels remain strictly within calculated node bounding boxes without escaping shapes or overlapping edges, **keep `--ondine-font` as a monospace font stack** (e.g. `ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', Consolas, monospace`).
+   - If Thai characters are present, monospace stacks fall back cleanly to system Thai typography. However, Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
    - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`.
 4. **Theme Synchronization via CSS Variables:**
-   - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette:
+   - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette while retaining monospace metrics:
      ```css
      /* Dark Slate Theme */
      svg.ondine {
@@ -124,7 +124,7 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
        --ondine-line: #38bdf8;
        --ondine-border: #334155;
        --ondine-surface: #1e293b;
-       --ondine-font: 'Sarabun', sans-serif;
+       --ondine-font: ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', Consolas, monospace;
      }
      ```
 
