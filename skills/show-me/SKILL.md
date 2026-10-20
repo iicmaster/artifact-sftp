@@ -110,7 +110,7 @@ src/artifact_sftp_mcp/
 ```
 
 Interaction over time — **Sequence / Interaction Flow**:
-*(Note: Mermaid syntax below is authoring syntax only. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4).*
+*(Note: Mermaid syntax below is authoring syntax. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4. For fast declarative compilation without manual SVG drafting, pipe the Mermaid code through Ondine: `printf '%s\n' '<mermaid-code>' | npx --yes ondine@0.0.3` per `skills/visual-illustrator/SKILL.md:2.5`).*
 ```mermaid
 sequenceDiagram
     participant Agent
@@ -130,6 +130,9 @@ System change — **Diff**:
 
 Comprehensive system architecture or state map (Level 3 & 4) — **Archify Interactive Diagram**:
 Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <output.html> --quality showcase` to produce interactive, dark/light theme diagrams with route tracing, semantic lenses, and 1200×630 share card exports.
+
+Agile declarative diagrams (Level 1–3) — **Ondine AOT SVG**:
+Compile declarative Mermaid syntax (Sequence, Flowchart with subgraphs, State, ER, Mindmap) directly into clean ~6KB inline SVG via `printf '%s\n' '<mermaid-code>' | npx --yes ondine@0.0.3` to satisfy Option 4 without manual coordinate calculation.
 
 ---
 

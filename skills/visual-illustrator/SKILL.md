@@ -62,6 +62,51 @@ Archify uses a typed JSON Intermediate Representation (IR) to compile determinis
 
 ---
 
+## 2.5 Agile Declarative AOT Compiler (Ondine Stdio Pipe)
+
+While **Archify** serves as the authoritative engine for complex interactive showcase maps (with 9/9 geometric composition checks, semantic lenses, and sharecards), authoring manual 2D CAD coordinate JSON is verbose and high-friction for everyday documentation.
+
+For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**:
+
+```bash
+printf '%s\n' '<mermaid-code>' | npx --yes ondine@0.0.3
+```
+
+### Supported Declarative Archetypes
+- **`sequenceDiagram`**: Automatic step numbering (`autonumber`), actor/participant shapes, dashed returns, and built-in edge label background pills.
+- **`flowchart TD` / `flowchart LR`**: Subgraphs (nested grouping), standard rectangular shapes, decision diamonds, and database cylinders (`[(Database)]`).
+- **`stateDiagram-v2`**: Start/end states, state transitions, and notes.
+- **`erDiagram`** & **`classDiagram`**: Entity attributes, cardinalities, class methods, and divider sections.
+- **`gantt`** & **`mindmap`**: Timelines, phases, and radial concept hierarchies.
+
+### Non-Negotiable Invariants for Ondine SVG Delivery
+
+1. **Option 4 Compliance (Zero Client JS / No Remote Workers):**
+   - The compiled SVG is static and self-contained. Never load `https://ondine.sh` worker endpoints or client-side runtime parsers in the published artifact.
+   - Embed the raw `<svg>...</svg>` element directly into the HTML document.
+2. **Thai Typography & Line Breaking (`<br/>`):**
+   - Ondine estimates text advances using monospace character metrics in Rust, which comfortably fits proportional Thai fonts (e.g. [Sarabun](https://fonts.google.com/specimen/Sarabun)) without horizontal truncation.
+   - However, Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
+   - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`.
+3. **SVG Namespace & ID Hygiene:**
+   - When placing multiple Ondine diagrams within the same HTML page, prefix diagram markers, clips, and internal IDs to avoid collisions (e.g. `id="diag1-..."`).
+4. **Theme Synchronization via CSS Variables:**
+   - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette:
+     ```css
+     /* Dark Slate Theme */
+     svg.ondine {
+       --ondine-bg: #111827;
+       --ondine-fg: #f8fafc;
+       --ondine-muted: #94a3b8;
+       --ondine-line: #38bdf8;
+       --ondine-border: #334155;
+       --ondine-surface: #1e293b;
+       --ondine-font: 'Sarabun', sans-serif;
+     }
+     ```
+
+---
+
 ## 3. Editorial Aesthetics & High-Impact Business Archetypes
 
 Beyond purely technical topology maps, executive and strategic artifacts require publication-grade clarity, minimal visual noise, and strong narrative focus (editorial aesthetic standards inspired by [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)).
