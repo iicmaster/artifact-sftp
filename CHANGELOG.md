@@ -2,6 +2,12 @@
  
 All notable changes to this project are documented here.
  
+## [0.22.3] - 2026-10-21
+
+- **Fixed: a response body that dies mid-read is caught where it happens.** v0.22.2 already routed that failure to exit 4 through the request wrapper, so the overwrite guard could not be fooled by it. The guard now sits inside the body reader as well, so the invariant holds for any caller that reads a response outside that wrapper, and the test exercises the reader directly — it fails when the guard is removed.
+
+Full suite: 69 passed.
+
 ## [0.22.2] - 2026-10-21
 
 - **Fixed: the S3 overwrite guard could fail open.** A transport-level failure in the S3 transport (DNS failure, refused connection, TLS handshake error, socket timeout) exited with status 1 — the same code the helper used for a genuine HTTP 404. `publish.sh` reads exit 1 as *"the slug is genuinely absent, safe to create"*, so a network error let a publish **overwrite a remote slug with no custody check at all**. Exit 1 now means only "the object is really not there"; every other failure exits 4. The fix covers HTTP refusals, transport errors, and unexpected exceptions alike — a malformed endpoint that makes `urlparse` raise, an error body that dies mid-read, and a stderr write that fails all reach exit 4 instead of an uncaught exception's status 1.
