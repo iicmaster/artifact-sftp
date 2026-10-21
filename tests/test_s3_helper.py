@@ -253,6 +253,24 @@ class S3HelperTests(unittest.TestCase):
                 ok_client.get_object("key.html")
         self.assertEqual(ctx.exception.code, 4)
 
+    def test_bounded_read_catches_a_body_that_dies_mid_read(self) -> None:
+        """The read guard inside _bounded_read must fail with exit 4.
+
+        The handler is called directly on purpose: going through head_object()
+        would pass even without this guard, because the request wrapper already
+        converts the exception — and the test would then protect nothing.
+        """
+
+        class ExplodingResponse:
+            headers = {}
+
+            def read(self, *args, **kwargs):
+                raise OSError("connection reset mid-body")
+
+        with self.assertRaises(SystemExit) as ctx:
+            s3_helper._bounded_read(ExplodingResponse())
+        self.assertEqual(ctx.exception.code, 4)
+
     def test_unreadable_config_is_a_failure_not_an_absence(self) -> None:
         """A config file that cannot be read means "cannot verify".
 
