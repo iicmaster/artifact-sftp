@@ -14,7 +14,13 @@ Operations:
   test_connection
 
 Exit codes:
-  0 ok | 1 not-found/failed | 4 storage refused or errored (distinct from not-found) | 10 internal bypass attempt
+  0 ok | 1 the object genuinely does not exist (HTTP 404) | 2 usage error
+  | 4 storage refused, errored, or unreachable | 10 internal bypass attempt
+
+Only 1 may mean "absent". Every other failure exits 4, because the publish
+overwrite guard reads "1" as "the slug is not there, create it" and any other
+code as "could not verify, refuse" — a transport error that exited 1 would
+overwrite a foreign slug without a custody check.
 """
 import datetime
 import hashlib
@@ -28,6 +34,29 @@ import xml.etree.ElementTree as ET
 
 CONFIG = os.path.expanduser("~/.config/artifact-sftp/config")
 MAX_BYTES = 5 * 1024 * 1024  # 5 MiB safety limit
+
+EXIT_ABSENT = 1  # the object genuinely does not exist (HTTP 404)
+EXIT_FAILED = 4  # storage refused, errored, or could not be reached at all
+EXIT_USAGE = 2  # the caller invoked this helper wrongly
+
+
+def _fail(message, code=EXIT_FAILED):
+    """Fail with a code that can never be mistaken for "the object is absent".
+
+    The overwrite guard reads exit 1 as "the slug is not there, create it" and
+    any other code as "could not verify, refuse". A plain ``sys.exit(str)``
+    would exit 1, so a transport error (DNS, refused connection, TLS, socket
+    timeout) used to look like a 404 and let a publish overwrite a foreign
+    slug without a custody check.
+    """
+    try:
+        print(message, file=sys.stderr)
+    except Exception:
+        # A failing stderr write must not change the exit code: the caller
+        # still needs to see 4 ("could not verify"), not an uncaught
+        # exception's status 1 ("absent").
+        pass
+    raise SystemExit(code)
 
 
 def require_mcp_call():
@@ -43,8 +72,12 @@ def require_mcp_call():
 def read_cfg():
     cfg = {}
     if not os.path.isfile(CONFIG):
-        sys.exit(f"config not found: {CONFIG}")
-    with open(CONFIG, "r", encoding="utf-8") as f:
+        _fail(f"config not found: {CONFIG}")
+    try:
+        handle = open(CONFIG, "r", encoding="utf-8")
+    except OSError as e:
+        _fail(f"config could not be read ({CONFIG}): {e}")
+    with handle as f:
         for raw in f:
             line = raw.rstrip("\n").rstrip("\r")
             if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
@@ -69,10 +102,10 @@ def _bounded_read(resp):
     """Read a response body without ever buffering more than MAX_BYTES."""
     length = resp.headers.get("Content-Length") if resp.headers is not None else None
     if length is not None and length.strip().isdigit() and int(length) > MAX_BYTES:
-        sys.exit(f"response exceeds {MAX_BYTES} byte safety ceiling (Content-Length: {length})")
+        _fail(f"response exceeds {MAX_BYTES} byte safety ceiling (Content-Length: {length})")
     data = resp.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
-        sys.exit(f"response exceeds {MAX_BYTES} byte safety ceiling (streamed past the limit)")
+        _fail(f"response exceeds {MAX_BYTES} byte safety ceiling (streamed past the limit)")
     return data
 
 
@@ -84,9 +117,22 @@ class S3Client:
         self.secret_key = cfg.get("S3_SECRET_ACCESS_KEY", "")
         self.region = cfg.get("S3_REGION", "auto")
         if not self.endpoint or not self.bucket or not self.access_key or not self.secret_key:
-            sys.exit("missing required S3 config: S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY")
+            _fail("missing required S3 config: S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY")
 
     def _request(self, method, path, query_params=None, headers=None, body=b"", timeout=30):
+        # Every step of a request can raise for reasons that have nothing to do
+        # with whether the object exists: a malformed endpoint (urlparse), an
+        # unknown URL scheme (Request), a body read that dies mid-stream. An
+        # uncaught exception exits 1, and 1 is the code that means "absent" —
+        # so the whole request is wrapped and every failure becomes exit 4.
+        try:
+            return self._request_inner(method, path, query_params, headers, body, timeout)
+        except SystemExit:
+            raise
+        except Exception as e:
+            _fail(f"S3 request failed ({method} {path}): {e}")
+
+    def _request_inner(self, method, path, query_params=None, headers=None, body=b"", timeout=30):
         if headers is None:
             headers = {}
         if query_params is None:
@@ -181,7 +227,7 @@ class S3Client:
         except urllib.error.HTTPError as e:
             return e.code, _bounded_read(e), e.headers
         except Exception as e:
-            sys.exit(f"S3 request failed ({method} {path}): {e}")
+            _fail(f"S3 request failed ({method} {path}): {e}")
 
     def head_object(self, key):
         status, resp_body, _ = self._request("HEAD", key)
@@ -192,8 +238,7 @@ class S3Client:
         # Storage refused or errored: exit 4 so callers never confuse "probe
         # failed" with "probe answered 404" — the overwrite guard depends on
         # that distinction before it may treat a slug as absent.
-        print(f"S3 HEAD failed ({status}): {resp_body.decode('utf-8', errors='replace')}", file=sys.stderr)
-        sys.exit(4)
+        _fail(f"S3 HEAD failed ({status}): {resp_body.decode('utf-8', errors='replace')}", EXIT_FAILED)
 
     def put_object(self, key, data, content_type="text/html; charset=utf-8", cache_control="private, no-cache"):
         headers = {
@@ -202,20 +247,20 @@ class S3Client:
         }
         status, resp_body, _ = self._request("PUT", key, headers=headers, body=data)
         if status not in (200, 204):
-            sys.exit(f"S3 PUT failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
+            _fail(f"S3 PUT failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
 
     def get_object(self, key):
         status, resp_body, _ = self._request("GET", key)
         if status == 404:
             return None
         if status != 200:
-            sys.exit(f"S3 GET failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
+            _fail(f"S3 GET failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
         return resp_body
 
     def delete_object(self, key):
         status, resp_body, _ = self._request("DELETE", key)
         if status not in (200, 204, 404):
-            sys.exit(f"S3 DELETE failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
+            _fail(f"S3 DELETE failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
 
     def list_objects_v2_paged(self, prefix="", delimiter=""):
         """Lists all objects handling pagination tokens (IsTruncated / NextContinuationToken)."""
@@ -234,7 +279,7 @@ class S3Client:
 
             status, resp_body, _ = self._request("GET", "", query_params=params)
             if status != 200:
-                sys.exit(f"S3 list objects failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
+                _fail(f"S3 list objects failed ({status}): {resp_body.decode('utf-8', errors='replace')}")
 
             root = ET.fromstring(resp_body)
             ns = ""
@@ -271,9 +316,19 @@ class S3Client:
 
 
 def main():
+    """Entry point: no unexpected exception may leave this process exiting 1."""
     require_mcp_call()
+    try:
+        _dispatch()
+    except SystemExit:
+        raise
+    except Exception as e:
+        _fail(f"S3 helper failed: {e}")
+
+
+def _dispatch():
     if len(sys.argv) < 2:
-        sys.exit("usage: s3_helper.py exists|upload|get|delete|list|versions|test_connection [ARGS...]")
+        _fail("usage: s3_helper.py exists|upload|get|delete|list|versions|test_connection [ARGS...]", EXIT_USAGE)
 
     op = sys.argv[1]
     cfg = read_cfg()
@@ -284,11 +339,11 @@ def main():
             print("OK")
             sys.exit(0)
         else:
-            sys.exit(1)
+            _fail("S3 connection preflight failed", EXIT_FAILED)
 
     elif op == "exists":
         if len(sys.argv) < 3:
-            sys.exit("usage: s3_helper.py exists <key>")
+            _fail("usage: s3_helper.py exists <key>", EXIT_USAGE)
         key = sys.argv[2].lstrip("/")
         if not key.endswith("index.html"):
             key = key.rstrip("/") + "/index.html"
@@ -299,7 +354,7 @@ def main():
 
     elif op == "upload":
         if len(sys.argv) < 4:
-            sys.exit("usage: s3_helper.py upload <local_file> <prefix> [versioned_name] [visibility]")
+            _fail("usage: s3_helper.py upload <local_file> <prefix> [versioned_name] [visibility]", EXIT_USAGE)
         local_file = sys.argv[2]
         prefix = sys.argv[3].strip("/")
         vname = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != "-" else None
@@ -309,7 +364,7 @@ def main():
             data = f.read()
 
         if len(data) > MAX_BYTES:
-            sys.exit(f"artifact size exceeds 5 MiB limit ({len(data)} bytes)")
+            _fail(f"artifact size exceeds 5 MiB limit ({len(data)} bytes)")
 
         # Determine cache control based on visibility
         if visibility == "public":
@@ -339,20 +394,20 @@ def main():
 
     elif op == "get":
         if len(sys.argv) < 4:
-            sys.exit("usage: s3_helper.py get <remote_key> <local_file>")
+            _fail("usage: s3_helper.py get <remote_key> <local_file>", EXIT_USAGE)
         rkey = sys.argv[2].lstrip("/")
         lfile = sys.argv[3]
         data = client.get_object(rkey)
         if data is None:
             sys.exit(1)
         if len(data) > MAX_BYTES:
-            sys.exit(f"downloaded object exceeds 5 MiB safety ceiling ({len(data)} bytes)")
+            _fail(f"downloaded object exceeds 5 MiB safety ceiling ({len(data)} bytes)")
         with open(lfile, "wb") as f:
             f.write(data)
 
     elif op == "delete":
         if len(sys.argv) < 3:
-            sys.exit("usage: s3_helper.py delete <prefix>")
+            _fail("usage: s3_helper.py delete <prefix>", EXIT_USAGE)
         prefix = sys.argv[2].strip("/") + "/"
         keys, _ = client.list_objects_v2_paged(prefix=prefix)
         for key in keys:
@@ -360,7 +415,7 @@ def main():
 
     elif op == "versions":
         if len(sys.argv) < 3:
-            sys.exit("usage: s3_helper.py versions <prefix>")
+            _fail("usage: s3_helper.py versions <prefix>", EXIT_USAGE)
         prefix = sys.argv[2].strip("/") + "/"
         keys, _ = client.list_objects_v2_paged(prefix=prefix)
         for key in sorted(keys):
@@ -370,7 +425,7 @@ def main():
 
     elif op == "list":
         if len(sys.argv) < 3:
-            sys.exit("usage: s3_helper.py list <base_prefix>")
+            _fail("usage: s3_helper.py list <base_prefix>", EXIT_USAGE)
         base = sys.argv[2].strip("/")
         for vis in ("private", "public"):
             prefix = f"{base}/{vis}/"
@@ -381,7 +436,7 @@ def main():
                     print(f"{vis}/{sub}")
 
     else:
-        sys.exit(f"unknown op: {op}")
+        _fail(f"unknown op: {op}", EXIT_USAGE)
 
 
 if __name__ == "__main__":

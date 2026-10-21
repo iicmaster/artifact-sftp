@@ -210,10 +210,10 @@ else
   }
 fi
 
+# SFTP only: the S3 driver lists its versions in the version-stamp block
+# below, where a failed listing fails closed instead of being swallowed.
 remote_versions() {
-  if [ "$STORAGE_DRIVER" = "s3" ]; then
-    _timeout 90 python3 "$S3_HELPER" versions "$TOOL/$VIS/$SLUG" 2>/dev/null || true
-  elif [ "$USE_PY" = 1 ]; then
+  if [ "$USE_PY" = 1 ]; then
     _timeout 90 python3 "$HELPER" versions "$RPATH" 2>/dev/null || true
   else
     BATCH=$(mktemp)
@@ -390,7 +390,12 @@ require_custody() {
 }
 if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
   if [ "$STORAGE_DRIVER" = "s3" ]; then
-    exists=0; _timeout 90 python3 "$S3_HELPER" exists "$RPATH/index.html" 2>/dev/null || exists=$?
+    # The probe's stderr goes to a real file, not /dev/null: if the
+    # redirection itself failed, bash would report status 1 — the same code
+    # that means "the slug is genuinely absent" below.
+    exists_err=$(mktemp)
+    exists=0; _timeout 90 python3 "$S3_HELPER" exists "$RPATH/index.html" 2>"$exists_err" || exists=$?
+    rm -f "$exists_err"
     case "$exists" in
       0) require_custody ;;
       1) : ;; # the slug is genuinely absent — safe to create
@@ -409,7 +414,15 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
 fi
 
 # ---------- version + timestamp stamp ----------
-last=$(remote_versions | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+if [ "$STORAGE_DRIVER" = "s3" ]; then
+  # A failed listing must never look like "no versions": the publisher would
+  # reuse version 1 and overwrite the existing immutable snapshot in place.
+  s3_versions=$(_timeout 90 python3 "$S3_HELPER" versions "$TOOL/$VIS/$SLUG" 2>/dev/null) \
+    || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (s3 versions exit $?) — refusing to reuse a version number"
+  last=$(printf '%s\n' "$s3_versions" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+else
+  last=$(remote_versions | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+fi
 [ -n "$last" ] || last=0
 VER=$((last + 1))
 TS=$(date -u +%Y%m%dT%H%M%SZ)
