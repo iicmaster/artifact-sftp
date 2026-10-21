@@ -147,19 +147,24 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
 
 ### Non-Negotiable Invariants for Ondine SVG Delivery
 
-1. **Option 4 Compliance (Zero Client JS / No Remote Workers):**
+1. **Normalize the Compiler Output Before Embedding (not optional):**
+   The compiler's raw output does **not** satisfy the semantic-SVG contract in section 5. Embedding it untouched breaks three mandatory rules, so every rendered SVG passes through these steps first:
+   - **Root attributes.** The CLI emits numeric `width`/`height` attributes and only `max-width:100%;height:auto` in the root style. Replace them with `width="100%"` and `height="auto"`, add `preserveAspectRatio="xMidYMid meet"`, and add `max-height: 480px` — or supply the section 5 container CSS, which is then a prerequisite rather than an optional extra. Without this, a tall diagram escapes the required overview bounds.
+   - **Accessibility metadata.** The renderer emits `<title>`/`<desc>` only when the source carries `accTitle`/`accDescr`. Put both in the Mermaid source, or inject equivalent `<title>` and `<desc>` elements into the `<svg>` before embedding — a screen-reader user otherwise gets only the generic diagram type.
+   - **No external references.** The compiler's URL options allow HTTP(S) links and images by default, so a `click` target or an image node survives into the output and trips the external-URL/asset blocker in `skills/artifact-audit/SKILL.md:82`. Disable links and images in the compiler's URL settings, or strip every `href`, `xlink:href` and `<image>` reference before embedding, and confirm the output contains no `http` reference.
+2. **Option 4 Compliance (Zero Client JS / No Remote Workers):**
    - The compiled SVG is static and self-contained. Never load `https://ondine.sh` worker endpoints or client-side runtime parsers in the published artifact.
-   - Embed the raw `<svg>...</svg>` element directly into the HTML document.
-2. **Mandatory ID Namespacing on Every Render (`artifact-audit:82`):**
+   - Embed the `<svg>...</svg>` element directly into the HTML document, after the normalization step above.
+3. **Mandatory ID Namespacing on Every Render (`artifact-audit:82`):**
    - Per `skills/artifact-audit/SKILL.md:82`, reusable SVG resources (`defs`, `marker`, `clipPath`, `linearGradient`) must use unique, namespaced IDs even when rendering a single diagram on a page (e.g. prefixing all IDs with `dia1-` or a diagram slug: `id="dia1-arrow"`, `url(#dia1-arrow)`).
    - Because the stdin CLI compiler does not automatically attach per-file prefixes (unlike the Vite plugin), authoring agents **MUST namespace all generated IDs and matching references** (e.g. via regex or sed replacement) before embedding into the HTML artifact.
-3. **Typography, Monospace Metrics & Line Breaking (`<br/>`):**
+4. **Typography, Monospace Metrics & Line Breaking (`<br/>`):**
    - Ondine measures character advances at a fixed 0.6em based on monospace metrics in Rust. To guarantee that rendered labels remain strictly within calculated node bounding boxes without escaping shapes or overlapping edges, **keep `--ondine-font` as a monospace font stack** (e.g. `ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', Consolas, monospace`).
    - A monospace stack carries no Thai glyph, so Thai labels fall back to a **proportional** Thai face (Sarabun or the system Thai font) whose advances differ from the compiler's 0.6em estimate — the label can still exceed the box it was measured for. For any label containing Thai, **do not assume the measured box holds: split the label with `<br/>`, then verify the rendered node** (or pad its width) before the audit. There is no widely available true monospace Thai face, so verification is the only reliable path.
    - Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
    - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`. For a label containing Thai, that is still below this skill's Thai Typography Invariant (`<tspan dy="1.6em">`), so **raise the emitted `dy` to `1.6em` and re-verify the node box** — the taller spacing changes the text height, and the node may need the extra +20px per additional line that the invariant assumes.
    - A Thai label split with `<br/>` must reach `1.6em` before delivery. Anything between `1.3em` and `1.5em` is an `artifact-audit` WARN and `1.6em` is the house value, so a compiler output left at the compiler default does not satisfy the delivery standard on its own.
-4. **Theme Synchronization via CSS Variables:**
+5. **Theme Synchronization via CSS Variables:**
    - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette while retaining monospace metrics:
      ```css
      /* Dark Slate Theme */
@@ -238,6 +243,7 @@ Use clean, descriptive `camelCase` or `snake_case` IDs containing only alphanume
 Do not inject raw HTML tags (`<br>`, `<b>`, `<span>`, `<div>`, `<font>`) inside labels unless specifically targeting an environment with strict HTML trust enabled.
 - For line breaks, use Mermaid's native string line break: `\n` inside double quotes.
 - Example: `serviceA["Core Order Service\n(Port: 8080 | Go 1.22)"]`
+- **Renderer scope:** this rule governs the Mermaid-to-HTML rendering path (mermaid.js and equivalent). The Ondine stdio compiler takes `<br/>` instead, because it turns that tag into `<tspan>` blocks with controlled vertical spacing — see "Non-Negotiable Invariants for Ondine SVG Delivery" §4. Do not mix the two: a source written for the Ondine path must not also carry `\n` breaks, and a source written for the browser path must not carry `<br/>`.
 
 ### Rule 4: Explicit Orientation Declaration
 Always declare diagram orientation explicitly at the top.
