@@ -110,7 +110,7 @@ src/artifact_sftp_mcp/
 ```
 
 Interaction over time — **Sequence / Interaction Flow**:
-*(Note: Mermaid syntax below is authoring syntax. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4. For fast declarative compilation without manual SVG drafting, pipe the Mermaid code through Ondine: `printf '%s\n' '<mermaid-code>' | npx --yes ondine@0.0.3` per `skills/visual-illustrator/SKILL.md:2.5`).*
+*(Note: Mermaid syntax below is authoring syntax. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4. For fast declarative compilation without manual SVG drafting, pipe the Mermaid code through Ondine with a **quoted heredoc** — `cat <<'EOF' | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg` — never by substituting the Mermaid source into a single-quoted shell argument, which breaks on the first apostrophe inside a label (`User's browser`) and can execute whatever follows it. See `skills/visual-illustrator/SKILL.md:2.5`.)*
 ```mermaid
 sequenceDiagram
     participant Agent
