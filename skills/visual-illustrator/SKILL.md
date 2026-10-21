@@ -68,20 +68,24 @@ While **Archify** serves as the authoritative engine for complex interactive sho
 
 For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**.
 
-### Execution via Quoted Heredoc or Stdin (Shell Injection Safe)
-To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Always pipe through a quoted heredoc (`<<'EOF'`) or read from a `.mmd` source file:
+### Execution via Source File or Quoted Heredoc (Shell Injection Safe)
+To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Write the source to a file and pipe it, or — only for source you authored inline yourself — use a quoted heredoc whose delimiter does not appear as a line in that source:
 
 ```bash
-# Recommended: Pipe via quoted heredoc (immune to internal apostrophes and special characters)
-cat <<'EOF' | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+# Default: write the source to a file, then pipe it. No delimiter and no quoting
+# means the source is never interpreted by the shell, whatever it contains.
+cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+
+# Inline, author-controlled source only: a quoted heredoc is safe against
+# expansion, but NOT against its own delimiter — a line equal to the delimiter
+# ends the heredoc early and everything after it is executed as shell commands.
+# Pick a delimiter that cannot appear in the source, or use the file form above.
+cat <<'ONDINE_EOF' | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
 sequenceDiagram
     autonumber
     User->>System: Submit transaction
     System-->>User: Approval receipt
-EOF
-
-# Or pipe from a source file:
-cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+ONDINE_EOF
 ```
 
 ### Host Availability & Offline Fallback Path
@@ -91,8 +95,41 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
   command -v ondine >/dev/null 2>&1 || npx --yes --prefer-offline ondine@0.0.3 --version >/dev/null 2>&1
   ```
 - **Offline Fallback**: If `ondine` is unavailable and the host is offline, fall back to:
-  1. **Archify Engine** (`tools/archify/`): Fully vendored in the local repository and runs 100% offline with zero external network dependencies.
-  2. **Direct Handcrafted SVG**: Use visual-illustrator's section 2 / section 4 templates with pre-tested zero-collision geometry.
+  1. **Archify Engine** (`tools/archify/`): Fully vendored in the local repository and runs 100% offline with zero external network dependencies. It covers its five typed archetypes — use it whenever the diagram fits one of them.
+  2. **Direct Handcrafted SVG** for anything else: author the inline SVG yourself under section 5's rules — "Semantic Responsive Inline SVG" (the `viewBox` / `preserveAspectRatio` / `width="100%"` / `<title>` + `<desc>` contract), "Namespaced Element IDs & Security Sanitization" (prefix every reusable ID, e.g. `dia1-`), and "Zero-Collision Geometry & Routing". The skeleton below satisfies those rules as written; extend it rather than improvising a new shape:
+
+     ```html
+     <figure class="diagram">
+       <svg viewBox="0 0 800 200" preserveAspectRatio="xMidYMid meet"
+            width="100%" height="auto" style="max-height: 480px"
+            role="img" aria-labelledby="dia1-title dia1-desc">
+         <title id="dia1-title">Publish path</title>
+         <desc id="dia1-desc">Agent to MCP to storage</desc>
+         <defs>
+           <marker id="dia1-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+             <path d="M0 0L8 4L0 8Z" fill="#334155" />
+           </marker>
+         </defs>
+         <g fill="#ffffff" stroke="#334155" stroke-width="2">
+           <rect x="40" y="70" width="180" height="60" rx="12" />
+           <rect x="310" y="70" width="180" height="60" rx="12" />
+           <rect x="580" y="70" width="180" height="60" rx="12" />
+         </g>
+         <g fill="#0f172a" font-family="Sarabun, sans-serif" font-size="20" text-anchor="middle">
+           <text x="130" y="107">Agent</text>
+           <text x="400" y="107">MCP</text>
+           <text x="670" y="107">Storage</text>
+         </g>
+         <g stroke="#334155" stroke-width="3" fill="none" marker-end="url(#dia1-arrow)">
+           <path d="M220 100H310" />
+           <path d="M490 100H580" />
+         </g>
+       </svg>
+       <figcaption>Publish path</figcaption>
+     </figure>
+     ```
+
+     Thai labels in handcrafted SVG need the section 5 treatment: `line-height >= 1.5` via `<tspan dy="...">`, and a node box at least 44px tall for a single line (+20px per extra line).
 
 ### Supported Declarative Archetypes
 - **`sequenceDiagram`**: Automatic step numbering (`autonumber`), actor/participant shapes, dashed returns, and built-in edge label background pills.
