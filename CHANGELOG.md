@@ -2,6 +2,15 @@
  
 All notable changes to this project are documented here.
  
+## [0.22.2] - 2026-10-21
+
+- **Fixed: the S3 overwrite guard could fail open.** A transport-level failure in the S3 transport (DNS failure, refused connection, TLS handshake error, socket timeout) exited with status 1 — the same code the helper used for a genuine HTTP 404. `publish.sh` reads exit 1 as *"the slug is genuinely absent, safe to create"*, so a network error let a publish **overwrite a remote slug with no custody check at all**. Exit 1 now means only "the object is really not there"; every other failure exits 4. The fix covers HTTP refusals, transport errors, and unexpected exceptions alike — a malformed endpoint that makes `urlparse` raise, an error body that dies mid-read, and a stderr write that fails all reach exit 4 instead of an uncaught exception's status 1.
+- **Fixed: a failed S3 version listing no longer looks like "no versions".** The listing was swallowed with `|| true`, so the version number fell back to 1 and the new publish overwrote the existing immutable snapshot in place. It now fails closed.
+- **Fixed: the remote read no longer reports every failure as "not found".** A timeout or a transport, credential, or config failure is now reported as a failed read with the helper's reason, instead of being indistinguishable from a missing artifact.
+- **Added: the S3/R2 plan and its gap report are tracked.** `docs/plans/s3-cloudflare-r2-plan.md` moves the plan out of the gitignored `_bmad-output/` — where it was lost on every fresh clone — and records its implementation outcome. `docs/plans/s3-cloudflare-r2-gap-report.md` is the plan-vs-code audit: 1 P1 (the fail-open above), 6 P2, and 9 P3 findings, each with file:line evidence and the proposed fix.
+
+Full suite: 68 passed.
+
 ## [0.22.1] - 2026-10-04
 
 - **Windows: remote (Tier 2) read results now emit Windows drive paths.** The read resolver's remote-fetch branch wraps its cached-file path in the same `wpath()` (`cygpath -w`) wrapper the local-archive branch already used, so the MCP host receives an absolute drive path instead of a Git Bash `/e/...` path that Windows pathlib treats as relative. A new offline regression pins the converted output (stub `sftp` serving a fixture, stub `cygpath` turning `-w` into a deterministic drive path) and pins `--cat` to stream raw bytes without the wrapper.
