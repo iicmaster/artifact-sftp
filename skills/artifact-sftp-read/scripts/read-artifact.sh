@@ -240,11 +240,13 @@ TMP_DOWNLOAD=$(mktemp "$CACHE_DIR/dl.XXXXXX")
 chmod 0600 "$TMP_DOWNLOAD"
 CLEANUP_KEY=''
 BATCH=''
+HELPER_ERR=''
 
 cleanup() {
   if [ -n "$CLEANUP_KEY" ]; then rm -f "$CLEANUP_KEY"; fi
   if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
   if [ -n "$TMP_DOWNLOAD" ]; then rm -f "$TMP_DOWNLOAD"; fi
+  if [ -n "$HELPER_ERR" ]; then rm -f "$HELPER_ERR"; fi
 }
 trap cleanup EXIT
 
@@ -257,7 +259,8 @@ if [ "$STORAGE_DRIVER" = "s3" ]; then
   if [ -n "${ARTIFACT_SFTP_PLUGIN_ROOT:-}" ] && [ -f "$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/s3_helper.py" ]; then
     S3_HELPER="$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/s3_helper.py"
   fi
-  _timeout 30 python3 "$S3_HELPER" get "$tool/$vis/$slug/$target_file" "$TMP_DOWNLOAD" 2>/dev/null || dl_rc=$?
+  HELPER_ERR=$(mktemp)
+  _timeout 30 python3 "$S3_HELPER" get "$tool/$vis/$slug/$target_file" "$TMP_DOWNLOAD" 2>"$HELPER_ERR" || dl_rc=$?
 else
   : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
   : "${REMOTE_DIR:?missing in config}"
@@ -310,6 +313,12 @@ else
 fi
 
 if [ "$dl_rc" -ne 0 ] || [ ! -s "$TMP_DOWNLOAD" ]; then
+  # The S3 helper exits 1 only for a genuine 404 and 4 for a transport,
+  # credential, or config failure. Reporting both as "not found" hides the
+  # real cause, which is the difference between retrying and giving up.
+  if [ "$dl_rc" -eq 4 ]; then
+    fail 3 "could not read $tool/$vis/$slug/$target_file from remote storage (the remote read failed, not a missing artifact): $(head -n1 "$HELPER_ERR" 2>/dev/null)"
+  fi
   fail 3 "artifact not found locally in docs/artifacts nor on remote storage: $tool/$vis/$slug/$target_file"
 fi
 

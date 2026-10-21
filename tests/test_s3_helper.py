@@ -215,6 +215,58 @@ class S3HelperTests(unittest.TestCase):
                     s3_helper.main()
             self.assertEqual(ctx.exception.code, 4)
 
+    def test_unexpected_exceptions_never_exit_one(self) -> None:
+        """Any exception that is not a deliberate exit must become exit 4.
+
+        A malformed endpoint makes urlparse raise before the request is even
+        built, and a body read can die mid-stream inside the HTTPError
+        handler. Both used to escape as an uncaught exception, and an
+        uncaught exception exits 1 — the code the overwrite guard reads as
+        "the slug is not there, create it".
+        """
+        broken = dict(CONFIG, S3_ENDPOINT="https://[::1")
+        client = s3_helper.S3Client(broken)
+        with self.assertRaises(SystemExit) as ctx:
+            client.head_object("key.html")
+        self.assertEqual(ctx.exception.code, 4)
+
+        # A body read that raises inside the HTTPError handler.
+        ok_client = s3_helper.S3Client(CONFIG)
+
+        class ExplodingBody:
+            """An error response whose body dies mid-read."""
+
+            def fileno(self):
+                return 0
+
+            def read(self, *args, **kwargs):
+                raise OSError("connection reset mid-body")
+
+            def close(self):
+                return None
+
+        def mock_404(req, timeout=30):
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, ExplodingBody())
+
+        with unittest.mock.patch.object(urllib.request, "urlopen", side_effect=mock_404):
+            with self.assertRaises(SystemExit) as ctx:
+                ok_client.get_object("key.html")
+        self.assertEqual(ctx.exception.code, 4)
+
+    def test_unreadable_config_is_a_failure_not_an_absence(self) -> None:
+        """A config file that cannot be read means "cannot verify"."""
+        with tempfile.TemporaryDirectory() as temp:
+            unreadable = Path(temp) / "config"
+            unreadable.write_text("S3_ENDPOINT=https://x\n", encoding="utf-8")
+            unreadable.chmod(0o000)
+            try:
+                with unittest.mock.patch.object(s3_helper, "CONFIG", str(unreadable)):
+                    with self.assertRaises(SystemExit) as ctx:
+                        s3_helper.read_cfg()
+                self.assertEqual(ctx.exception.code, 4)
+            finally:
+                unreadable.chmod(0o600)
+
     def test_upload_orders_snapshot_before_live_index(self) -> None:
         """The immutable snapshot uploads first: a failed snapshot PUT must
         never leave the live index serving content without its snapshot."""

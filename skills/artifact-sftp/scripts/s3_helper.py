@@ -67,7 +67,11 @@ def read_cfg():
     cfg = {}
     if not os.path.isfile(CONFIG):
         _fail(f"config not found: {CONFIG}")
-    with open(CONFIG, "r", encoding="utf-8") as f:
+    try:
+        handle = open(CONFIG, "r", encoding="utf-8")
+    except OSError as e:
+        _fail(f"config could not be read ({CONFIG}): {e}")
+    with handle as f:
         for raw in f:
             line = raw.rstrip("\n").rstrip("\r")
             if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
@@ -110,6 +114,19 @@ class S3Client:
             _fail("missing required S3 config: S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY")
 
     def _request(self, method, path, query_params=None, headers=None, body=b"", timeout=30):
+        # Every step of a request can raise for reasons that have nothing to do
+        # with whether the object exists: a malformed endpoint (urlparse), an
+        # unknown URL scheme (Request), a body read that dies mid-stream. An
+        # uncaught exception exits 1, and 1 is the code that means "absent" —
+        # so the whole request is wrapped and every failure becomes exit 4.
+        try:
+            return self._request_inner(method, path, query_params, headers, body, timeout)
+        except SystemExit:
+            raise
+        except Exception as e:
+            _fail(f"S3 request failed ({method} {path}): {e}")
+
+    def _request_inner(self, method, path, query_params=None, headers=None, body=b"", timeout=30):
         if headers is None:
             headers = {}
         if query_params is None:
@@ -293,7 +310,17 @@ class S3Client:
 
 
 def main():
+    """Entry point: no unexpected exception may leave this process exiting 1."""
     require_mcp_call()
+    try:
+        _dispatch()
+    except SystemExit:
+        raise
+    except Exception as e:
+        _fail(f"S3 helper failed: {e}")
+
+
+def _dispatch():
     if len(sys.argv) < 2:
         _fail("usage: s3_helper.py exists|upload|get|delete|list|versions|test_connection [ARGS...]", EXIT_USAGE)
 

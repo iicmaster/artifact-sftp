@@ -3,6 +3,7 @@
 - **แผนที่ตรวจสอบ:** [`docs/plans/s3-cloudflare-r2-plan.md`](s3-cloudflare-r2-plan.md)
 - **ADR:** [`docs/adr/0001-s3-cloudflare-r2-driver.md`](../adr/0001-s3-cloudflare-r2-driver.md)
 - **วันที่ตรวจ:** 2026-10-21 (หลัง release v0.22.1)
+- **บันทึกบน:** `origin/main` @ `e2ec858` (v0.22.1) — G15 และการอ้างเลข PR ถูกแก้ตาม PR #35; ดูคอมมิตของ PR นั้นสำหรับสถานะล่าสุด
 - **ขอบเขต:** ตรวจจากซอร์สโค้ดแบบ read-only สองด้าน — (1) setup/onboarding/config (2) publish/read/security-probe/transport
 - **หมายเหตุ:** ไม่มีการรันสคริปต์ใด ๆ ตามนโยบาย `AGENTS.md` (MCP-only) — ทุกข้อสรุปมาจากการอ่านโค้ดและอ้างอิง assertion ที่ยังไม่ถูกรันใน `test_setup.sh` / `test_s3_helper.py`
 
@@ -32,7 +33,7 @@
 
 **จุดที่ต้องแก้:** `s3_helper.py` — `read_cfg`, `S3Client.__init__`, `_request`'s `except Exception`, `_bounded_read` (2 จุด), `put_object`, `get_object`, `delete_object`, `list_objects_v2_paged` ทั้งหมดต้องออกด้วย **4**; กัก `1` ไว้ให้ "404 จริง" เท่านั้น
 
-**สถานะ: แก้แล้วใน PR #34**
+**สถานะ: แก้แล้วใน PR #35** — ครอบคลุมทั้ง HTTP refusal, transport error และ uncaught exception ทุกทาง (รวม `urlparse` ที่พังก่อนสร้าง request และ body read ที่ตายกลางทางใน HTTPError handler)
 
 > หมายเหตุ: สาย SFTP มีช่องโหว่เดียวกัน (`publish.sh` ถือว่า non-zero = absent) แต่สาย SFTP ไม่ได้ *claim* ความแตกต่างนี้ จึงไม่ใช่ regression — แต่เป็นจุดที่ควรแก้ต่อในรอบถัดไป
 
@@ -89,8 +90,9 @@ ADR §3 Step 1 กำหนดให้ **ปิด `r2.dev` public bucket URL**
 | G12 | ต้องมี `s3:ListBucket` แต่เอกสารบอกแค่ "Object Read & Write" — ถ้า token ไม่มี ListBucket → preflight และ `unpublish` จะพังโดยไม่มีข้อความชัด | `s3_helper.py:268,353,371`; `references/setup.md:19` | ระบุ permission ที่ต้องใช้ให้ครบ และทำ `test_connection` fallback ไป HEAD เมื่อ LIST โดน 403 |
 | G13 | ไม่มี test ระดับ `publish.sh` สำหรับสาย S3 เลย — probe exit 7/8, ลำดับ snapshot→index, custody refusal ทั้งหมดถูกทดสอบผ่านสาย SFTP เท่านั้น | `skills/artifact-sftp/scripts/test_publish.sh` (ไม่มีเคส s3) | stub `s3_helper.py` บน PATH แล้วเพิ่มเคส S3 |
 | G14 | `Cache-Control` / `Content-Type` ถูกตั้งตอน PUT แต่ไม่เคยถูกตรวจบน response — edge rule ที่ rewrite header จะทำลาย ADR invariant แบบเงียบๆ | `publish.sh` (`verify_url` เทียบแค่ body hash) | ตรวจ response header ใน `verify_url` แล้ว treat mismatch เป็น exit 6 |
-| G15 | version discovery กลืน error (`\|\| true`) → `VER` ตกกลับเป็น 1 ได้ และ snapshot เดิมถูกเขียนทับในวินาทีเดียวกัน | `publish.sh:215` (สาย S3) | ให้ `versions` ต่าง "ล้มเหลว" ออกจาก "ไม่มีเวอร์ชัน" แล้ว fail closed |
+| G15 | version discovery กลืน error (`\|\| true`) → `VER` ตกกลับเป็น 1 ได้ และ snapshot เดิมถูกเขียนทับในวินาทีเดียวกัน | `publish.sh:215` (สาย S3) | ✅ **แก้แล้วใน PR #35** — สาย S3 ล้มเหลวแบบ fail closed (exit 5) แล้ว ส่วนสาย SFTP ยังเป็น `\|\| true` → ดู G17 |
 | G16 | `--list` exit semantics ต่างกัน: S3 ออก 0 เสมอ, SFTP ผ่าน OpenSSH ออก non-zero ถ้าโฟลเดอร์ไม่มี | `publish.sh:227` vs `:232` | ปรับให้ตรงกัน (ผลกระทบต่ำ เพราะ MCP `list` เป็น local-only) |
+| G17 | **สาย SFTP มีช่องโหว่ fail-open แบบเดียวกัน** — version discovery กลืน error และ existence check ถือว่าทุก failure เป็น "ไม่มีอยู่" ทำให้ข้าม custody check ได้ | `publish.sh:213-223, 399-407`; `sftp_helper.py:81-85, 126-129` | **ต้องทำเป็น PR แยก** — ต้องแยก "ไม่พบ path" ออกจาก "เชื่อมต่อไม่ได้" ใน `sftp_helper.py` ซึ่งต้องแตะ error ของ paramiko โดยเฉพาะ (PR #35 จงเจตนาไม่แตะสาย SFTP เพื่อไม่ให้ scope บวม และให้ทีมอ่านลำดับความสำคัญตัดสิน) |
 
 ---
 

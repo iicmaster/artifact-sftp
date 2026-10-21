@@ -4,7 +4,7 @@
 **สถานะ:** ✅ **ดำเนินการเสร็จสิ้น (Implemented)** — 27 ส.ค. 2026 อนุมัติแผน, ส่งมอบใน release **v0.22.0** (28 ก.ย. 2026)
 **เอกสารตัดสินใจ:** [`docs/adr/0001-s3-cloudflare-r2-driver.md`](../adr/0001-s3-cloudflare-r2-driver.md) — ADR เป็นเจ้าของข้อกำหนดสุดท้าย (fail-closed provisioning sequence, invariants)
 **รายงาน gap ระหว่างแผนกับโค้ดจริง:** [`docs/plans/s3-cloudflare-r2-gap-report.md`](s3-cloudflare-r2-gap-report.md)
-**PR:** #31 (squash-merge เป็น `0611698`) + #34 (แก้ fail-open ของ S3 overwrite guard)
+**PR:** #31 (squash-merge เป็น `0611698` — driver ตัวแรก) + #35 (ปิดช่อง fail-open ของ S3 overwrite guard)
 
 > **หมายเหตุ:** เอกสารฉบับนี้คงข้อความแผนเดิมไว้เพื่อการตรวจสอบย้อนหลัง ยกเว้นสถานะด้านบนและหมายเหตุที่ระบุไว้ชัดเจน — เมื่อแผนกับ ADR ขัดกัน **ADR ชนะเสมอ**
 
@@ -22,7 +22,7 @@
 | §3.2 `setup_status` ตรวจความพร้อมของ bucket | ⚠️ บางส่วน | preflight แบบ bounded (`max-keys=1`) มีแล้ว แต่ต้องเปิดด้วย `verify_connection=true`; ดู gap report G3 |
 | §3.2 Upload พร้อม Content-Type / Cache-Control | ✅ | `s3_helper.py` — ตรงตาม ADR §4 ทุก visibility |
 | §3.2 Probe ทั้ง public และ private URL | ✅ | probe ทั้ง index และ snapshot |
-| §4 ขั้นตอน onboarding 4 ขั้น | ⚠️ บางส่วน | ขั้นตอนอยู่ใน ADR แต่ยังไม่ถูกย้ายเข้าคู่มือผู้ใช้ (`docs/setup.md`) — ดู gap report G1 |
+| §4 ขั้นตอน onboarding 4 ขั้น | ⚠️ บางส่วน | ขั้นตอนอยู่ใน ADR แต่ยังไม่ถูกย้ายเข้าคู่มือผู้ใช้ (`docs/setup.md`) — ดู gap report G2 |
 | §4 ขั้นตอนที่ 1: R2 API Token "Admin Read/Write" | ⚠️ แก้แล้ว | **ADR §3 Step 2 ชนะ** — ใช้ **Object Read & Write scoped เฉพาะ bucket** เท่านั้น ห้าม Admin Read/Write |
 
 ### สิ่งที่ทำได้มากกว่าแผน
