@@ -103,7 +103,13 @@ def _bounded_read(resp):
     length = resp.headers.get("Content-Length") if resp.headers is not None else None
     if length is not None and length.strip().isdigit() and int(length) > MAX_BYTES:
         _fail(f"response exceeds {MAX_BYTES} byte safety ceiling (Content-Length: {length})")
-    data = resp.read(MAX_BYTES + 1)
+    try:
+        data = resp.read(MAX_BYTES + 1)
+    except Exception as e:
+        # The body died mid-read (reset, timeout, proxy error). It must not
+        # escape as an uncaught exception: that exits 1, and 1 is the code
+        # that means "the object is absent".
+        _fail(f"S3 response body could not be read: {e}")
     if len(data) > MAX_BYTES:
         _fail(f"response exceeds {MAX_BYTES} byte safety ceiling (streamed past the limit)")
     return data

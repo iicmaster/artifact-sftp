@@ -253,6 +253,42 @@ class S3HelperTests(unittest.TestCase):
                 ok_client.get_object("key.html")
         self.assertEqual(ctx.exception.code, 4)
 
+    def test_success_path_body_read_failure_is_not_an_absence(self) -> None:
+        """A 200 response whose body dies mid-read must not exit 1 either.
+
+        The error path has its own coverage; this pins the success path, where
+        the read happens inside the response context manager.
+        """
+
+        class ExplodingBody:
+            def fileno(self):
+                return 0
+
+            def read(self, *args, **kwargs):
+                raise OSError("connection reset mid-body")
+
+            def close(self):
+                return None
+
+        class ExplodingResponse:
+            status = 200
+            headers = {}
+
+            def read(self, *args, **kwargs):
+                return ExplodingBody().read(*args, **kwargs)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        client = s3_helper.S3Client(CONFIG)
+        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=ExplodingResponse()):
+            with self.assertRaises(SystemExit) as ctx:
+                client.head_object("key.html")
+        self.assertEqual(ctx.exception.code, 4)
+
     def test_unreadable_config_is_a_failure_not_an_absence(self) -> None:
         """A config file that cannot be read means "cannot verify".
 
