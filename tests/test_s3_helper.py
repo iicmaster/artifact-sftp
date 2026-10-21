@@ -254,18 +254,19 @@ class S3HelperTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 4)
 
     def test_unreadable_config_is_a_failure_not_an_absence(self) -> None:
-        """A config file that cannot be read means "cannot verify"."""
+        """A config file that cannot be read means "cannot verify".
+
+        The path is a directory, so open() raises OSError for every user —
+        including root, where a mode-000 file would still be readable and the
+        check would silently stop testing anything.
+        """
         with tempfile.TemporaryDirectory() as temp:
-            unreadable = Path(temp) / "config"
-            unreadable.write_text("S3_ENDPOINT=https://x\n", encoding="utf-8")
-            unreadable.chmod(0o000)
-            try:
-                with unittest.mock.patch.object(s3_helper, "CONFIG", str(unreadable)):
-                    with self.assertRaises(SystemExit) as ctx:
-                        s3_helper.read_cfg()
-                self.assertEqual(ctx.exception.code, 4)
-            finally:
-                unreadable.chmod(0o600)
+            unreadable = Path(temp) / "config-dir"
+            unreadable.mkdir()
+            with unittest.mock.patch.object(s3_helper, "CONFIG", str(unreadable)):
+                with self.assertRaises(SystemExit) as ctx:
+                    s3_helper.read_cfg()
+            self.assertEqual(ctx.exception.code, 4)
 
     def test_upload_orders_snapshot_before_live_index(self) -> None:
         """The immutable snapshot uploads first: a failed snapshot PUT must

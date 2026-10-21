@@ -49,7 +49,13 @@ def _fail(message, code=EXIT_FAILED):
     timeout) used to look like a 404 and let a publish overwrite a foreign
     slug without a custody check.
     """
-    print(message, file=sys.stderr)
+    try:
+        print(message, file=sys.stderr)
+    except Exception:
+        # A failing stderr write must not change the exit code: the caller
+        # still needs to see 4 ("could not verify"), not an uncaught
+        # exception's status 1 ("absent").
+        pass
     raise SystemExit(code)
 
 

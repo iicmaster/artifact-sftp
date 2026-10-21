@@ -314,10 +314,13 @@ fi
 
 if [ "$dl_rc" -ne 0 ] || [ ! -s "$TMP_DOWNLOAD" ]; then
   # The S3 helper exits 1 only for a genuine 404 and 4 for a transport,
-  # credential, or config failure. Reporting both as "not found" hides the
-  # real cause, which is the difference between retrying and giving up.
-  if [ "$dl_rc" -eq 4 ]; then
-    fail 3 "could not read $tool/$vis/$slug/$target_file from remote storage (the remote read failed, not a missing artifact): $(head -n1 "$HELPER_ERR" 2>/dev/null)"
+  # credential, or config failure; a timeout exits 124. Reporting any of
+  # those as "not found" hides the real cause, which is the difference
+  # between retrying and giving up.
+  if [ "$dl_rc" -ne 1 ]; then
+    reason=$(head -n1 "$HELPER_ERR" 2>/dev/null || true)
+    [ -n "$reason" ] || reason="remote read failed (exit $dl_rc)"
+    fail 3 "could not read $tool/$vis/$slug/$target_file from remote storage (the remote read failed, not a missing artifact): $reason"
   fi
   fail 3 "artifact not found locally in docs/artifacts nor on remote storage: $tool/$vis/$slug/$target_file"
 fi

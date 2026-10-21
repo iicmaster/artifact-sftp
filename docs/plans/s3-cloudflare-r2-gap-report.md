@@ -17,7 +17,7 @@
 |---|---|---|
 | 🔴 P1 | 1 | S3 overwrite guard fail-open เมื่อเกิด transport error (G1) |
 | 🟠 P2 | 6 | คู่มือ onboarding ไม่มีที่ไหนเลย (G2), readiness ไม่ยืนยัน bucket (G3), Transform Rule ไม่มี (G4), wizard/config ตายตอนตั้งค่า (G5), `docs/setup.md` เป็น SFTP-only (G6), probe ไม่ครอบ `r2.dev` + ลำดับ fail-closed ไม่ถูกสื่อ (G7) |
-| 🟡 P3 | 8 | `S3_BUCKET`/`S3_REGION` ไม่ validate, default URL ของ wizard เป็น third-party, คำอธิบาย agent-facing ยังพูดแต่ SFTP, permission `s3:ListBucket` ไม่ได้ระบุ, ไม่มี test ระดับ publish.sh สำหรับ S3, `Cache-Control` ไม่ถูก verify ฝั่ง response, version discovery กลืน error, `--list` exit semantics ต่างกัน |
+| 🟡 P3 | 9 | `S3_BUCKET`/`S3_REGION` ไม่ validate (G8, G9), default URL ของ wizard เป็น third-party (G10), คำอธิบาย agent-facing ยังพูดแต่ SFTP (G11), permission `s3:ListBucket` ไม่ได้ระบุ (G12), ไม่มี test ระดับ publish.sh สำหรับ S3 (G13), `Cache-Control` ไม่ถูก verify ฝั่ง response (G14), `--list` exit semantics ต่างกัน (G16), สาย SFTP มี fail-open เดียวกัน (G17) |
 
 ---
 
@@ -33,7 +33,7 @@
 
 **จุดที่ต้องแก้:** `s3_helper.py` — `read_cfg`, `S3Client.__init__`, `_request`'s `except Exception`, `_bounded_read` (2 จุด), `put_object`, `get_object`, `delete_object`, `list_objects_v2_paged` ทั้งหมดต้องออกด้วย **4**; กัก `1` ไว้ให้ "404 จริง" เท่านั้น
 
-**สถานะ: แก้แล้วใน PR #35** — ครอบคลุมทั้ง HTTP refusal, transport error และ uncaught exception ทุกทาง (รวม `urlparse` ที่พังก่อนสร้าง request และ body read ที่ตายกลางทางใน HTTPError handler)
+**สถานะ: แก้แล้วใน PR #35** — ครอบคลุม HTTP refusal, transport error และ uncaught exception ในตัว helper ทุกทาง (รวม `urlparse` ที่พังก่อนสร้าง request, body read ที่ตายกลางทางใน HTTPError handler และ stderr ที่เขียนไม่ได้) เหลือเพียงขอบของ shell ที่ถือว่าเป็นเสียงของ environment ไม่ใช่โค้ด
 
 > หมายเหตุ: สาย SFTP มีช่องโหว่เดียวกัน (`publish.sh` ถือว่า non-zero = absent) แต่สาย SFTP ไม่ได้ *claim* ความแตกต่างนี้ จึงไม่ใช่ regression — แต่เป็นจุดที่ควรแก้ต่อในรอบถัดไป
 
