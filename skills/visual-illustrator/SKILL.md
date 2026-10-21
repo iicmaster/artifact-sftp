@@ -62,6 +62,125 @@ Archify uses a typed JSON Intermediate Representation (IR) to compile determinis
 
 ---
 
+## 2.5 Agile Declarative AOT Compiler (Ondine Stdio Pipe)
+
+While **Archify** serves as the authoritative engine for complex interactive showcase maps (with 9/9 geometric composition checks, semantic lenses, and sharecards), authoring manual 2D CAD coordinate JSON is verbose and high-friction for everyday documentation.
+
+For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**.
+
+### Execution: Source File by Default — There Is No Inline Heredoc Form
+To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Write the source to a file and pipe it:
+
+```bash
+# The only supported form: write the source to a file, then pipe it. No
+# delimiter and no quoting means the source is never interpreted by the shell,
+# whatever it contains. Run the compiler the readiness check validated — a
+# global `ondine` first, so a host that has one never reaches for the registry.
+if command -v ondine >/dev/null 2>&1; then
+  cat diagram.mmd | ondine > diagram.svg
+else
+  cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+fi
+```
+
+There is deliberately **no inline-heredoc form here**. A quoted heredoc stops
+shell expansion inside the body, but it still ends at a line equal to its own
+delimiter, and everything after that line is executed as shell commands — a
+warning does not make that command safe, so it is not offered. If you must
+carry Mermaid inline, write it to a file first and use the form above.
+
+### Host Availability & Offline Fallback Path
+On offline, air-gapped, or registry-restricted agent hosts without pre-cached npm packages, `npx --yes` cannot fetch `ondine@0.0.3` dynamically.
+- **Availability Check**: Test the compiler you will actually run — a global `ondine` if the host has one, otherwise the pinned npm package. The rendering recipe above branches on the same test, so a host that passes the check never falls back to a registry fetch it cannot make. This check proves **presence**, not health or version: a binary that exists but cannot run still passes it, so a failed compile must fall through to the offline path below rather than be retried blindly:
+  ```bash
+  command -v ondine >/dev/null 2>&1 || npx --yes --prefer-offline ondine@0.0.3 --version >/dev/null 2>&1
+  ```
+- **Offline Fallback**: If `ondine` is unavailable and the host is offline, fall back to:
+  1. **Archify Engine** (`tools/archify/`): Fully vendored in the local repository and runs 100% offline with zero external network dependencies. It covers its five typed archetypes — use it whenever the diagram fits one of them.
+  2. **Direct Handcrafted SVG** for anything else: author the inline SVG yourself under section 5's rules — "Semantic Responsive Inline SVG" (the `viewBox` / `preserveAspectRatio` / `width="100%"` / `<title>` + `<desc>` contract), "Namespaced Element IDs & Security Sanitization" (prefix every reusable ID, e.g. `dia1-`), and "Zero-Collision Geometry & Routing". The skeleton below satisfies those rules as written; extend it rather than improvising a new shape:
+
+     ```html
+     <style>
+       .diagram-card { max-width: 100%; overflow: hidden; }
+       .diagram-card > svg {
+         display: block; width: 100%; height: auto; max-width: 100%; max-height: 480px;
+       }
+     </style>
+     <figure class="diagram-card">
+       <svg viewBox="0 0 800 200" preserveAspectRatio="xMidYMid meet"
+            width="100%" height="auto" style="max-height: 480px"
+            role="img" aria-labelledby="dia1-title dia1-desc">
+         <title id="dia1-title">Publish path</title>
+         <desc id="dia1-desc">Agent to MCP to storage</desc>
+         <defs>
+           <marker id="dia1-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+             <path d="M0 0L8 4L0 8Z" fill="#334155" />
+           </marker>
+         </defs>
+         <g fill="#ffffff" stroke="#334155" stroke-width="2">
+           <rect x="40" y="70" width="180" height="60" rx="12" />
+           <rect x="310" y="70" width="180" height="60" rx="12" />
+           <rect x="580" y="70" width="180" height="60" rx="12" />
+         </g>
+         <g fill="#0f172a" font-family="Sarabun, sans-serif" font-size="20" text-anchor="middle">
+           <text x="130" y="107">Agent</text>
+           <text x="400" y="107">MCP</text>
+           <text x="670" y="107">Storage</text>
+         </g>
+         <g stroke="#334155" stroke-width="3" fill="none" marker-end="url(#dia1-arrow)">
+           <path d="M220 100H310" />
+           <path d="M490 100H580" />
+         </g>
+       </svg>
+       <figcaption>Publish path</figcaption>
+     </figure>
+     ```
+
+     Thai labels in handcrafted SVG need the section 5 treatment: `<tspan dy="1.6em">` — the house value, not the `1.5` audit minimum — and a node box at least 44px tall for a single line (+20px per extra line).
+
+### Supported Declarative Archetypes
+- **`sequenceDiagram`**: Automatic step numbering (`autonumber`), actor/participant shapes, dashed returns, and built-in edge label background pills.
+- **`flowchart TD` / `flowchart LR`**: Subgraphs (nested grouping), standard rectangular shapes, decision diamonds, and database cylinders (`[(Database)]`).
+- **`stateDiagram-v2`**: Start/end states, state transitions, and notes.
+- **`erDiagram`** & **`classDiagram`**: Entity attributes, cardinalities, class methods, and divider sections.
+- **`gantt`** & **`mindmap`**: Timelines, phases, and radial concept hierarchies.
+
+### Non-Negotiable Invariants for Ondine SVG Delivery
+
+1. **Normalize the Compiler Output Before Embedding (not optional):**
+   The compiler's raw output does **not** satisfy the semantic-SVG contract in section 5. Embedding it untouched breaks three mandatory rules, so every rendered SVG passes through these steps first:
+   - **Root attributes.** The CLI emits numeric `width`/`height` attributes and only `max-width:100%;height:auto` in the root style. Replace them with `width="100%"` and `height="auto"`, add `preserveAspectRatio="xMidYMid meet"`, and add `max-height: 480px` — or supply the section 5 container CSS, which is then a prerequisite rather than an optional extra. Without this, a tall diagram escapes the required overview bounds.
+   - **Accessibility metadata.** The renderer emits `<title>`/`<desc>` only when the source carries `accTitle`/`accDescr`. Put both in the Mermaid source, or inject equivalent `<title>` and `<desc>` elements into the `<svg>` before embedding — a screen-reader user otherwise gets only the generic diagram type.
+   - **No external references.** The compiler's URL options allow HTTP(S) links and images by default, so a `click` target or an image node survives into the output and trips the external-URL/asset blocker in `skills/artifact-audit/SKILL.md:82`. Disable links and images in the compiler's URL settings, or strip every `href`, `xlink:href` and `<image>` reference before embedding, and confirm the output contains no `http` reference.
+2. **Option 4 Compliance (Zero Client JS / No Remote Workers):**
+   - The compiled SVG is static and self-contained. Never load `https://ondine.sh` worker endpoints or client-side runtime parsers in the published artifact.
+   - Embed the `<svg>...</svg>` element directly into the HTML document, after the normalization step above.
+3. **Mandatory ID Namespacing on Every Render (`artifact-audit:82`):**
+   - Per `skills/artifact-audit/SKILL.md:82`, reusable SVG resources (`defs`, `marker`, `clipPath`, `linearGradient`) must use unique, namespaced IDs even when rendering a single diagram on a page (e.g. prefixing all IDs with `dia1-` or a diagram slug: `id="dia1-arrow"`, `url(#dia1-arrow)`).
+   - Because the stdin CLI compiler does not automatically attach per-file prefixes (unlike the Vite plugin), authoring agents **MUST namespace all generated IDs and matching references** (e.g. via regex or sed replacement) before embedding into the HTML artifact.
+4. **Typography, Monospace Metrics & Line Breaking (`<br/>`):**
+   - Ondine measures character advances at a fixed 0.6em based on monospace metrics in Rust. To guarantee that rendered labels remain strictly within calculated node bounding boxes without escaping shapes or overlapping edges, **keep `--ondine-font` as a monospace font stack** (e.g. `ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', Consolas, monospace`).
+   - A monospace stack carries no Thai glyph, so Thai labels fall back to a **proportional** Thai face (Sarabun or the system Thai font) whose advances differ from the compiler's 0.6em estimate — the label can still exceed the box it was measured for. For any label containing Thai, **do not assume the measured box holds: split the label with `<br/>`, then verify the rendered node** (or pad its width) before the audit. There is no widely available true monospace Thai face, so verification is the only reliable path.
+   - Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
+   - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`. For a label containing Thai, that is still below this skill's Thai Typography Invariant (`<tspan dy="1.6em">`), so **raise the emitted `dy` to `1.6em` and re-verify the node box** — the taller spacing changes the text height, and the node may need the extra +20px per additional line that the invariant assumes.
+   - A Thai label split with `<br/>` must reach `1.6em` before delivery. Anything between `1.3em` and `1.5em` is an `artifact-audit` WARN and `1.6em` is the house value, so a compiler output left at the compiler default does not satisfy the delivery standard on its own.
+5. **Theme Synchronization via CSS Variables:**
+   - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette while retaining monospace metrics:
+     ```css
+     /* Dark Slate Theme */
+     svg.ondine {
+       --ondine-bg: #111827;
+       --ondine-fg: #f8fafc;
+       --ondine-muted: #94a3b8;
+       --ondine-line: #38bdf8;
+       --ondine-border: #334155;
+       --ondine-surface: #1e293b;
+       --ondine-font: ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', Consolas, monospace;
+     }
+     ```
+
+---
+
 ## 3. Editorial Aesthetics & High-Impact Business Archetypes
 
 Beyond purely technical topology maps, executive and strategic artifacts require publication-grade clarity, minimal visual noise, and strong narrative focus (editorial aesthetic standards inspired by [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)).
@@ -124,6 +243,7 @@ Use clean, descriptive `camelCase` or `snake_case` IDs containing only alphanume
 Do not inject raw HTML tags (`<br>`, `<b>`, `<span>`, `<div>`, `<font>`) inside labels unless specifically targeting an environment with strict HTML trust enabled.
 - For line breaks, use Mermaid's native string line break: `\n` inside double quotes.
 - Example: `serviceA["Core Order Service\n(Port: 8080 | Go 1.22)"]`
+- **Renderer scope:** this rule governs the Mermaid-to-HTML rendering path (mermaid.js and equivalent). The Ondine stdio compiler takes `<br/>` instead, because it turns that tag into `<tspan>` blocks with controlled vertical spacing — see "Non-Negotiable Invariants for Ondine SVG Delivery" §4. Do not mix the two: a source written for the Ondine path must not also carry `\n` breaks, and a source written for the browser path must not carry `<br/>`.
 
 ### Rule 4: Explicit Orientation Declaration
 Always declare diagram orientation explicitly at the top.

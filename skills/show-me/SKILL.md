@@ -110,7 +110,7 @@ src/artifact_sftp_mcp/
 ```
 
 Interaction over time — **Sequence / Interaction Flow**:
-*(Note: Mermaid syntax below is authoring syntax only. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4).*
+*(Note: Mermaid syntax below is authoring syntax. Placing raw Mermaid blocks or unrendered `<pre class="mermaid">` inside the HTML artifact will trigger a mandatory 🔴 **BLOCK** by `artifact-audit` per `skills/artifact-audit/SKILL.md:80`. Always render or compile the diagram to sanitized inline `<svg>` before placing it in the HTML artifact per Option 4. For fast declarative compilation without manual SVG drafting, write the Mermaid source to a file and pipe it to the compiler the readiness check validated (`skills/visual-illustrator/SKILL.md:2.5` carries the exact command) — never by substituting the source into a single-quoted shell argument, which breaks on the first apostrophe inside a label (`User's browser`) and can execute whatever follows it. See `skills/visual-illustrator/SKILL.md:2.5`.)*
 ```mermaid
 sequenceDiagram
     participant Agent
@@ -130,6 +130,17 @@ System change — **Diff**:
 
 Comprehensive system architecture or state map (Level 3 & 4) — **Archify Interactive Diagram**:
 Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <output.html> --quality showcase` to produce interactive, dark/light theme diagrams with route tracing, semantic lenses, and 1200×630 share card exports.
+
+Agile declarative diagrams (Level 1–3) — **Ondine AOT SVG**:
+Compile declarative Mermaid syntax (the archetypes listed in `skills/visual-illustrator/SKILL.md` §2.5 — sequence, flowchart, state, ER, class, gantt, mindmap) directly into clean ~6KB inline SVG to satisfy Option 4 without manual coordinate calculation. Write the Mermaid source to a file and pipe it — never interpolate the source into a quoted shell argument, and there is no inline-heredoc form: a heredoc ends at a line equal to its own delimiter, so everything after it would be executed as shell. Run the compiler the readiness check validated, so a host with a global `ondine` never reaches for the registry:
+```bash
+if command -v ondine >/dev/null 2>&1; then
+  cat diagram.mmd | ondine > diagram.svg
+else
+  cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+fi
+```
+*(Note: If the host is offline or registry-restricted without cached npm packages, check availability with `command -v ondine >/dev/null 2>&1 || npx --yes --prefer-offline ondine@0.0.3 --version >/dev/null 2>&1` and fall back to the in-repo Archify engine, or handcrafted inline SVG, when it is absent. See `skills/visual-illustrator/SKILL.md:2.5`.)*
 
 ---
 
