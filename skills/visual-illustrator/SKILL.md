@@ -74,7 +74,13 @@ To prevent shell syntax errors and argument-injection risks from apostrophes (e.
 ```bash
 # Default: write the source to a file, then pipe it. No delimiter and no quoting
 # means the source is never interpreted by the shell, whatever it contains.
-cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+# Run the compiler the readiness check validated — a global `ondine` first, so a
+# host that has one never reaches for the registry.
+if command -v ondine >/dev/null 2>&1; then
+  cat diagram.mmd | ondine > diagram.svg
+else
+  cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
+fi
 
 # Inline, author-controlled source only: a quoted heredoc is safe against
 # expansion, but NOT against its own delimiter — a line equal to the delimiter
@@ -90,7 +96,7 @@ ONDINE_EOF
 
 ### Host Availability & Offline Fallback Path
 On offline, air-gapped, or registry-restricted agent hosts without pre-cached npm packages, `npx --yes` cannot fetch `ondine@0.0.3` dynamically.
-- **Availability Check**: Test compiler readiness before invoking:
+- **Availability Check**: Test the compiler you will actually run — a global `ondine` if the host has one, otherwise the pinned npm package. The rendering recipe above branches on the same test, so a host that passes the check never falls back to a registry fetch it cannot make:
   ```bash
   command -v ondine >/dev/null 2>&1 || npx --yes --prefer-offline ondine@0.0.3 --version >/dev/null 2>&1
   ```
@@ -150,7 +156,8 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
    - Ondine measures character advances at a fixed 0.6em based on monospace metrics in Rust. To guarantee that rendered labels remain strictly within calculated node bounding boxes without escaping shapes or overlapping edges, **keep `--ondine-font` as a monospace font stack** (e.g. `ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', Consolas, monospace`).
    - A monospace stack carries no Thai glyph, so Thai labels fall back to a **proportional** Thai face (Sarabun or the system Thai font) whose advances differ from the compiler's 0.6em estimate — the label can still exceed the box it was measured for. For any label containing Thai, **do not assume the measured box holds: split the label with `<br/>`, then verify the rendered node** (or pad its width) before the audit. There is no widely available true monospace Thai face, so verification is the only reliable path.
    - Ondine does NOT perform dictionary-based Thai word segmentation. Long Thai labels **MUST use manual `<br/>` tags** or explicit whitespace breaks.
-   - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`.
+   - The compiler transforms `<br/>` into `<tspan>` blocks with vertical spacing conforming to `line-height >= 1.5`. For a label containing Thai, that is still below this skill's Thai Typography Invariant (`<tspan dy="1.6em">`), so **raise the emitted `dy` to `1.6em` and re-verify the node box** — the taller spacing changes the text height, and the node may need the extra +20px per additional line that the invariant assumes.
+   - A Thai label split with `<br/>` must reach `1.6em` before delivery. Anything between `1.3em` and `1.5em` is an `artifact-audit` WARN and `1.6em` is the house value, so a compiler output left at the compiler default does not satisfy the delivery standard on its own.
 4. **Theme Synchronization via CSS Variables:**
    - Ondine SVGs inherit styling through CSS Custom Properties. Map them to the artifact palette while retaining monospace metrics:
      ```css
