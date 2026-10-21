@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="th">
+<head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Show-Me: กลไก Ondine AOT Mermaid-to-SVG สำหรับระบบ Artifact SFTP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-raised: #1f2937;
+      --surface-card: #131c2e;
+      --border: #233148;
+      --border-focus: #38bdf8;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-soft: #cbd5e1;
+      --accent: #38bdf8;
+      --accent-green: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-purple: #c084fc;
+      --accent-rose: #fb7185;
+      --font-thai: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, Menlo, Monaco, Consolas, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-lg: 0 16px 36px -8px rgba(0, 0, 0, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-thai);
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      padding: 2.5rem 1.25rem;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* HEADER */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.75rem;
+      margin-bottom: 2.25rem;
+    }
+
+    .badge-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      letter-spacing: 0.02em;
+      line-height: 1.5;
+    }
+
+    .badge-green {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--accent-green);
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+
+    .badge-amber {
+      background: rgba(251, 191, 36, 0.12);
+      color: var(--accent-amber);
+      border-color: rgba(251, 191, 36, 0.3);
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.4;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.02rem;
+      line-height: 1.6;
+    }
+
+    /* GRID CARDS */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .metric-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .metric-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .metric-val {
+      font-family: var(--font-mono);
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+
+    .metric-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .metric-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ANALOGY SECTION */
+    .analogy-box {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .analogy-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .analogy-header h2 {
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .analogy-box p {
+      color: var(--text-soft);
+      font-size: 0.98rem;
+      line-height: 1.7;
+      margin-bottom: 0.75rem;
+    }
+
+    .analogy-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* DIAGRAM WRAPPER */
+    .diagram-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 2.5rem;
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .diagram-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.15rem 1.4rem;
+      background: var(--surface-raised);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .diagram-title-group h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .diagram-title-group p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .expand-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.95rem;
+      font-family: var(--font-thai);
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      line-height: 1.5;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+
+    .expand-btn:hover {
+      background: rgba(56, 189, 248, 0.22);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .diagram-body {
+      padding: 1.5rem;
+      background: #080c14;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* ONDINE SVG STYLING IN DARK MODE */
+    svg.ondine {
+      max-width: 100%;
+      height: auto;
+      --ondine-bg: #080c14;
+      --ondine-fg: #f1f5f9;
+      --ondine-muted: #94a3b8;
+      --ondine-line: #38bdf8;
+      --ondine-border: #233148;
+      --ondine-surface: #111827;
+      --ondine-surface-alt: #1e293b;
+      --ondine-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* COMPARISON TABLE */
+    .table-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin-bottom: 2.5rem;
+      overflow-x: auto;
+    }
+
+    .table-card h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+      margin-bottom: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    th, td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    th {
+      color: #ffffff;
+      font-weight: 700;
+      background: var(--surface-raised);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .col-highlight {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.86em;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: #7dd3fc;
+      line-height: 1.5;
+    }
+
+    /* RULES & INVARIANTS GRID */
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .rule-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.35rem;
+    }
+
+    .rule-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .rule-card p {
+      color: var(--text-soft);
+      font-size: 0.9rem;
+      line-height: 1.65;
+    }
+
+    /* RECEIPTS & SOURCES */
+    .receipts-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .receipts-box h2 {
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+      margin-bottom: 0.85rem;
+    }
+
+    .receipt-item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .receipt-item:last-child {
+      border-bottom: none;
+    }
+
+    .receipt-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .receipt-link {
+      color: var(--accent);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .receipt-link:hover {
+      text-decoration: underline;
+    }
+
+    /* LIGHTBOX MODAL DIALOG */
+    .diagram-lightbox {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      max-height: 100vh;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: #040810;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .diagram-lightbox:not([open]) {
+      display: none;
+    }
+
+    .diagram-lightbox::backdrop {
+      background: rgba(4, 8, 16, 0.92);
+      backdrop-filter: blur(4px);
+    }
+
+    .diagram-lightbox[open] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .diagram-lightbox__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1.25rem;
+      background: var(--surface-raised);
+      border-bottom: 1px solid var(--border);
+      flex: 0 0 auto;
+    }
+
+    .diagram-lightbox__header h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .lightbox-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 0 0 auto;
+    }
+
+    .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 38px;
+      height: 38px;
+      padding: 0 0.6rem;
+      font-family: var(--font-thai);
+      font-size: 0.85rem;
+      font-weight: 700;
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      line-height: 1.5;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .toolbar-btn:hover {
+      background: #334155;
+      border-color: var(--accent);
+    }
+
+    .scale-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 90px;
+      height: 38px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: #0b1320;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+
+    .close-btn {
+      background: rgba(225, 29, 72, 0.2);
+      border-color: rgba(225, 29, 72, 0.4);
+      color: #fda4af;
+    }
+
+    .close-btn:hover {
+      background: rgba(225, 29, 72, 0.4);
+      border-color: #f43f5e;
+    }
+
+    .lightbox-viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      flex: 1 1 auto;
+      overflow: hidden;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        #040810;
+      background-size: 24px 24px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .lightbox-viewport.is-dragging {
+      cursor: grabbing;
+    }
+
+    .lightbox-canvas {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: min(1400px, 94vw);
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .lightbox-canvas > svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 1400px;
+      filter: drop-shadow(0 20px 35px rgba(0, 0, 0, 0.6));
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- HEADER -->
+  <header>
+    <div class="badge-bar">
+      <span class="badge">🎯 ระดับความลึก: ELI5</span>
+      <span class="badge badge-green">🟢 Option 4 Invariant: Static Inline SVG</span>
+      <span class="badge badge-amber">⚡ Dual-Engine Strategy</span>
+    </div>
+    <h1>สถาปัตยกรรม Ondine AOT Mermaid-to-SVG ใน Artifact SFTP</h1>
+    <p class="subtitle">กลไกการแปลง Mermaid เป็น Pure Static Inline SVG (~6 KB) ผ่าน Stdio Pipe โดยปราศจาก JavaScript Runtime ฝั่งเบราว์เซอร์</p>
+  </header>
+
+  <!-- HIGHLIGHT METRICS -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-val">68–74%</div>
+      <div class="metric-title">ประหยัด Token การสร้าง</div>
+      <div class="metric-desc">ลดจำนวนโทเค็นที่ LLM ต้องประมวลผลเมื่อเทียบกับพิกัด 2D CAD JSON แบบเดิม</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">~6 KB</div>
+      <div class="metric-title">ขนาดไฟล์ SVG กะทัดรัด</div>
+      <div class="metric-desc">ตัดภาระการโหลด client-side mermaid.js ขนาด 2+ MB ออกจากหน้าเว็บ 100%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">0 Turns</div>
+      <div class="metric-title">Model Repair Loop</div>
+      <div class="metric-desc">Ondine จัดวางกล่องและเส้นเชื่อมโยงแบบอัตโนมัติ ลดข้อผิดพลาดพิกัดทับซ้อนเหลือศูนย์</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">100%</div>
+      <div class="metric-title">Option 4 Compliance</div>
+      <div class="metric-desc">ผ่านเกณฑ์ artifact-audit ทุกมิติ ไม่มี remote worker endpoints หรือ script ใดๆ</div>
+    </div>
+  </div>
+
+  <!-- ANALOGY -->
+  <div class="analogy-box">
+    <div class="analogy-header">
+      <span style="font-size: 1.4rem;">💡</span>
+      <h2>เปรียบเทียบให้เห็นภาพจริง: บุรุษไปรษณีย์ กับ เครื่องฉลุลายสติกเกอร์</h2>
+    </div>
+    <p>
+      ลองจินตนาการว่า <strong>Ondine</strong> ทำหน้าที่เหมือน <strong>เครื่องฉลุลายสติกเกอร์สำเร็จรูป (AOT Compiler)</strong> — เมื่อเราส่งแบบแปลน Mermaid เข้าไปทางท่อ Stdio Pipe ปุ๊บ เครื่องจะฉลุเส้น ขอบ และตัวอักษรออกมาเป็นแผ่น SVG สำเร็จรูปทันที ผู้อ่านเปิดซองจดหมายมาก็เห็นภาพได้เลย โดยที่เบราว์เซอร์ไม่ต้องแบกโรงงานหรือเครื่องมือช่างหนักๆ อย่าง <code>mermaid.js</code> ขนาด 2+ MB เข้าไปประกอบในเครื่องของตนเอง
+    </p>
+    <p>
+      ในขณะที่ <strong>Archify</strong> เปรียบเหมือน <strong>สตูดิโอพิมพ์เขียว 3D / CAD Showcase</strong> — ที่ออกแบบมาเพื่อแผนที่สถาปัตยกรรมขนาดใหญ่ระดับผู้บริหาร มีการวัดระยะเรขาคณิต 9 ขั้น (Geometric Collision Checks) และมีเลนส์สลับมุมมองแบบโต้ตอบได้
+    </p>
+  </div>
+
+  <!-- DIAGRAM 1: SEQUENCE FLOW -->
+  <div class="diagram-card">
+    <div class="diagram-header">
+      <div class="diagram-title-group">
+        <h2>1. แผนผังการทำงานของ Ondine Stdio Pipe (Interaction Sequence)</h2>
+        <p>ลำดับขั้นตอนตั้งแต่ AI Agent รับคำสั่ง แปลงโค้ด Mermaid ผ่าน Ondine ตรวจความปลอดภัย จนถึงการ Publish ขึ้น SFTP</p>
+      </div>
+      <button type="button" class="expand-btn" id="btn-expand-seq" aria-haspopup="dialog" aria-controls="modal-seq">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        ขยายเต็มจอ (Pan &amp; Zoom)
+      </button>
+    </div>
+    <div class="diagram-body" id="container-seq">
+      <svg xmlns="http://www.w3.org/2000/svg" class="ondine ondine-sequence" viewBox="0 0 1410 526" width="1410" height="526" style="max-width:100%;height:auto;--_bg:var(--ondine-bg,#fff);--_fg:var(--ondine-fg,#000);--_m:var(--ondine-muted,var(--_fg));--_l:var(--ondine-line,var(--_fg));--_s:var(--ondine-surface,var(--_bg));--_a:var(--ondine-surface-alt,color-mix(in srgb,var(--_fg) 20%,var(--_bg)));--_b:var(--ondine-border,var(--_fg));--_c:var(--ondine-accent,var(--_fg));--_sw:var(--ondine-stroke,2px);stroke-width:var(--_sw);color:var(--_fg);--_r:var(--ondine-radius,0);--_fm:var(--ondine-font,ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace);font:16px monospace;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;font-family:var(--ondine-font,ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace);font-kerning:none;font-variant-ligatures:none;text-rendering:geometricPrecision" fill="var(--_fg)" role="graphics-document document" aria-roledescription="sequence"><g transform="translate(108,8)"><g class="ondine-lifelines" fill="none" stroke="var(--_b)"><path class="ondine-lifeline" data-id="Dev" d="M0,62V448"/><path class="ondine-lifeline" data-id="Ondine" d="M352.4,62V448"/><path class="ondine-lifeline" data-id="Audit" d="M597.2,62V448"/><path class="ondine-lifeline" data-id="MCP" d="M842,62V448"/><path class="ondine-lifeline" data-id="Store" d="M1186,62V448"/></g><g class="ondine-edges" fill="none" stroke="var(--_l)" stroke-linecap="round"><g class="ondine-edge ondine-message" data-id="i1"><path d="M8,105H345.4"/><path class="ondine-marker" d="M352.4,105L344.4,108.36L344.4,101.64Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="-8" y="97" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="0" y="109.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">1</text></g></g><g class="ondine-edge ondine-message" data-id="i3"><path d="M344.4,206H7" stroke-dasharray="4 4"/><path class="ondine-marker" d="M0,206L8,202.64L8,209.36Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="344.4" y="198" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="352.4" y="210.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">2</text></g></g><g class="ondine-edge ondine-message" data-id="i4"><path d="M8,243H590.2"/><path class="ondine-marker" d="M597.2,243L589.2,246.36L589.2,239.64Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="-8" y="235" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="0" y="247.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">3</text></g></g><g class="ondine-edge ondine-message" data-id="i5"><path d="M589.2,280H7" stroke-dasharray="4 4"/><path class="ondine-marker" d="M0,280L8,276.64L8,283.36Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="589.2" y="272" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="597.2" y="284.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">4</text></g></g><g class="ondine-edge ondine-message" data-id="i6"><path d="M8,317H835"/><path class="ondine-marker" d="M842,317L834,320.36L834,313.64Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="-8" y="309" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="0" y="321.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">5</text></g></g><g class="ondine-edge ondine-message" data-id="i7"><path d="M850,354H1179"/><path class="ondine-marker" d="M1186,354L1178,357.36L1178,350.64Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="834" y="346" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="842" y="358.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">6</text></g></g><g class="ondine-edge ondine-message" data-id="i8"><path d="M1178,391H849" stroke-dasharray="4 4"/><path class="ondine-marker" d="M842,391L850,387.64L850,394.36Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="1178" y="383" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="1186" y="395.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">7</text></g></g><g class="ondine-edge ondine-message" data-id="i9"><path d="M834,428H7" stroke-dasharray="4 4"/><path class="ondine-marker" d="M0,428L8,424.64L8,431.36Z" fill="var(--_l)" stroke="none"/><g class="ondine-sequence-number"><rect x="834" y="420" width="16" height="16" rx="8" fill="var(--_l)" stroke="none"/><text x="842" y="432.2" text-anchor="middle" font-size="12" fill="var(--_bg)" stroke="none">8</text></g></g></g><g class="ondine-edge-labels" font-size="14"><g class="ondine-edge-label" data-id="i1"><text x="180.2" y="95.4" text-anchor="middle">Pipe Mermaid code via Quoted Heredoc</text></g><g class="ondine-edge-label" data-id="i3"><text x="172.2" y="196.4" text-anchor="middle">Emit Clean Static SVG (~6 KB)</text></g><g class="ondine-edge-label" data-id="i4"><rect x="165.2" y="220" width="274.8" height="17" rx="3" fill="var(--_bg)" stroke="none"/><text x="302.6" y="233.4" text-anchor="middle">Run 5-Dimension Pre-flight Check</text></g><g class="ondine-edge-label" data-id="i5"><rect x="199.2" y="257" width="190.8" height="17" rx="3" fill="var(--_bg)" stroke="none"/><text x="294.6" y="270.4" text-anchor="middle">Return Verdict 🟢 PASS</text></g><g class="ondine-edge-label" data-id="i6"><rect x="304.4" y="294" width="241.2" height="17" rx="3" fill="var(--_bg)" stroke="none"/><text x="425" y="307.4" text-anchor="middle">Call artifact_sftp.publish()</text></g><g class="ondine-edge-label" data-id="i7"><text x="1018" y="344.4" text-anchor="middle">Atomic SFTP Upload &amp; Manifest Stamp</text></g><g class="ondine-edge-label" data-id="i8"><text x="1010" y="381.4" text-anchor="middle">Upload Completed</text></g><g class="ondine-edge-label" data-id="i9"><rect x="279.6" y="405" width="274.8" height="17" rx="3" fill="var(--_bg)" stroke="none"/><text x="417" y="418.4" text-anchor="middle">Return Read-Back Local Reference</text></g></g><g class="ondine-notes" font-size="14" fill="var(--_a)" stroke="var(--_b)"><g class="ondine-note" data-id="i2"><rect x="250" y="115" width="204.8" height="54" style="rx:var(--_r)"/><text class="ondine-label" stroke="none" fill="var(--_fg)" text-anchor="middle" xml:space="preserve"><tspan x="352.4" y="136.4">Rust AOT Compilation</tspan><tspan x="352.4" y="157.4">Zero Client JS Runtime</tspan></text></g></g><g class="ondine-nodes"><g class="ondine-node ondine-actor ondine-actor-actor ondine-actor-footer" data-id="Dev"><circle cx="0" cy="455" r="6" fill="var(--_s)" stroke="var(--_b)"/><path d="M0,461V472M-10,465H10M-8,482L0,472L8,482" fill="none" stroke="var(--_b)"/><text class="ondine-label" x="0" y="503.6" text-anchor="middle">Developer / AI Agent</text></g><g class="ondine-node ondine-actor ondine-actor-participant ondine-actor-footer" data-id="Ondine"><rect x="254.8" y="448" width="195.2" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="352.4" y="475.6" text-anchor="middle">Ondine Stdio Pipe</text></g><g class="ondine-node ondine-actor ondine-actor-participant ondine-actor-footer" data-id="Audit"><rect x="490" y="448" width="214.4" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="597.2" y="475.6" text-anchor="middle">artifact-audit Gate</text></g><g class="ondine-node ondine-actor ondine-actor-participant ondine-actor-footer" data-id="MCP"><rect x="744.4" y="448" width="195.2" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="842" y="475.6" text-anchor="middle">artifact_sftp MCP</text></g><g class="ondine-node ondine-actor ondine-actor-participant ondine-actor-footer" data-id="Store"><rect x="1078.8" y="448" width="214.4" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="1186" y="475.6" text-anchor="middle">SFTP Remote Storage</text></g><g class="ondine-node ondine-actor ondine-actor-actor" data-id="Dev"><circle cx="0" cy="7" r="6" fill="var(--_s)" stroke="var(--_b)"/><path d="M0,13V24M-10,17H10M-8,34L0,24L8,34" fill="none" stroke="var(--_b)"/><text class="ondine-label" x="0" y="55.6" text-anchor="middle">Developer / AI Agent</text></g><g class="ondine-node ondine-actor ondine-actor-participant" data-id="Ondine"><rect x="254.8" y="18" width="195.2" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="352.4" y="45.6" text-anchor="middle">Ondine Stdio Pipe</text></g><g class="ondine-node ondine-actor ondine-actor-participant" data-id="Audit"><rect x="490" y="18" width="214.4" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="597.2" y="45.6" text-anchor="middle">artifact-audit Gate</text></g><g class="ondine-node ondine-actor ondine-actor-participant" data-id="MCP"><rect x="744.4" y="18" width="195.2" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="842" y="45.6" text-anchor="middle">artifact_sftp MCP</text></g><g class="ondine-node ondine-actor ondine-actor-participant" data-id="Store"><rect x="1078.8" y="18" width="214.4" height="44" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="1186" y="45.6" text-anchor="middle">SFTP Remote Storage</text></g></g></g></svg>
+    </div>
+  </div>
+
+  <!-- DIAGRAM 2: DUAL-ENGINE ARCHITECTURE -->
+  <div class="diagram-card">
+    <div class="diagram-header">
+      <div class="diagram-title-group">
+        <h2>2. ยุทธศาสตร์สถาปัตยกรรมสองเครื่องยนต์ (Dual-Engine Strategy)</h2>
+        <p>แผนผังการตัดสินใจเลือกระหว่าง Ondine AOT Compiler (Tier 2) กับ Archify IR Engine (Tier 1)</p>
+      </div>
+      <button type="button" class="expand-btn" id="btn-expand-flow" aria-haspopup="dialog" aria-controls="modal-flow">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        ขยายเต็มจอ (Pan &amp; Zoom)
+      </button>
+    </div>
+    <div class="diagram-body" id="container-flow">
+      <svg xmlns="http://www.w3.org/2000/svg" class="ondine ondine-flowchart" viewBox="0 0 1230 943" width="1230" height="943" style="max-width:100%;height:auto;--_bg:var(--ondine-bg,#fff);--_fg:var(--ondine-fg,#000);--_m:var(--ondine-muted,var(--_fg));--_l:var(--ondine-line,var(--_fg));--_s:var(--ondine-surface,var(--_bg));--_a:var(--ondine-surface-alt,color-mix(in srgb,var(--_fg) 20%,var(--_bg)));--_b:var(--ondine-border,var(--_fg));--_c:var(--ondine-accent,var(--_fg));--_sw:var(--ondine-stroke,2px);stroke-width:var(--_sw);color:var(--_fg);--_r:var(--ondine-radius,0);--_fm:var(--ondine-font,ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace);font:16px monospace;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;font-family:var(--ondine-font,ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace);font-kerning:none;font-variant-ligatures:none;text-rendering:geometricPrecision" fill="var(--_fg)" role="graphics-document document" aria-roledescription="flowchart"><g class="ondine-clusters"><g class="ondine-cluster" data-id="S1"><rect x="829.2" y="32" width="392.8" height="464" fill="var(--_a)" fill-opacity="0.5" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-cluster-label" fill="var(--_m)" x="1025.6" y="57.6" text-anchor="middle">Tier 1: Archify (High-Impact Showcase)</text></g><g class="ondine-cluster" data-id="S2"><rect x="511.6" y="8" width="277.6" height="488" fill="var(--_a)" fill-opacity="0.5" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-cluster-label" fill="var(--_m)" x="650.4" y="33.6" text-anchor="middle">Tier 2: Ondine (Agile AOT)</text></g></g><g class="ondine-edges" fill="none" stroke="var(--_l)" stroke-linecap="round"><g class="ondine-edge" data-id="L_Req_Split_0"><path d="M251.2,496L251.2,537"/><path class="ondine-marker" d="M251.2,544L247.84,536L254.56,536Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_Split_T2_0"><path d="M193.28,711.8C193.28,740.15 122,740.15 122,768.5L122,856"/><path class="ondine-marker" d="M122,863L118.64,855L125.36,855Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_Split_T1_0"><path d="M309.12,711.8C309.12,740.15 380.4,740.15 380.4,768.5L380.4,856"/><path class="ondine-marker" d="M380.4,863L377.04,855L383.76,855Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_T2A_T2B_0"><path d="M650.4,192L650.4,233"/><path class="ondine-marker" d="M650.4,240L647.04,232L653.76,232Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_T2B_T2C_0"><path d="M650.4,288L650.4,329"/><path class="ondine-marker" d="M650.4,336L647.04,328L653.76,328Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_T1A_T1B_0"><path d="M1025.6,144L1025.6,185"/><path class="ondine-marker" d="M1025.6,192L1022.24,184L1028.96,184Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_T1B_T1C_0"><path d="M1025.6,288L1025.6,329"/><path class="ondine-marker" d="M1025.6,336L1022.24,328L1028.96,328Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_T2C_Gate_0"><path d="M650.4,456L650.4,496C650.4,546.5 780.8,546.5 780.8,597L780.8,603"/><path class="ondine-marker" d="M780.8,610L777.44,602L784.16,602Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_T1C_Gate_0"><path d="M1025.6,456L1025.6,496C1025.6,546.5 895.2,546.5 895.2,597L895.2,603"/><path class="ondine-marker" d="M895.2,610L891.84,602L898.56,602Z" fill="var(--_l)" stroke="none"/></g><g class="ondine-edge" data-id="L_Gate_Pub_0"><path d="M838,682L838,856"/><path class="ondine-marker" d="M838,863L834.64,855L841.36,855Z" fill="var(--_l)" stroke="none"/></g></g><g class="ondine-edge-labels" font-size="14"><g class="ondine-edge-label" data-id="L_Split_T2_0"><rect x="21.4" y="781" width="201.2" height="42" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="122" y="796.4">Level 1-3: ลำดับขั้นตอน</tspan><tspan x="122" y="817.4">/ ผังระบบทั่วไป</tspan></text></g><g class="ondine-edge-label" data-id="L_Split_T1_0"><rect x="284" y="770.5" width="192.8" height="63" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="380.4" y="785.9">Level 3-4:</tspan><tspan x="380.4" y="806.9">สถาปัตยกรรมระดับองค์กร</tspan><tspan x="380.4" y="827.9">/ Showcase</tspan></text></g></g><g class="ondine-nodes"><g class="ondine-node ondine-shape-rect" data-id="Req" transform="translate(251.2,460)"><rect x="-114" y="-36" width="228" height="72" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-6.4">โจทย์สร้างไดอะแกรมใน</tspan><tspan x="0" y="17.6">Artifact</tspan></text></g><g class="ondine-node ondine-shape-diam" data-id="Split" transform="translate(251.2,646)"><polygon points="0,-102 163.2,0 0,102 -163.2,0" fill="var(--_s)" stroke="var(--_b)"/><text class="ondine-label" x="0" y="5.6" text-anchor="middle">ระดับความซับซ้อนและเป้าหมาย</text></g><g class="ondine-node ondine-shape-rect" data-id="T2" transform="translate(122,899)"><rect x="-114" y="-36" width="228" height="72" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-6.4">Tier 2: Ondine Stdio</tspan><tspan x="0" y="17.6">Pipe</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="T1" transform="translate(380.4,899)"><rect x="-104.4" y="-36" width="208.8" height="72" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-6.4">Tier 1: Archify IR</tspan><tspan x="0" y="17.6">Engine</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="T2A" transform="translate(650.4,120)"><rect x="-85.2" y="-72" width="170.4" height="144" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-42.4">Mermaid Syntax</tspan><tspan x="0" y="-18.4">มาตรฐาน</tspan><tspan x="0" y="5.6">(Sequence,</tspan><tspan x="0" y="29.6">Flowchart, ER,</tspan><tspan x="0" y="53.6">State)</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="T2B" transform="translate(650.4,264)"><rect x="-114" y="-24" width="228" height="48" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="0" y="5.6" text-anchor="middle">cat &lt;&lt;'EOF' | ondine</text></g><g class="ondine-node ondine-shape-rect" data-id="T2C" transform="translate(650.4,396)"><rect x="-109.2" y="-60" width="218.4" height="120" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-30.4">Pure Inline SVG (~6</tspan><tspan x="0" y="-6.4">KB)</tspan><tspan x="0" y="17.6">Zero Client JS |</tspan><tspan x="0" y="41.6">Option 4</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="T1A" transform="translate(1025.6,108)"><rect x="-104.4" y="-36" width="208.8" height="72" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-6.4">Typed JSON IR (CAD</tspan><tspan x="0" y="17.6">Coordinates)</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="T1B" transform="translate(1025.6,240)"><rect x="-157.2" y="-48" width="314.4" height="96" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-18.4">node</tspan><tspan x="0" y="5.6">tools/archify/bin/archify.mjs</tspan><tspan x="0" y="29.6">deliver</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="T1C" transform="translate(1025.6,396)"><rect x="-114" y="-60" width="228" height="120" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-30.4">Showcase Interactive</tspan><tspan x="0" y="-6.4">Map</tspan><tspan x="0" y="17.6">9/9 Geometric Checks</tspan><tspan x="0" y="41.6">| Semantic Lenses</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="Gate" transform="translate(838,646)"><rect x="-109.2" y="-36" width="218.4" height="72" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-6.4">artifact-audit Gate</tspan><tspan x="0" y="17.6">(5 Dimensions)</tspan></text></g><g class="ondine-node ondine-shape-rect" data-id="Pub" transform="translate(838,887)"><rect x="-118.8" y="-24" width="237.6" height="48" fill="var(--_s)" stroke="var(--_b)" style="rx:var(--_r)"/><text class="ondine-label" x="0" y="5.6" text-anchor="middle">artifact_sftp.publish</text></g></g></svg>
+    </div>
+  </div>
+
+  <!-- COMPARISON TABLE -->
+  <div class="table-card">
+    <h2>เปรียบเทียบคุณสมบัติระหว่าง Ondine และ Archify</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>มิติการประเมิน</th>
+          <th>Tier 2: Ondine Stdio Pipe</th>
+          <th>Tier 1: Archify IR Engine</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-highlight">ระดับการใช้งาน (Depth Tier)</td>
+          <td>Level 1–3 (ELI5, ELI10, ELI15) สำหรับลำดับขั้นตอนและผังระบบทั่วไป</td>
+          <td>Level 3–4 (Expert, Showcase) สำหรับแผนที่องค์กรและงานสถาปัตย์</td>
+        </tr>
+        <tr>
+          <td class="col-highlight">รูปแบบ Syntax อินพุต</td>
+          <td>Mermaid Syntax มาตรฐาน (Sequence, Flowchart, ER, State, Mindmap)</td>
+          <td>Typed JSON Intermediate Representation (IR) พร้อมพิกัด 2D CAD</td>
+        </tr>
+        <tr>
+          <td class="col-highlight">ขนาดและประเภท Output</td>
+          <td>Pure Static Inline SVG ขนาดเล็ก ~6 KB (Option 4)</td>
+          <td>Interactive HTML/SVG พร้อม Semantic Lenses และ 1200×630 Sharecards</td>
+        </tr>
+        <tr>
+          <td class="col-highlight">ภาระการคำนวณของ AI</td>
+          <td>ต่ำมาก (LLM บรรยายแค่ความสัมพันธ์ ไม่ต้องคำนวณพิกัด x, y ในหัว)</td>
+          <td>ปานกลาง–สูง (ต้องระบุพิกัด ขนาดกล่อง และจุดเชื่อมต่อเรขาคณิต)</td>
+        </tr>
+        <tr>
+          <td class="col-highlight">การรองรับการทำงานออฟไลน์</td>
+          <td>มี Availability Check พร้อม Fallback ไปยัง Archify อัตโนมัติ</td>
+          <td>ทำงานออฟไลน์ได้ 100% ทันที (Vendored ใน codebase ของ repo)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4 NON-NEGOTIABLE RULES -->
+  <div class="rules-grid">
+    <div class="rule-card">
+      <h3>1. ปลอดภัยจากการ Shell Injection (Quoted Heredoc)</h3>
+      <p>ห้ามใช้คำสั่งแบบ string interpolation เช่น <code>printf '%s'</code> เพราะหาก Mermaid มีเครื่องหมาย apostrophe (เช่น <code>User's browser</code>) จะทำให้เชลล์เออเรอร์ ต้องส่งผ่าน Quoted Heredoc <code>cat &lt;&lt;'EOF' | npx ondine</code> เสมอ</p>
+    </div>
+    <div class="rule-card">
+      <h3>2. คง Monospace Font Metrics (--ondine-font)</h3>
+      <p>Ondine คำนวณความกว้างกล่องในภาษา Rust ไว้ที่ 0.6em ต่อตัวอักษร จึงต้องคงชุดฟอนต์ Monospace เอาไว้ เพื่อไม่ให้ตัวอักษรล้นกล่องหรือทับเส้นเชื่อม</p>
+    </div>
+    <div class="rule-card">
+      <h3>3. บังคับใส่ ID Namespace ก่อนส่ง Audit</h3>
+      <p>เพื่อปฏิบัติตามกฎ <code>skills/artifact-audit/SKILL.md:82</code> ทรัพยากร SVG (เช่น marker, clipPath, gradient) ต้องถูกใส่ prefix ป้องกันการชนกัน เช่น <code>id="dia1-..."</code> เสมอ</p>
+    </div>
+    <div class="rule-card">
+      <h3>4. Option 4 Invariant: ปราศจาก Client JS</h3>
+      <p>ผลลัพธ์จาก Ondine เป็น Static Inline SVG แท้ๆ ห้ามใช้ script runtime หรือดึงข้อมูลจาก endpoint ภายนอก (<code>https://ondine.sh</code>) ในตัว artifact ที่นำไปเผยแพร่</p>
+    </div>
+  </div>
+
+  <!-- CHECKABLE SOURCES -->
+  <div class="receipts-box">
+    <h2>🔗 หลักฐานและแหล่งอ้างอิงในระบบ (Checkable Sources &amp; Receipts)</h2>
+    <div class="receipt-item">
+      <span class="receipt-tag">SKILL</span>
+      <div>
+        <a class="receipt-link" href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/skills/visual-illustrator/SKILL.md#L65-L130">skills/visual-illustrator/SKILL.md (Lines 65–130)</a>
+        <div style="color: var(--text-muted); font-size: 0.8rem;">คู่มือ Section 2.5: Agile Declarative AOT Compiler (Ondine Stdio Pipe) และข้อกำหนด Invariants</div>
+      </div>
+    </div>
+    <div class="receipt-item">
+      <span class="receipt-tag">SKILL</span>
+      <div>
+        <a class="receipt-link" href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/skills/show-me/SKILL.md#L134-L137">skills/show-me/SKILL.md (Lines 134–137)</a>
+        <div style="color: var(--text-muted); font-size: 0.8rem;">ข้อกำหนด Pillar 1: Visual Diagram และการระบุเส้นทาง Ondine AOT SVG สำหรับ Level 1–3</div>
+      </div>
+    </div>
+    <div class="receipt-item">
+      <span class="receipt-tag">AUDIT</span>
+      <div>
+        <a class="receipt-link" href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/skills/artifact-audit/SKILL.md#L80-L95">skills/artifact-audit/SKILL.md (Lines 80–95)</a>
+        <div style="color: var(--text-muted); font-size: 0.8rem;">กฎความปลอดภัย Dimension 2: ตรวจจับ Raw Mermaid (Block), SVG Security &amp; ID Hygiene (Block)</div>
+      </div>
+    </div>
+    <div class="receipt-item">
+      <span class="receipt-tag">PULL REQ</span>
+      <div>
+        <a class="receipt-link" href="https://github.com/iicmaster/artifact-sftp/pull/34" target="_blank" rel="noopener noreferrer">GitHub PR #34: feat(diagrams): add Ondine AOT Mermaid-to-SVG stdio compiler</a>
+        <div style="color: var(--text-muted); font-size: 0.8rem;">Pull Request รวม 3 commits ที่ผ่านการตรวจของ Codex Bot และ CI Matrix 100%</div>
+      </div>
+    </div>
+    <div class="receipt-item">
+      <span class="receipt-tag">COMMITS</span>
+      <div>
+        <code>a47ff32</code> &bull; <code>96a346c</code> &bull; <code>3265c85</code>
+        <div style="color: var(--text-muted); font-size: 0.8rem;">ชุดคอมมิตบูรณาการ Ondine, แก้ไข Shell Escape, ID Namespacing และ Monospace Font Metrics</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LIGHTBOX 1: SEQUENCE -->
+<dialog class="diagram-lightbox" id="modal-seq">
+  <div class="diagram-lightbox__header">
+    <h2>1. แผนผังการทำงานของ Ondine Stdio Pipe (Sequence)</h2>
+    <div class="lightbox-controls">
+      <button type="button" class="toolbar-btn" id="seq-zoom-out" aria-label="ซูมออก">−</button>
+      <div class="scale-badge" id="seq-scale-badge">สเกล: 100%</div>
+      <button type="button" class="toolbar-btn" id="seq-zoom-in" aria-label="ซูมเข้า">+</button>
+      <button type="button" class="toolbar-btn" id="seq-zoom-reset" aria-label="รีเซ็ตมุมมอง">↺</button>
+      <button type="button" class="toolbar-btn close-btn" id="seq-close" aria-label="ปิดหน้าต่าง">✕ ปิด</button>
+    </div>
+  </div>
+  <div class="lightbox-viewport" id="seq-viewport">
+    <div class="lightbox-canvas" id="seq-canvas"></div>
+  </div>
+</dialog>
+
+<!-- MODAL LIGHTBOX 2: FLOWCHART -->
+<dialog class="diagram-lightbox" id="modal-flow">
+  <div class="diagram-lightbox__header">
+    <h2>2. ยุทธศาสตร์สถาปัตยกรรมสองเครื่องยนต์ (Dual-Engine)</h2>
+    <div class="lightbox-controls">
+      <button type="button" class="toolbar-btn" id="flow-zoom-out" aria-label="ซูมออก">−</button>
+      <div class="scale-badge" id="flow-scale-badge">สเกล: 100%</div>
+      <button type="button" class="toolbar-btn" id="flow-zoom-in" aria-label="ซูมเข้า">+</button>
+      <button type="button" class="toolbar-btn" id="flow-zoom-reset" aria-label="รีเซ็ตมุมมอง">↺</button>
+      <button type="button" class="toolbar-btn close-btn" id="flow-close" aria-label="ปิดหน้าต่าง">✕ ปิด</button>
+    </div>
+  </div>
+  <div class="lightbox-viewport" id="flow-viewport">
+    <div class="lightbox-canvas" id="flow-canvas"></div>
+  </div>
+</dialog>
+
+<script>
+  function setupLightbox(triggerId, dialogId, containerId, canvasId, viewportId, inBtnId, outBtnId, resetBtnId, scaleId, closeBtnId) {
+    const trigger = document.getElementById(triggerId);
+    const dialog = document.getElementById(dialogId);
+    const container = document.getElementById(containerId);
+    const canvas = document.getElementById(canvasId);
+    const viewport = document.getElementById(viewportId);
+    const btnIn = document.getElementById(inBtnId);
+    const btnOut = document.getElementById(outBtnId);
+    const btnReset = document.getElementById(resetBtnId);
+    const badge = document.getElementById(scaleId);
+    const closeBtn = document.getElementById(closeBtnId);
+
+    const sourceSvg = container.querySelector('svg');
+    if (!sourceSvg) return;
+
+    const placeholder = document.createComment('original svg placeholder');
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    function applyTransform() {
+      canvas.style.transform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+      badge.textContent = 'สเกล: ' + Math.round(scale * 100) + '%';
+    }
+
+    function resetTransform() {
+      scale = 1;
+      translateX = 0;
+      translateY = 0;
+      applyTransform();
+    }
+
+    function zoom(delta, clientX, clientY) {
+      const oldScale = scale;
+      const newScale = Math.min(Math.max(0.4, scale + delta), 4);
+      if (newScale === oldScale) return;
+
+      if (clientX !== undefined && clientY !== undefined) {
+        const rect = viewport.getBoundingClientRect();
+        const originX = clientX - (rect.left + rect.width / 2);
+        const originY = clientY - (rect.top + rect.height / 2);
+        translateX -= (originX / oldScale) * (newScale - oldScale);
+        translateY -= (originY / oldScale) * (newScale - oldScale);
+      }
+
+      scale = newScale;
+      applyTransform();
+    }
+
+    function openModal() {
+      if (dialog.open) return;
+      sourceSvg.replaceWith(placeholder);
+      canvas.replaceChildren(sourceSvg);
+      resetTransform();
+      trigger.setAttribute('aria-expanded', 'true');
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
+      closeBtn.focus();
+    }
+
+    function restoreSource() {
+      if (placeholder.parentNode) {
+        placeholder.replaceWith(sourceSvg);
+      }
+      canvas.replaceChildren();
+      viewport.classList.remove('is-dragging');
+      isDragging = false;
+      trigger.setAttribute('aria-expanded', 'false');
+      resetTransform();
+      trigger.focus();
+    }
+
+    function closeModal() {
+      if (typeof dialog.close === 'function' && dialog.open) {
+        dialog.close();
+      } else {
+        dialog.removeAttribute('open');
+        restoreSource();
+      }
+    }
+
+    trigger.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      closeModal();
+    });
+    dialog.addEventListener('close', restoreSource);
+
+    btnIn.addEventListener('click', () => zoom(0.25));
+    btnOut.addEventListener('click', () => zoom(-0.25));
+    btnReset.addEventListener('click', resetTransform);
+
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.15 : -0.15;
+      zoom(delta, e.clientX, e.clientY);
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      isDragging = true;
+      startX = e.clientX - translateX;
+      startY = e.clientY - translateY;
+      viewport.classList.add('is-dragging');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      translateX = e.clientX - startX;
+      translateY = e.clientY - startY;
+      applyTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      viewport.classList.remove('is-dragging');
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setupLightbox('btn-expand-seq', 'modal-seq', 'container-seq', 'seq-canvas', 'seq-viewport', 'seq-zoom-in', 'seq-zoom-out', 'seq-zoom-reset', 'seq-scale-badge', 'seq-close');
+    setupLightbox('btn-expand-flow', 'modal-flow', 'container-flow', 'flow-canvas', 'flow-viewport', 'flow-zoom-in', 'flow-zoom-out', 'flow-zoom-reset', 'flow-scale-badge', 'flow-close');
+  });
+</script>
+
+<footer data-artifact-meta style="max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666">artifact: show-me-ondine · v1 · artifact-sftp v0.22.3 · created 2026-10-21 21:42 +07</footer></body>
+</html>

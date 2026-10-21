@@ -2,6 +2,18 @@
  
 All notable changes to this project are documented here.
  
+## [0.22.4] - 2026-10-21
+
+- **Added: the Ondine AOT Mermaid-to-SVG compiler path** (ADR-level addition to `visual-illustrator` and `show-me`). Declarative Mermaid compiles to small inline SVG through the Ondine stdio pipe, with the invariants the delivery path needs stated where they apply:
+  - **Source goes through a file, never through the shell.** The documented command writes the Mermaid to a `.mmd` file and pipes it to the compiler. There is deliberately no inline-heredoc form: a quoted heredoc stops expansion inside its body but still ends at a line equal to its own delimiter, and everything after that line would be executed as shell — a warning does not make that command safe, so it is not offered. The recipe also branches on the same test the readiness check uses, so a host with a global `ondine` never reaches for a registry it cannot reach.
+  - **The compiler's output is normalized before embedding.** The raw output does not satisfy this repo's semantic-SVG contract, so a required pre-embedding step covers the root attributes (`width="100%"`, `height="auto"`, `preserveAspectRatio="xMidYMid meet"`, `max-height: 480px`), the accessibility metadata the renderer only emits when the source carries `accTitle`/`accDescr`, and the external links and images the compiler's URL options allow by default.
+  - **ID namespacing is mandatory on every render**, including the stdin CLI path, which — unlike the Vite plugin — attaches no per-file prefix.
+  - **Thai typography is explicit:** the monospace stack matches the compiler's 0.6em metrics, but a monospace stack carries no Thai glyph, so Thai labels fall back to a proportional face and must be split and their rendered node verified or padded; the compiler's 1.5em tspan spacing is below this repo's 1.6em house value and must be raised before delivery.
+  - **The air-gapped path is real:** the vendored Archify engine covers its typed archetypes, and everything else falls back to handcrafted inline SVG with a starter skeleton that already satisfies the container, ID, and geometry rules.
+  - The line-break syntax is scoped per renderer — `\n` for the browser path, `<br/>` for the Ondine path — so the two cannot be mixed in one source.
+
+Full suite: 69 passed.
+
 ## [0.22.3] - 2026-10-21
 
 - **Fixed: a response body that dies mid-read is caught where it happens.** v0.22.2 already routed that failure to exit 4 through the request wrapper, so the overwrite guard could not be fooled by it. The guard now sits inside the body reader as well, so the invariant holds for any caller that reads a response outside that wrapper, and the test exercises the reader directly — it fails when the guard is removed.
