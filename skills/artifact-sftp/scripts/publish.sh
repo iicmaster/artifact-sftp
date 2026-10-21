@@ -409,7 +409,15 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
 fi
 
 # ---------- version + timestamp stamp ----------
-last=$(remote_versions | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+if [ "$STORAGE_DRIVER" = "s3" ]; then
+  # A failed listing must never look like "no versions": the publisher would
+  # reuse version 1 and overwrite the existing immutable snapshot in place.
+  s3_versions=$(_timeout 90 python3 "$S3_HELPER" versions "$TOOL/$VIS/$SLUG" 2>/dev/null) \
+    || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (s3 versions exit $?) — refusing to reuse a version number"
+  last=$(printf '%s\n' "$s3_versions" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+else
+  last=$(remote_versions | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+fi
 [ -n "$last" ] || last=0
 VER=$((last + 1))
 TS=$(date -u +%Y%m%dT%H%M%SZ)

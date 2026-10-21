@@ -1,5 +1,6 @@
 """Offline SigV4 and S3 driver tests for the artifact-sftp publisher helper."""
 
+import contextlib
 import hashlib
 import hmac
 import importlib.util
@@ -160,6 +161,60 @@ class S3HelperTests(unittest.TestCase):
                 client.head_object("key.html")
             self.assertEqual(ctx.exception.code, 4)
 
+    def test_transport_failure_is_never_reported_as_absent(self) -> None:
+        """A transport error must not exit 1: the overwrite guard reads 1 as
+        "the slug is not there, create it" and would overwrite a foreign slug
+        without a custody check."""
+        client = s3_helper.S3Client(CONFIG)
+
+        def mock_transport_error(req, timeout=30):
+            raise urllib.error.URLError("connection refused")
+
+        with unittest.mock.patch.object(urllib.request, "urlopen", side_effect=mock_transport_error):
+            with self.assertRaises(SystemExit) as ctx:
+                client.head_object("key.html")
+        self.assertNotEqual(ctx.exception.code, 1)
+        self.assertEqual(ctx.exception.code, 4)
+
+    def test_exists_op_exits_one_only_for_a_genuine_404(self) -> None:
+        """The `exists` op reserves exit 1 for "the object is really not there"."""
+        with tempfile.TemporaryDirectory() as temp:
+            config_file = Path(temp) / "config"
+            config_file.write_text(
+                "\n".join(f"{key}={value}" for key, value in CONFIG.items()) + "\n",
+                encoding="utf-8",
+            )
+            with unittest.mock.patch.object(s3_helper, "CONFIG", str(config_file)), \
+                 unittest.mock.patch.object(sys, "argv", ["s3_helper.py", "exists", "codex/private/slug/index.html"]), \
+                 unittest.mock.patch.dict(os.environ, {"ARTIFACT_SFTP_MCP_CALL": "1"}):
+
+                def mock_404(req, timeout=30):
+                    raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, io.BytesIO(b"Not Found"))
+
+                with unittest.mock.patch.object(urllib.request, "urlopen", side_effect=mock_404):
+                    with self.assertRaises(SystemExit) as ctx:
+                        s3_helper.main()
+                self.assertEqual(ctx.exception.code, 1)
+
+                def mock_transport_error(req, timeout=30):
+                    raise urllib.error.URLError("connection refused")
+
+                with unittest.mock.patch.object(urllib.request, "urlopen", side_effect=mock_transport_error):
+                    with self.assertRaises(SystemExit) as ctx:
+                        s3_helper.main()
+                self.assertEqual(ctx.exception.code, 4)
+
+    def test_missing_config_is_a_failure_not_an_absence(self) -> None:
+        """A missing config file means "cannot verify", never "not there"."""
+        with tempfile.TemporaryDirectory() as temp:
+            missing = Path(temp) / "no-such-config"
+            with unittest.mock.patch.object(s3_helper, "CONFIG", str(missing)), \
+                 unittest.mock.patch.object(sys, "argv", ["s3_helper.py", "exists", "codex/private/slug/index.html"]), \
+                 unittest.mock.patch.dict(os.environ, {"ARTIFACT_SFTP_MCP_CALL": "1"}):
+                with self.assertRaises(SystemExit) as ctx:
+                    s3_helper.main()
+            self.assertEqual(ctx.exception.code, 4)
+
     def test_upload_orders_snapshot_before_live_index(self) -> None:
         """The immutable snapshot uploads first: a failed snapshot PUT must
         never leave the live index serving content without its snapshot."""
@@ -196,20 +251,26 @@ class S3HelperTests(unittest.TestCase):
         client = s3_helper.S3Client(CONFIG)
         oversized = fake_response()
         oversized.headers = {"Content-Length": str(6 * 1024 * 1024)}
-        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=oversized):
+        stderr = io.StringIO()
+        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=oversized), \
+             contextlib.redirect_stderr(stderr):
             with self.assertRaises(SystemExit) as ctx:
                 client.get_object("key.html")
-        self.assertIn("safety ceiling", str(ctx.exception))
+        self.assertEqual(ctx.exception.code, 4)
+        self.assertIn("safety ceiling", stderr.getvalue())
 
     def test_get_rejects_bodies_streaming_past_the_ceiling(self) -> None:
         """Without Content-Length, reading stops just past the ceiling instead of buffering the object."""
         client = s3_helper.S3Client(CONFIG)
         streaming = fake_response(b"A" * (5 * 1024 * 1024 + 1))
         streaming.headers = {}
-        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=streaming):
+        stderr = io.StringIO()
+        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=streaming), \
+             contextlib.redirect_stderr(stderr):
             with self.assertRaises(SystemExit) as ctx:
                 client.get_object("key.html")
-        self.assertIn("safety ceiling", str(ctx.exception))
+        self.assertEqual(ctx.exception.code, 4)
+        self.assertIn("safety ceiling", stderr.getvalue())
 
 
 if __name__ == "__main__":
