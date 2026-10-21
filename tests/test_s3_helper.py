@@ -253,40 +253,22 @@ class S3HelperTests(unittest.TestCase):
                 ok_client.get_object("key.html")
         self.assertEqual(ctx.exception.code, 4)
 
-    def test_success_path_body_read_failure_is_not_an_absence(self) -> None:
-        """A 200 response whose body dies mid-read must not exit 1 either.
+    def test_bounded_read_catches_a_body_that_dies_mid_read(self) -> None:
+        """The read guard inside _bounded_read must fail with exit 4.
 
-        The error path has its own coverage; this pins the success path, where
-        the read happens inside the response context manager.
+        The handler is called directly on purpose: going through head_object()
+        would pass even without this guard, because the request wrapper already
+        converts the exception — and the test would then protect nothing.
         """
 
-        class ExplodingBody:
-            def fileno(self):
-                return 0
+        class ExplodingResponse:
+            headers = {}
 
             def read(self, *args, **kwargs):
                 raise OSError("connection reset mid-body")
 
-            def close(self):
-                return None
-
-        class ExplodingResponse:
-            status = 200
-            headers = {}
-
-            def read(self, *args, **kwargs):
-                return ExplodingBody().read(*args, **kwargs)
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                return False
-
-        client = s3_helper.S3Client(CONFIG)
-        with unittest.mock.patch.object(urllib.request, "urlopen", return_value=ExplodingResponse()):
-            with self.assertRaises(SystemExit) as ctx:
-                client.head_object("key.html")
+        with self.assertRaises(SystemExit) as ctx:
+            s3_helper._bounded_read(ExplodingResponse())
         self.assertEqual(ctx.exception.code, 4)
 
     def test_unreadable_config_is_a_failure_not_an_absence(self) -> None:
