@@ -132,7 +132,7 @@ Comprehensive system architecture or state map (Level 3 & 4) — **Archify Inter
 Compile via `node tools/archify/bin/archify.mjs deliver <type> <spec.json> <output.html> --quality showcase` to produce interactive, dark/light theme diagrams with route tracing, semantic lenses, and 1200×630 share card exports.
 
 Agile declarative diagrams (Level 1–3) — **Ondine AOT SVG**:
-Compile declarative Mermaid syntax (Sequence, Flowchart with subgraphs, State, ER, Mindmap) directly into clean ~6KB inline SVG to satisfy Option 4 without manual coordinate calculation. Write the Mermaid source to a file and pipe it — never interpolate the source into a quoted shell argument, and never use a heredoc delimiter that could appear in the source. Run the compiler the readiness check validated, so a host with a global `ondine` never reaches for the registry:
+Compile declarative Mermaid syntax (Sequence, Flowchart with subgraphs, State, ER, Mindmap) directly into clean ~6KB inline SVG to satisfy Option 4 without manual coordinate calculation. Write the Mermaid source to a file and pipe it — never interpolate the source into a quoted shell argument, and there is no inline-heredoc form: a heredoc ends at a line equal to its own delimiter, so everything after it would be executed as shell. Run the compiler the readiness check validated, so a host with a global `ondine` never reaches for the registry:
 ```bash
 if command -v ondine >/dev/null 2>&1; then
   cat diagram.mmd | ondine > diagram.svg

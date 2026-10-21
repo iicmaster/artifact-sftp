@@ -68,35 +68,30 @@ While **Archify** serves as the authoritative engine for complex interactive sho
 
 For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**.
 
-### Execution: Source File by Default — Quoted Heredoc Only for Author-Controlled Inline Source
-To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Write the source to a file and pipe it, or — only for source you authored inline yourself — use a quoted heredoc whose delimiter does not appear as a line in that source:
+### Execution: Source File by Default — There Is No Inline Heredoc Form
+To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Write the source to a file and pipe it:
 
 ```bash
-# Default: write the source to a file, then pipe it. No delimiter and no quoting
-# means the source is never interpreted by the shell, whatever it contains.
-# Run the compiler the readiness check validated — a global `ondine` first, so a
-# host that has one never reaches for the registry.
+# The only supported form: write the source to a file, then pipe it. No
+# delimiter and no quoting means the source is never interpreted by the shell,
+# whatever it contains. Run the compiler the readiness check validated — a
+# global `ondine` first, so a host that has one never reaches for the registry.
 if command -v ondine >/dev/null 2>&1; then
   cat diagram.mmd | ondine > diagram.svg
 else
   cat diagram.mmd | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
 fi
-
-# Inline, author-controlled source only: a quoted heredoc is safe against
-# expansion, but NOT against its own delimiter — a line equal to the delimiter
-# ends the heredoc early and everything after it is executed as shell commands.
-# Pick a delimiter that cannot appear in the source, or use the file form above.
-cat <<'ONDINE_EOF' | npx --yes --prefer-offline ondine@0.0.3 > diagram.svg
-sequenceDiagram
-    autonumber
-    User->>System: Submit transaction
-    System-->>User: Approval receipt
-ONDINE_EOF
 ```
+
+There is deliberately **no inline-heredoc form here**. A quoted heredoc stops
+shell expansion inside the body, but it still ends at a line equal to its own
+delimiter, and everything after that line is executed as shell commands — a
+warning does not make that command safe, so it is not offered. If you must
+carry Mermaid inline, write it to a file first and use the form above.
 
 ### Host Availability & Offline Fallback Path
 On offline, air-gapped, or registry-restricted agent hosts without pre-cached npm packages, `npx --yes` cannot fetch `ondine@0.0.3` dynamically.
-- **Availability Check**: Test the compiler you will actually run — a global `ondine` if the host has one, otherwise the pinned npm package. The rendering recipe above branches on the same test, so a host that passes the check never falls back to a registry fetch it cannot make:
+- **Availability Check**: Test the compiler you will actually run — a global `ondine` if the host has one, otherwise the pinned npm package. The rendering recipe above branches on the same test, so a host that passes the check never falls back to a registry fetch it cannot make. This check proves **presence**, not health or version: a binary that exists but cannot run still passes it, so a failed compile must fall through to the offline path below rather than be retried blindly:
   ```bash
   command -v ondine >/dev/null 2>&1 || npx --yes --prefer-offline ondine@0.0.3 --version >/dev/null 2>&1
   ```
@@ -105,7 +100,13 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
   2. **Direct Handcrafted SVG** for anything else: author the inline SVG yourself under section 5's rules — "Semantic Responsive Inline SVG" (the `viewBox` / `preserveAspectRatio` / `width="100%"` / `<title>` + `<desc>` contract), "Namespaced Element IDs & Security Sanitization" (prefix every reusable ID, e.g. `dia1-`), and "Zero-Collision Geometry & Routing". The skeleton below satisfies those rules as written; extend it rather than improvising a new shape:
 
      ```html
-     <figure class="diagram">
+     <style>
+       .diagram-card { max-width: 100%; overflow: hidden; }
+       .diagram-card > svg {
+         display: block; width: 100%; height: auto; max-width: 100%; max-height: 480px;
+       }
+     </style>
+     <figure class="diagram-card">
        <svg viewBox="0 0 800 200" preserveAspectRatio="xMidYMid meet"
             width="100%" height="auto" style="max-height: 480px"
             role="img" aria-labelledby="dia1-title dia1-desc">
@@ -135,7 +136,7 @@ On offline, air-gapped, or registry-restricted agent hosts without pre-cached np
      </figure>
      ```
 
-     Thai labels in handcrafted SVG need the section 5 treatment: `line-height >= 1.5` via `<tspan dy="...">`, and a node box at least 44px tall for a single line (+20px per extra line).
+     Thai labels in handcrafted SVG need the section 5 treatment: `<tspan dy="1.6em">` — the house value, not the `1.5` audit minimum — and a node box at least 44px tall for a single line (+20px per extra line).
 
 ### Supported Declarative Archetypes
 - **`sequenceDiagram`**: Automatic step numbering (`autonumber`), actor/participant shapes, dashed returns, and built-in edge label background pills.
