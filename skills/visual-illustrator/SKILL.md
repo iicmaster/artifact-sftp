@@ -68,7 +68,7 @@ While **Archify** serves as the authoritative engine for complex interactive sho
 
 For fast, declarative diagram generation directly from standard Mermaid syntax without running heavy client-side JavaScript (`mermaid.js`) in the browser, agents can compile Mermaid into pure, lightweight (~6 KB) inline SVG using the **Ondine Stdio Pipe**.
 
-### Execution via Source File or Quoted Heredoc (Shell Injection Safe)
+### Execution: Source File by Default — Quoted Heredoc Only for Author-Controlled Inline Source
 To prevent shell syntax errors and argument-injection risks from apostrophes (e.g. `User's browser`) or special characters in Mermaid labels, **never interpolate Mermaid source into single-quoted `printf` or shell arguments**. Write the source to a file and pipe it, or — only for source you authored inline yourself — use a quoted heredoc whose delimiter does not appear as a line in that source:
 
 ```bash
