@@ -80,5 +80,33 @@ class ChildPathTest(unittest.TestCase):
                 )
 
 
+class ScriptPythonTest(unittest.TestCase):
+    def test_a_script_gets_an_interpreter_that_imports_paramiko(self) -> None:
+        # The root fix: paramiko ships in this runtime (pyproject.toml) and the
+        # scripts are told to use it, so a system/Homebrew python3 upgrade can
+        # no longer take paramiko away from status or publish.
+        with tempfile.TemporaryDirectory() as raw:
+            base = Path(raw)
+            script = base / "probe.sh"
+            script.write_text(
+                '#!/bin/sh\nset -e\n[ -n "$ARTIFACT_SFTP_PYTHON" ]\n'
+                'exec "$ARTIFACT_SFTP_PYTHON" -c "import paramiko; print(\'ok\')"\n',
+                encoding="utf-8",
+            )
+            script.chmod(script.stat().st_mode | stat.S_IXUSR)
+            result = SubprocessRunner().run([str(script)], cwd=base, timeout=60)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ok")
+
+    def test_a_runtime_without_paramiko_is_never_pinned(self) -> None:
+        # Pinning the scripts to an interpreter known to lack paramiko would
+        # recreate the original bug; leave them on their python3 fallback.
+        with mock.patch.object(
+            service_module.importlib.util, "find_spec", return_value=None
+        ):
+            self.assertIsNone(SubprocessRunner._script_python())
+
+
 if __name__ == "__main__":
     unittest.main()

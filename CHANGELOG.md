@@ -2,6 +2,14 @@
  
 All notable changes to this project are documented here.
  
+## [Unreleased]
+
+- **Fixed (root cause): password-auth publishing no longer depends on whichever `python3` the host puts first on PATH.** The bundled scripts ran their Python helpers with bare `python3`, so paramiko had to be installed into the system interpreter by hand — and on a Homebrew host every minor upgrade (e.g. 3.14 to 3.15) starts with empty user site-packages, so `setup_status` reported `python3-paramiko missing` and publish refused again, each time "fixed" by reinstalling paramiko.
+  - `paramiko==5.0.0` is now a declared dependency (same pin CI verifies), so the adapter's own `uv` runtime carries it by construction; `uv.lock` is refreshed.
+  - The adapter exports that runtime to every script as `ARTIFACT_SFTP_PYTHON` (`sys.executable`), and `setup.sh`, `publish.sh`, `read-artifact.sh`, and `setup-wizard.sh` invoke `"${ARTIFACT_SFTP_PYTHON:-python3}"`. Status and publish read the same variable, so status always reports on the interpreter publish will use. A manual shell run keeps the bare `python3` fallback; on Git Bash the Windows drive path is converted with `cygpath -u` before use.
+  - The variable is only exported when the runtime can actually import paramiko. The existing PATH stripping of the adapter's own venv is kept for that fallback, so a script is still never handed the adapter's interpreter when it lacks paramiko.
+  - Regressions: status is READY when `python3` on PATH lacks paramiko but `ARTIFACT_SFTP_PYTHON` has it (and NOT READY without the variable); the adapter's child environment carries an interpreter that imports paramiko; a paramiko-less runtime is never pinned.
+
 ## [0.22.4] - 2026-10-21
 
 - **Added: the Ondine AOT Mermaid-to-SVG compiler path** (ADR-level addition to `visual-illustrator` and `show-me`). Declarative Mermaid compiles to small inline SVG through the Ondine stdio pipe, with the invariants the delivery path needs stated where they apply:

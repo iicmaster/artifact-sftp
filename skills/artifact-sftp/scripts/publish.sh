@@ -23,6 +23,16 @@ if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
   exit 10
 fi
 
+# Interpreter for the bundled Python helpers.  The MCP adapter exports its own
+# runtime, which carries paramiko by construction (pyproject.toml), so a system
+# or Homebrew python3 upgrade can no longer leave publish without it.  A manual
+# shell run falls back to python3 on PATH.  Git Bash cannot exec a Windows
+# drive path, so the adapter's sys.executable is converted first.
+PY=${ARTIFACT_SFTP_PYTHON:-python3}
+if [ -n "${ARTIFACT_SFTP_PYTHON:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  PY=$(cygpath -u "$PY")
+fi
+
 CONFIG="$HOME/.config/artifact-sftp"
 CONFIG="$CONFIG/config"
 MANIFEST="$HOME/.config/artifact-sftp/published.list"
@@ -162,7 +172,7 @@ if [ "$STORAGE_DRIVER" = "s3" ]; then
   : "${S3_ENDPOINT:?missing in config}" "${S3_BUCKET:?missing in config}"
   : "${S3_ACCESS_KEY_ID:?missing in config}" "${S3_SECRET_ACCESS_KEY:?missing in config}"
   S3_HELPER="$(cd "$(dirname "$0")" && pwd)/s3_helper.py"
-  command -v python3 >/dev/null 2>&1 || die 3 "python3 is required for S3 driver"
+  command -v "$PY" >/dev/null 2>&1 || die 3 "python3 is required for S3 driver"
 else
   : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
   : "${REMOTE_DIR:?missing in config}"
@@ -177,7 +187,7 @@ else
   HELPER="$(cd "$(dirname "$0")" && pwd)/sftp_helper.py"
   USE_PY=0
   if [ -n "${SFTP_PASS:-}" ]; then
-    python3 -c 'import paramiko' 2>/dev/null \
+    "$PY" -c 'import paramiko' 2>/dev/null \
       || die 3 "SFTP_PASS is set but python3-paramiko is not installed"
     USE_PY=1
   fi
@@ -214,7 +224,7 @@ fi
 # below, where a failed listing fails closed instead of being swallowed.
 remote_versions() {
   if [ "$USE_PY" = 1 ]; then
-    _timeout 90 python3 "$HELPER" versions "$RPATH" 2>/dev/null || true
+    _timeout 90 "$PY" "$HELPER" versions "$RPATH" 2>/dev/null || true
   else
     BATCH=$(mktemp)
     printf -- '-ls -1 %s\n' "$RPATH" > "$BATCH"
@@ -225,9 +235,9 @@ remote_versions() {
 # ---------- list ----------
 if [ "$MODE" = list ]; then
   if [ "$STORAGE_DRIVER" = "s3" ]; then
-    _timeout 90 python3 "$S3_HELPER" list "$TOOL"
+    _timeout 90 "$PY" "$S3_HELPER" list "$TOOL"
   elif [ "$USE_PY" = 1 ]; then
-    _timeout 90 python3 "$HELPER" list "$REMOTE_DIR/$TOOL"
+    _timeout 90 "$PY" "$HELPER" list "$REMOTE_DIR/$TOOL"
   else
     BATCH=$(mktemp)
     printf -- '-ls -1 %s/%s/private\n-ls -1 %s/%s/public\n' \
@@ -244,9 +254,9 @@ fi
 # established two-directory listing probe.
 if [ "$MODE" = ping ]; then
   if [ "$STORAGE_DRIVER" = "s3" ]; then
-    _timeout 90 python3 "$S3_HELPER" test_connection >&2 || die 3 "s3 connection preflight failed"
+    _timeout 90 "$PY" "$S3_HELPER" test_connection >&2 || die 3 "s3 connection preflight failed"
   elif [ "$USE_PY" = 1 ]; then
-    _timeout 90 python3 "$HELPER" list "$REMOTE_DIR/$TOOL" >&2 || die 3 "sftp connection preflight failed"
+    _timeout 90 "$PY" "$HELPER" list "$REMOTE_DIR/$TOOL" >&2 || die 3 "sftp connection preflight failed"
   else
     BATCH=$(mktemp)
     printf -- '-ls -1 %s/%s/private\n-ls -1 %s/%s/public\n' \
@@ -273,9 +283,9 @@ if [ "$MODE" = delete ]; then
     exit 0
   fi
   if [ "$STORAGE_DRIVER" = "s3" ]; then
-    _timeout 90 python3 "$S3_HELPER" delete "$RPATH" >&2 || die 5 "s3 delete failed for $RPATH"
+    _timeout 90 "$PY" "$S3_HELPER" delete "$RPATH" >&2 || die 5 "s3 delete failed for $RPATH"
   elif [ "$USE_PY" = 1 ]; then
-    _timeout 90 python3 "$HELPER" delete "$RPATH" >&2 || die 5 "delete failed for $RPATH"
+    _timeout 90 "$PY" "$HELPER" delete "$RPATH" >&2 || die 5 "delete failed for $RPATH"
   else
     CHECK_BATCH=$(mktemp)
     printf -- 'ls -d %s\n' "$RPATH" > "$CHECK_BATCH"
@@ -362,9 +372,9 @@ live_index_custody() { # 0: a local copy equals the live index.html, 1: none doe
   local copy dl
   LIVE_INDEX=$(mktemp)
   if [ "$STORAGE_DRIVER" = "s3" ]; then
-    _timeout 90 python3 "$S3_HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
+    _timeout 90 "$PY" "$S3_HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
   elif [ "$USE_PY" = 1 ]; then
-    _timeout 90 python3 "$HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
+    _timeout 90 "$PY" "$HELPER" get "$RPATH/index.html" "$LIVE_INDEX" 2>/dev/null || return 2
   else
     if [ -n "$BATCH" ]; then rm -f "$BATCH"; fi
     BATCH=$(mktemp)
@@ -394,7 +404,7 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
     # redirection itself failed, bash would report status 1 — the same code
     # that means "the slug is genuinely absent" below.
     exists_err=$(mktemp)
-    exists=0; _timeout 90 python3 "$S3_HELPER" exists "$RPATH/index.html" 2>"$exists_err" || exists=$?
+    exists=0; _timeout 90 "$PY" "$S3_HELPER" exists "$RPATH/index.html" 2>"$exists_err" || exists=$?
     rm -f "$exists_err"
     case "$exists" in
       0) require_custody ;;
@@ -402,7 +412,7 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
       *) die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (s3 exists exit $exists) — refusing to risk overwriting an artifact without custody" ;;
     esac
   elif [ "$USE_PY" = 1 ]; then
-    exists=0; _timeout 90 python3 "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
+    exists=0; _timeout 90 "$PY" "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
     if [ "$exists" -eq 0 ]; then require_custody; fi
   else
     BATCH=$(mktemp)
@@ -417,7 +427,7 @@ fi
 if [ "$STORAGE_DRIVER" = "s3" ]; then
   # A failed listing must never look like "no versions": the publisher would
   # reuse version 1 and overwrite the existing immutable snapshot in place.
-  s3_versions=$(_timeout 90 python3 "$S3_HELPER" versions "$TOOL/$VIS/$SLUG" 2>/dev/null) \
+  s3_versions=$(_timeout 90 "$PY" "$S3_HELPER" versions "$TOOL/$VIS/$SLUG" 2>/dev/null) \
     || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (s3 versions exit $?) — refusing to reuse a version number"
   last=$(printf '%s\n' "$s3_versions" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
 else
@@ -618,9 +628,9 @@ err "snapshot: $(wpath "$LOCAL_SNAPSHOT_PATH")"
 
 # ---------- upload ----------
 if [ "$STORAGE_DRIVER" = "s3" ]; then
-  _timeout 120 python3 "$S3_HELPER" upload "$STAMPED" "$RPATH" "$VFILE" "$VIS" >&2 || die 5 "s3 upload failed for $RPATH"
+  _timeout 120 "$PY" "$S3_HELPER" upload "$STAMPED" "$RPATH" "$VFILE" "$VIS" >&2 || die 5 "s3 upload failed for $RPATH"
 elif [ "$USE_PY" = 1 ]; then
-  _timeout 120 python3 "$HELPER" upload "$STAMPED" "$RPATH" "$VFILE" >&2 || die 5 "sftp upload failed for $RPATH"
+  _timeout 120 "$PY" "$HELPER" upload "$STAMPED" "$RPATH" "$VFILE" >&2 || die 5 "sftp upload failed for $RPATH"
 else
   BATCH=$(mktemp)
   {

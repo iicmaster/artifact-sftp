@@ -20,6 +20,8 @@ env -u ARTIFACT_SFTP_MCP_CALL python3 "$HELPER" >"$WORK/direct-helper.out" 2>"$W
   && echo "PASS direct password transport is rejected outside MCP" \
   || { echo "FAIL: direct password transport bypass was not rejected" >&2; exit 1; }
 export ARTIFACT_SFTP_MCP_CALL=1
+# Hermetic: cases that want the adapter interpreter set it explicitly.
+unset ARTIFACT_SFTP_PYTHON
 
 # Sandbox HOME + mock bins
 export HOME="$WORK/home"
