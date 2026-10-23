@@ -77,13 +77,14 @@ visible to the MCP child:
 - SSH-key authentication: `sftp` and a readable owner-only private key;
 - 1Password key references: `sftp`, `op` (or `op.exe`), and an active approved
   1Password session; or
-- password authentication: `python3` with `paramiko` importable by that
-  host-side interpreter.
+- password authentication: nothing extra. `paramiko` is a locked dependency
+  of the MCP adapter's `uv` environment.
 
-The password-auth dependency is intentionally outside the MCP adapter's
-locked `uv` environment. The adapter removes its own virtual-environment
-directory from the child `PATH` before running the publisher, so installing
-`paramiko` only into the adapter venv does not satisfy `artifact_sftp.status`.
+The adapter passes its own interpreter to the scripts as `ARTIFACT_SFTP_PYTHON`,
+and both `artifact_sftp.status` and publish run the Python helpers with it, so a
+system or Homebrew `python3` upgrade cannot take `paramiko` away. Only a manual
+shell run of a script (no `ARTIFACT_SFTP_PYTHON`) falls back to `python3` on
+`PATH`, which then needs `paramiko` itself.
 
 ### Supported host environments
 
@@ -371,9 +372,9 @@ that MCP workflow does not authorize direct SFTP, WebFetch, or a bundled script.
   portable Agent Plugins stdio contract; `mcp.json` deliberately does not set
   them. A host that omits either variable is not a usable portable host for
   this plugin.
-- Password authentication depends on owner-managed `python3` plus `paramiko`,
-  separate from the locked MCP adapter environment. `artifact_sftp.status` reports the
-  missing dependency but cannot install it.
+- Password authentication uses the `paramiko` locked into the MCP adapter
+  environment (`ARTIFACT_SFTP_PYTHON`). `artifact_sftp.status` reports a missing
+  dependency only if that environment is broken; it cannot install it.
 - The MCP protocol does not standardize the host UI's generic “cannot connect”
   message. When no tool is available, the host's redacted process/stderr log
   and launch environment are the authoritative startup diagnostics.

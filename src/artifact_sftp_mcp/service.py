@@ -9,6 +9,7 @@ script contract into structured results.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import os
 import re
 import subprocess
@@ -142,18 +143,19 @@ class SubprocessRunner:
     def _path_without_own_runtime(path: str) -> str:
         """Drop this adapter's own virtual environment from a child's PATH.
 
-        The bundled scripts resolve ``python3`` from PATH and need the one that
-        carries paramiko.  Launched by ``uv run`` — the documented way to start
-        this server — the adapter's own environment is prepended to PATH, and it
-        declares ``mcp`` and nothing else.  The scripts then answer about that
-        interpreter: ``setup.sh --status`` reports ``python3-paramiko missing``
-        through the MCP surface while the identical script run from a shell
-        reports READY, and ``publish.sh`` would refuse for the same reason.
+        The scripts must never be handed an interpreter without paramiko.  The
+        primary guarantee is ``ARTIFACT_SFTP_PYTHON`` (see ``_script_python``):
+        this runtime declares paramiko in pyproject.toml, so the scripts run
+        their helpers with it and no longer depend on whichever ``python3`` the
+        system or Homebrew put first on PATH — whose site-packages are lost on
+        every minor upgrade.
 
-        The environment above is deliberately minimal for safety; PATH is the
-        one variable in it that the launcher rewrites underneath us.  Ask about
-        the interpreter the scripts actually need, and never let our own
-        runtime answer in its place.
+        This stripping stays for the fallback.  When the adapter is started
+        some other way and its runtime lacks paramiko, the scripts resolve bare
+        ``python3`` from PATH; ``uv run`` prepends the adapter's own venv, so
+        without this they would answer about the very interpreter that cannot
+        import paramiko (``setup.sh --status`` reporting ``python3-paramiko
+        missing`` through MCP while a shell reports READY).
         """
         own: set[str] = set()
         for prefix in (sys.prefix, os.environ.get("VIRTUAL_ENV")):
@@ -173,6 +175,20 @@ class SubprocessRunner:
         ]
         return os.pathsep.join(kept) if kept else os.defpath
 
+    @staticmethod
+    def _script_python() -> str | None:
+        """The interpreter the bundled scripts should run their helpers with.
+
+        This adapter's own runtime, because pyproject.toml makes it carry
+        paramiko.  Status and publish both read the same variable, so status
+        always reports on the interpreter publish will use.  ``None`` when this
+        runtime cannot import paramiko, leaving the scripts on their PATH
+        fallback rather than pinning them to an interpreter known to fail.
+        """
+        if not sys.executable or importlib.util.find_spec("paramiko") is None:
+            return None
+        return sys.executable
+
     def run(self, args: Sequence[str], *, cwd: Path, timeout: float) -> CommandResult:
         argv = tuple(str(arg) for arg in args)
         environment = {
@@ -181,6 +197,9 @@ class SubprocessRunner:
         environment.setdefault("HOME", str(Path.home()))
         environment.setdefault("PATH", os.defpath)
         environment["PATH"] = self._path_without_own_runtime(environment["PATH"])
+        python = self._script_python()
+        if python:
+            environment["ARTIFACT_SFTP_PYTHON"] = python
         # The bundled scripts are implementation details, not an agent-facing
         # command surface. This marker is deliberately set only by the adapter.
         environment["ARTIFACT_SFTP_MCP_CALL"] = "1"

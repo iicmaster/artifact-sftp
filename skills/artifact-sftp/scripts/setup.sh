@@ -29,6 +29,16 @@ if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
   exit 10
 fi
 
+# Interpreter for the bundled Python helpers.  The MCP adapter exports its own
+# runtime, which carries paramiko by construction (pyproject.toml), so a system
+# or Homebrew python3 upgrade can no longer leave publish without it.  A manual
+# shell run falls back to python3 on PATH.  Git Bash cannot exec a Windows
+# drive path, so the adapter's sys.executable is converted first.
+PY=${ARTIFACT_SFTP_PYTHON:-python3}
+if [ -n "${ARTIFACT_SFTP_PYTHON:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  PY=$(cygpath -u "$PY")
+fi
+
 CFG_DIR="$HOME/.config/artifact-sftp"
 CONFIG="$CFG_DIR/config"
 KNOWN="$CFG_DIR/known_hosts"
@@ -162,7 +172,7 @@ status() {
       auth='s3-api-token'
       printf 'auth: %s\n' "$auth"
 
-      if ! command -v python3 >/dev/null 2>&1; then
+      if ! command -v "$PY" >/dev/null 2>&1; then
         printf 'dependency: python3 missing\n'; issues=$((issues + 1))
       fi
     else
@@ -183,7 +193,7 @@ status() {
 
       case "$auth" in
         password)
-          if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import paramiko' 2>/dev/null; then
+          if ! command -v "$PY" >/dev/null 2>&1 || ! "$PY" -c 'import paramiko' 2>/dev/null; then
             printf 'dependency: python3-paramiko missing\n'; issues=$((issues + 1))
           fi
           ;;
@@ -360,12 +370,12 @@ fi
 
 case "$DRIVER" in
   s3)
-    command -v python3 >/dev/null 2>&1 || die "python3 is required for S3 driver"
+    command -v "$PY" >/dev/null 2>&1 || die "python3 is required for S3 driver"
     ;;
   sftp)
     case "$AUTH_MODE" in
       pass)
-        command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
+        command -v "$PY" >/dev/null 2>&1 && "$PY" -c 'import paramiko' 2>/dev/null \
           || die "password auth requires python3-paramiko"
         ;;
       key)

@@ -76,6 +76,8 @@ env -u ARTIFACT_SFTP_MCP_CALL bash "$WIZARD_SOURCE" --status >"$TMP_ROOT/wizard-
 [ "$wizard_direct_rc" -eq 10 ] && grep -Fq 'Artifact SFTP MCP' "$TMP_ROOT/wizard-direct.err" \
   || fail "direct setup wizard bypass was not rejected"
 export ARTIFACT_SFTP_MCP_CALL=1
+# Hermetic: cases that want the adapter interpreter set it explicitly.
+unset ARTIFACT_SFTP_PYTHON
 
 # Supply only the external capabilities setup.sh checks. ssh-keyscan returns a
 # deterministic test-only public host key instead of opening the network.
@@ -302,6 +304,27 @@ run_capture "$PASSWORD_STATUS_OUT" env HOME="$PASSWORD_HOME" PATH="$TEST_PATH" \
 assert_rc 0 "password-auth status should be ready with mocked paramiko"
 assert_contains "$PASSWORD_STATUS_OUT" 'auth: password' "password auth mode was not reported"
 assert_not_contains "$PASSWORD_STATUS_OUT" "$PASSWORD_SECRET" "password status leaked its secret"
+
+# The recurring field failure: the python3 first on PATH (a freshly upgraded
+# Homebrew minor) has no paramiko, but the adapter exports its own runtime,
+# which does.  Status must answer about that runtime -- the one publish uses.
+NO_PARAMIKO_BIN="$TMP_ROOT/no-paramiko-bin"
+mkdir -p "$NO_PARAMIKO_BIN"
+printf '%s\n' '#!/bin/sh' 'exit 1' >"$NO_PARAMIKO_BIN/python3"
+printf '%s\n' '#!/bin/sh' 'exit 0' >"$TMP_ROOT/adapter python"
+chmod 700 "$NO_PARAMIKO_BIN/python3" "$TMP_ROOT/adapter python"
+ADAPTER_PY_OUT="$TMP_ROOT/password-status-adapter-python.out"
+run_capture "$ADAPTER_PY_OUT" env HOME="$PASSWORD_HOME" PATH="$NO_PARAMIKO_BIN:$TEST_PATH" \
+  ARTIFACT_SFTP_PYTHON="$TMP_ROOT/adapter python" bash "$SETUP" --status
+assert_rc 0 "status should use ARTIFACT_SFTP_PYTHON, not python3 on PATH"
+assert_not_contains "$ADAPTER_PY_OUT" 'paramiko missing' "status consulted python3 on PATH"
+assert_contains "$ADAPTER_PY_OUT" 'READY' "adapter-python status was not ready"
+# ...and without the variable the same host is correctly reported not ready.
+BARE_PY_OUT="$TMP_ROOT/password-status-bare-python.out"
+run_capture "$BARE_PY_OUT" env HOME="$PASSWORD_HOME" PATH="$NO_PARAMIKO_BIN:$TEST_PATH" \
+  bash "$SETUP" --status
+assert_rc 3 "status without ARTIFACT_SFTP_PYTHON should fall back to python3 on PATH"
+assert_contains "$BARE_PY_OUT" 'python3-paramiko missing' "fallback did not report missing paramiko"
 
 # Without a controlling terminal, first-run setup must stop instead of accepting secrets
 # through redirected stdin or chat-driven tool arguments.

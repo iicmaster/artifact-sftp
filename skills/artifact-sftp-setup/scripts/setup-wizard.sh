@@ -10,6 +10,16 @@ if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
   exit 10
 fi
 
+# Interpreter for the bundled Python helpers.  The MCP adapter exports its own
+# runtime, which carries paramiko by construction (pyproject.toml), so a system
+# or Homebrew python3 upgrade can no longer leave publish without it.  A manual
+# shell run falls back to python3 on PATH.  Git Bash cannot exec a Windows
+# drive path, so the adapter's sys.executable is converted first.
+PY=${ARTIFACT_SFTP_PYTHON:-python3}
+if [ -n "${ARTIFACT_SFTP_PYTHON:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  PY=$(cygpath -u "$PY")
+fi
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 SETUP_SH="$SCRIPT_DIR/../../artifact-sftp/scripts/setup.sh"
 CFG_DIR="$HOME/.config/artifact-sftp"
@@ -177,7 +187,7 @@ if [ "$driver_choice" = "sftp" ]; then
     prompt_default auth_choice "Authentication (password/ssh-key/1password)" "password"
     case "$auth_choice" in
       password)
-        command -v python3 >/dev/null 2>&1 && python3 -c 'import paramiko' 2>/dev/null \
+        command -v "$PY" >/dev/null 2>&1 && "$PY" -c 'import paramiko' 2>/dev/null \
           || die "password auth requires python3-paramiko; install it locally, then rerun setup"
         auth_mode=password
         prompt_secret sftp_pass "SFTP password (hidden)"

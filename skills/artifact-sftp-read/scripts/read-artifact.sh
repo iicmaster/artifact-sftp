@@ -10,6 +10,16 @@ if [ "${ARTIFACT_SFTP_MCP_CALL:-}" != '1' ]; then
   exit 10
 fi
 
+# Interpreter for the bundled Python helpers.  The MCP adapter exports its own
+# runtime, which carries paramiko by construction (pyproject.toml), so a system
+# or Homebrew python3 upgrade can no longer leave publish without it.  A manual
+# shell run falls back to python3 on PATH.  Git Bash cannot exec a Windows
+# drive path, so the adapter's sys.executable is converted first.
+PY=${ARTIFACT_SFTP_PYTHON:-python3}
+if [ -n "${ARTIFACT_SFTP_PYTHON:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  PY=$(cygpath -u "$PY")
+fi
+
 CONFIG="$HOME/.config/artifact-sftp/config"
 MAX_BYTES=$((5 * 1024 * 1024))
 
@@ -260,7 +270,7 @@ if [ "$STORAGE_DRIVER" = "s3" ]; then
     S3_HELPER="$ARTIFACT_SFTP_PLUGIN_ROOT/skills/artifact-sftp/scripts/s3_helper.py"
   fi
   HELPER_ERR=$(mktemp)
-  _timeout 30 python3 "$S3_HELPER" get "$tool/$vis/$slug/$target_file" "$TMP_DOWNLOAD" 2>"$HELPER_ERR" || dl_rc=$?
+  _timeout 30 "$PY" "$S3_HELPER" get "$tool/$vis/$slug/$target_file" "$TMP_DOWNLOAD" 2>"$HELPER_ERR" || dl_rc=$?
 else
   : "${SFTP_HOST:?missing in config}" "${SFTP_USER:?missing in config}"
   : "${REMOTE_DIR:?missing in config}"
@@ -275,7 +285,7 @@ else
 
   USE_PY=0
   if [ -n "${SFTP_PASS:-}" ]; then
-    python3 -c 'import paramiko' 2>/dev/null \
+    "$PY" -c 'import paramiko' 2>/dev/null \
       || fail 3 "SFTP_PASS is set but python3-paramiko is not installed"
     USE_PY=1
   fi
@@ -302,7 +312,7 @@ else
   RPATH="$REMOTE_DIR/$tool/$vis/$slug/$target_file"
 
   if [ "$USE_PY" = 1 ]; then
-    _timeout 30 python3 "$HELPER" get "$RPATH" "$TMP_DOWNLOAD" 2>/dev/null || dl_rc=$?
+    _timeout 30 "$PY" "$HELPER" get "$RPATH" "$TMP_DOWNLOAD" 2>/dev/null || dl_rc=$?
   else
     BATCH=$(mktemp)
     printf -- 'get "%s" "%s"\n' "$RPATH" "$TMP_DOWNLOAD" > "$BATCH"
