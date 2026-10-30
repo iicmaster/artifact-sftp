@@ -2,7 +2,7 @@
  
 All notable changes to this project are documented here.
  
-## [Unreleased]
+## [0.22.5] - 2026-10-30
 
 - **Fixed: the SFTP overwrite guard could fail open — the same hole v0.22.2 closed for S3 (gap G17).** On the password path, `sftp_helper.py exists` exited 1 for *every* failure — a missing local config, a missing pinned known_hosts, DNS, connection, auth, a host-key mismatch, a server refusal, even an uncaught exception — and exit 1 is what `publish.sh` reads as *"the slug is genuinely absent, safe to create"*. Any transport error could therefore let a publish overwrite a remote slug with no custody check at all. The helper now carries the same contract as `s3_helper.py`: exit 1 means a confirmed remote ENOENT only; every other failure exits 4, usage exits 2, and the `__main__` guard maps anything unexpected to 4 so an interpreter status 1 can no longer appear by accident. `get` keeps its tri-state for the read path (confirmed absence still reports not-found; transport and credential failures report a failed read), and `list` no longer reports a host that died mid-listing as an empty success, which the `--ping` preflight depends on.
   - The OpenSSH (key-auth) path failed open in more places, all fixed: the existence check treated every non-zero exit as "absent"; version discovery swallowed failures with `|| true` behind a hyphen-prefixed `-ls` (which tolerates command failure by design); and the delete pre-check used an `ls -d` flag that sftp(1) does not have, so a delete on a dead connection skipped removal yet still printed `deleted:` as success. Classification never branches on undocumented abort codes and never parses server stderr: 255 (the connection-level failure) is a hard refusal, and a path-level failure is only accepted as "absent" when **creating the directory succeeds** — `mkdir` completing is positive proof the slug directory did not exist (and is what a first publish needs anyway), while mkdir failing on a live transport means the directory exists or was refused, which dies with exit 5. `deleted:` is now printed only when the removal batch itself ran to completion; an unconfirmable deletion refuses instead.
@@ -13,6 +13,9 @@ All notable changes to this project are documented here.
   - The adapter exports that runtime to every script as `ARTIFACT_SFTP_PYTHON` (`sys.executable`), and `setup.sh`, `publish.sh`, `read-artifact.sh`, and `setup-wizard.sh` invoke `"${ARTIFACT_SFTP_PYTHON:-python3}"`. Status and publish read the same variable, so status always reports on the interpreter publish will use. A manual shell run keeps the bare `python3` fallback; on Git Bash the Windows drive path is converted with `cygpath -u` before use.
   - The variable is only exported when the runtime can actually import paramiko. The existing PATH stripping of the adapter's own venv is kept for that fallback, so a script is still never handed the adapter's interpreter when it lacks paramiko.
   - Regressions: status is READY when `python3` on PATH lacks paramiko but `ARTIFACT_SFTP_PYTHON` has it (and NOT READY without the variable); the adapter's child environment carries an interpreter that imports paramiko; a paramiko-less runtime is never pinned.
+- **Documentation correction for v0.22.0 [Errata, corrected in this release]:** the v0.22.0 entry below claimed `artifact_sftp.setup` "writes and validates S3 profiles". It does not — the MCP tool is read-only and reports the pre-provisioning boundary. Profiles are provisioned by the environment owner out of band (the bundled setup skill may scaffold a placeholder template whose values the owner completes); agent operations remain MCP-only. The incorrect sentence in the v0.22.0 entry has also been corrected in place, marked with this errata.
+
+Full suite: 103 passed.
 
 ## [0.22.4] - 2026-10-21
 
@@ -56,7 +59,7 @@ Full suite: 68 passed.
   `Cache-Control: private, no-cache` and are expected to sit behind Cloudflare Access; public
   artifacts ship `public, max-age=300`. The ADR records the full Cloudflare recipe, including the
   trailing-slash index-rewrite Transform Rule.
-  - `artifact_sftp.setup` writes and validates S3 profiles; `artifact_sftp.status` reports
+  - `artifact_sftp.setup` reports the pre-provisioning boundary for S3 (profiles are provisioned by the environment owner out of band; the bundled setup skill may scaffold a placeholder template the owner completes) [Errata corrected in v0.22.5 — this line originally, wrongly, claimed the tool writes and validates profiles]; `artifact_sftp.status` reports
     `storage driver: s3` and `auth: s3-api-token`, and readiness no longer requires `known_hosts`
     for S3. Endpoints the request builder cannot preserve (no authority, or a path prefix) are
     rejected at setup time.
