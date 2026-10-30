@@ -152,6 +152,11 @@ inline chat and pure Markdown.
 
 ### Dimension 5: 🔒 Security & Privacy Hygiene Audit
 
+- **Third-Party Active Content on a Shared Origin (🔴 BLOCK):**
+  - All artifacts published to one custom domain share a single browser origin, hence a single trust domain (ADR 0002 / v1.0 spec). Active or embeddable content fetched from a *different* origin makes that shared domain a cross-artifact attack surface: untrusted third-party HTML running same-origin can reach private artifacts published beside it. Treat any such external active content as untrusted third-party HTML.
+  - 🔴 **BLOCK:** any `<script>`, `<iframe>`, `<object>`, or `<embed>` whose `src`/`data` points at an absolute `http(s)://` URL or a protocol-relative (`//host`) URL that is not this deployment's own `PUBLIC_BASE_URL` origin. Inline `<script>` blocks authored for this artifact and same-document relative URLs are allowed; an absolute URL is only keepable when its origin is exactly the configured `PUBLIC_BASE_URL` and the auditor can see it is first-party.
+    - Detectable pattern (run case-insensitively against the serialized HTML the artifact serves, not the Markdown source): `<(?:script|iframe|object|embed)\b[^>]*?\b(?:src|data)\s*=\s*(["']?)\s*(?:https?:)?//`
+    - Regression lock: `tests/test_audit_third_party_html.py` pins this exact pattern string and its positive/negative cases, so the rule text and the detector cannot drift apart.
 - **Secret & Token Scan (Hard Blocker):**
   - Detects accidental inclusion of PEM private keys, 1Password vault references, cloud provider access keys, bearer tokens, and raw API passwords.
 - **Sensitive PII & Internal Network Leaks:**
