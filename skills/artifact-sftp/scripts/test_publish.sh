@@ -755,5 +755,13 @@ grep -q -- '--project requires a v1 profile' "$WORK/errout" \
   && echo "PASS legacy --project refusal message" \
   || { echo "FAIL: legacy --project message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
 
+# ---------- fresh, unprovisioned machine: not-ready, fail-closed ----------
+mkdir -p "$WORK/empty-home"
+expect 3 "publish without any config refuses (not-ready, never a silent fallback)" \
+  -- env HOME="$WORK/empty-home" ARTIFACT_SFTP_MCP_CALL=1 bash "$PUB" --slug fresh "$good"
+grep -q 'config not found' "$WORK/errout" \
+  && echo "PASS fresh machine reports the missing config instead of assuming a backend" \
+  || { echo "FAIL: fresh-machine message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi

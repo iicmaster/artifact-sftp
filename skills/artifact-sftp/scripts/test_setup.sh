@@ -585,5 +585,95 @@ LEGACY_STATUS_OUT="$TMP_ROOT/status-legacy.out"
 run_capture "$LEGACY_STATUS_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
 grep -Fq 'profile: legacy (/tool/ layout)' "$LEGACY_STATUS_OUT" || fail "legacy status line missing"
 
+# ---------- wizard preselects Cloudflare R2 for a new profile (v1.0 spec) ----------
+# Scripted terminal session on fd3: Return at the driver prompt must choose the
+# R2 preselect (s3), not the legacy sftp driver.
+WIZ_HOME="$TMP_ROOT/home-wizard"
+mkdir -p "$WIZ_HOME"
+WIZ_CFG_DIR="$WIZ_HOME/.config/artifact-sftp"
+WIZARD="$SCRIPT_DIR/../../artifact-sftp-setup/scripts/setup-wizard.sh"
+[ -f "$WIZARD" ] || fail "wizard script not found: $WIZARD"
+WIZ_OUT="$TMP_ROOT/wizard.out"
+# The wizard demands a real terminal ([ -t 0]) for secrets, so the session is
+# driven through a pty by a small expect-in-python: Return at the driver prompt
+# must pick the R2 preselect (s3), never the legacy sftp driver.
+WIZ_RC=0
+python3 - "$WIZARD" "$WIZ_HOME" > "$WIZ_OUT" 2>&1 <<'PYEOF' || WIZ_RC=$?
+import os, pty, select, subprocess, sys
+
+wizard, home = sys.argv[1], sys.argv[2]
+env = dict(os.environ)
+env["HOME"] = home
+env["ARTIFACT_SFTP_MCP_CALL"] = "1"
+
+master, slave = pty.openpty()
+proc = subprocess.Popen(
+    ["bash", wizard], stdin=slave, stdout=slave, stderr=slave,
+    env=env, close_fds=True,
+)
+os.close(slave)
+
+steps = [
+    (b"Storage Driver", b"\r"),                                   # preselect: s3
+    (b"S3 Endpoint URL", b"https://wizard-account.r2.cloudflarestorage.com\r"),
+    (b"S3 Bucket Name", b"wizard-bucket\r"),
+    (b"S3 Access Key ID", b"WIZARD-ACCESS-KEY-ID-EXAMPLE\r"),
+    (b"S3 Secret Access Key", b"WIZARD-SECRET-EXAMPLE\r"),
+    (b"S3 Region", b"\r"),
+    (b"Public base URL", b"https://artifacts.wizard.test.invalid\r"),
+    (b"v1 project namespace", b"\r"),
+    (b"Default page language", b"\r"),
+    (b"Footer timezone", b"\r"),
+    (b"Default runtime", b"\r"),
+    (b"Zero Trust service token", b"\r"),
+    (b"Write the private config?", b"y\r"),
+]
+def master_read(fd):
+    # Linux raises EIO on the master once the slave side is fully closed;
+    # macOS returns EOF. Both mean "child is gone".
+    try:
+        return os.read(fd, 4096)
+    except OSError:
+        return b""
+
+buf = b""
+for prompt, answer in steps:
+    while prompt not in buf:
+        ready, _, _ = select.select([master], [], [], 30)
+        if not ready:
+            sys.exit(f"wizard timed out waiting for: {prompt!r}")
+        chunk = master_read(master)
+        if not chunk:
+            sys.exit(f"wizard exited before prompting for: {prompt!r}")
+        buf += chunk
+    os.write(master, answer)
+    buf = b""
+while True:  # drain to process exit
+    ready, _, _ = select.select([master], [], [], 30)
+    if not ready:
+        break
+    if not master_read(master):
+        break
+sys.exit(proc.wait(timeout=60))
+PYEOF
+[ "$WIZ_RC" -eq 0 ] || { sed 's/^/  | /' "$WIZ_OUT"; fail "wizard did not complete with the preselected R2 driver (exit $WIZ_RC)"; }
+tr -d '\r' < "$WIZ_CFG_DIR/config" > "$WIZ_CFG_DIR/config.normalized"
+assert_not_contains "$WIZ_OUT" "WIZARD-SECRET-EXAMPLE" "wizard leaked the R2 secret to output"
+assert_rc 0 "wizard should complete with the preselected R2 driver"
+grep -Fqx 'STORAGE_DRIVER=s3' "$WIZ_CFG_DIR/config.normalized" \
+  || fail "wizard default driver is not s3 — R2 is no longer preselected for new profiles"
+grep -Fqx 'S3_BUCKET=wizard-bucket' "$WIZ_CFG_DIR/config.normalized" || fail "wizard did not record the R2 bucket"  # pragma: allowlist secret
+expected_secret_line='S3_SECRET_ACCESS_KEY=WIZARD-SECRET-EXAMPLE'  # pragma: allowlist secret
+grep -Fqx "$expected_secret_line" "$WIZ_CFG_DIR/config.normalized" \
+  || fail "wizard did not record the R2 secret"
+grep -Fqx 'S3_REGION=auto' "$WIZ_CFG_DIR/config.normalized" || fail "wizard default region missing"
+assert_not_contains "$WIZ_OUT" "WIZARD-SECRET-EXAMPLE" "wizard leaked the R2 secret to output"
+
+# A machine that has not been provisioned at all must be NOT READY — the empty
+# default can never silently behave as a working legacy SFTP install.
+WIZ_STATUS_OUT="$TMP_ROOT/wizard-status.out"
+run_capture "$WIZ_STATUS_OUT" env HOME="$WIZ_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+assert_contains "$WIZ_STATUS_OUT" 'storage driver: s3' "provisioned wizard profile lost its driver"
+
 printf 'PASS: artifact-sftp setup offline regression tests\n'
 

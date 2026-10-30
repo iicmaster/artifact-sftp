@@ -155,11 +155,14 @@ trap cleanup EXIT
 err "Enter connection settings. Press Return to accept a default."
 
 while :; do
-  prompt_default driver_choice "Storage Driver (sftp/s3)" "sftp"
+  # v1.0 spec: Cloudflare R2 is the PRESELECTED recipe for new profiles —
+  # pressing Return at this prompt chooses s3. SFTP stays one keystroke away.
+  prompt_default driver_choice "Storage Driver (s3=Cloudflare R2 [default] / sftp)" "s3"
   case "$driver_choice" in sftp|s3) break ;; *) err "Choose sftp or s3." ;; esac
 done
 
 if [ "$driver_choice" = "s3" ]; then
+  err "Cloudflare R2 recipe: private bucket (r2.dev off) + bucket-scoped Object Read & Write token + Cloudflare Access covering /*/private/* BEFORE binding the custom domain (docs/adr/0001)."
   prompt_required s3_endpoint "S3 Endpoint URL (e.g. https://<account>.r2.cloudflarestorage.com)"
   prompt_required s3_bucket "S3 Bucket Name"
   prompt_required s3_key_id "S3 Access Key ID"
