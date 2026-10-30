@@ -2,9 +2,13 @@
  
 All notable changes to this project are documented here.
  
-## [Unreleased]
+## [1.0.1] - 2026-10-30
 
-- **Changed: the setup wizard now preselects Cloudflare R2 for a new profile** — pressing Return at the Storage Driver prompt chooses `s3` (the R2 recipe per the v1.0 spec/ADR 0002); SFTP remains one keystroke away, and the R2 branch states the provisioning checklist (private bucket with `r2.dev` off, bucket-scoped token, Access before binding the domain). Regression-tested offline: a fully scripted pty session (mini-expect over python `pty`, CI-safe) asserts the preselect lands `STORAGE_DRIVER=s3` with the secret never echoed, and a fresh unprovisioned machine stays fail-closed — `publish` refuses with `config not found` and `--status` reports `NOT READY`/`config: missing` rather than silently behaving as any working backend.
+- **Changed: the setup wizard now preselects Cloudflare R2 for a new profile** — pressing Return at the Storage Driver prompt chooses `s3` (the R2 recipe per the v1.0 spec/ADR 0002); SFTP remains one keystroke away, and the R2 branch states the provisioning checklist (private bucket with `r2.dev` off, bucket-scoped token, Access before binding the domain). Regression-tested offline: a fully scripted pty session (mini-expect over python `pty`, CI-safe, EIO-as-EOF for Linux masters) asserts the preselect lands `STORAGE_DRIVER=s3` with the secret never echoed, and a fresh unprovisioned machine stays fail-closed — `publish` refuses with `config not found` and `--status` reports `NOT READY`/`config: missing` rather than silently behaving as any working backend.
+
+Full suite: 109 passed.
+
+## [1.0.0] - 2026-10-30
 
 ## [1.0.0] - 2026-10-30
 
