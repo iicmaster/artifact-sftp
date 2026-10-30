@@ -251,9 +251,26 @@ sftp_root_alive() { # -> 0 transport answered | non-zero unreachable
 # absence. This replaces trusting a liveness probe as an existence proof: the
 # root answering says nothing about whether the slug directory is listable.
 sftp_mkdir_probe() { # <path> -> 0 created (was absent) | non-zero exists/refused
-  local path=$1 probe rc=0
+  local path=$1 probe rc=0 cur='' rest seg
   probe=$(mktemp)
-  printf 'mkdir "%s"\n' "$path" > "$probe"
+  : > "$probe"
+  # Tolerant ancestor mkdirs, mirroring the upload batch: a missing parent is
+  # the normal cold-tree case (new tool/vis) and must not fail the probe. Only
+  # the FINAL mkdir is strict — it is the proof: its success means the slug
+  # directory itself did not exist (EEXIST refuses otherwise), while its failure
+  # on a live transport means exists-or-refused.
+  rest=${path#/}
+  while [ -n "$rest" ]; do
+    seg=${rest%%/*}
+    cur="${cur:+$cur/}$seg"
+    if [ "$seg" = "$rest" ]; then
+      printf 'mkdir "%s"\n' "$cur" >> "$probe"
+      rest=''
+    else
+      printf -- '-mkdir "%s"\n' "$cur" >> "$probe"
+      rest=${rest#*/}
+    fi
+  done
   _timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$probe" "$DEST" >/dev/null 2>&1 || rc=$?
   rm -f "$probe"
   return "$rc"

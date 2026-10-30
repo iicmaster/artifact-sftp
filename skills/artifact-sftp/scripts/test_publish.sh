@@ -47,9 +47,11 @@ if [ -n "$batch" ]; then
   dst=$(sed -n 's/^get "[^"]*" "\([^"]*\)".*/\1/p' "$batch" | tail -1)
   if [ -n "$dst" ] && [ -n "${MOCK_REMOTE_INDEX:-}" ]; then cp "$MOCK_REMOTE_INDEX" "$dst"; fi
   first=$(head -n1 "$batch")
+  # absence-evidence probe: tolerant ancestor -mkdir lines + ONE strict final
+  # mkdir — keyed on content, because the probe's first line is an ancestor.
+  grep -q '^mkdir "' "$batch" && exit "${MOCK_MKDIR_EXIT:-0}"
   case "$first" in
     '-ls "'*) exit "${MOCK_ROOT_LS_EXIT:-0}" ;;  # root liveness probe
-    'mkdir "'*) exit "${MOCK_MKDIR_EXIT:-0}" ;;  # absence-evidence probe (created = was absent)
     '-rm '*) exit "${MOCK_RM_EXIT:-0}" ;;        # removal batch (delete)
     'ls -1 "'*)
       # version listing: an existing slug lists fine; a missing one fails
@@ -190,6 +192,12 @@ out=$(bash "$PUB" --slug ok "$good" 2>"$WORK/errout") || { echo "FAIL: happy pat
 grep -q 'index.html.tmp' "$MOCK_LOG" || { echo "FAIL: no atomic tmp upload in batch"; fails=$((fails+1)); }
 grep -qxF 'codex/private/ok' "$HOME/.config/artifact-sftp/published.list" || { echo "FAIL: manifest not updated"; fails=$((fails+1)); }
 echo "PASS happy path (atomic upload + manifest)"
+# The absence probe must tolerate missing ancestors (cold tree: a new tool/vis)
+# and stay strict ONLY on the final level — that strict mkdir is the proof.
+grep -q -- '-mkdir "domains/example.invalid/public_html/codex"' "$MOCK_LOG" \
+  && grep -q '^mkdir "domains/example.invalid/public_html/codex/private/ok"$' "$MOCK_LOG" \
+  && echo "PASS mkdir probe: tolerant ancestors + strict final level" \
+  || { echo "FAIL: mkdir probe structure wrong (cold tree would die)"; fails=$((fails+1)); }
 cp "$MOCK_LAST_PUT" "$WORK/happy-last-put"
 
 # 1Password resolution must work when only op.exe is available on PATH (the
