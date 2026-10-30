@@ -28,9 +28,17 @@ export HOME="$WORK/home"
 mkdir -p "$HOME/.config/artifact-sftp" "$WORK/bin" "$WORK/project"
 cat > "$WORK/bin/sftp" <<'EOF'
 #!/usr/bin/env bash
+# Offline sftp double. Classification is by batch CONTENT, never by exit-code
+# numerics: publish.sh's root-liveness probe is a single `-ls "<REMOTE_DIR>"`
+# line, the existence probe `ls "<slug>/index.html"`, the version listing
+# `ls -1 "<slug>"`, and the delete check `ls "<slug>"`. MOCK_SFTP_EXIT
+# (transport dead: EVERY invocation fails, probes included) takes precedence
+# over everything; per-path knobs come next; the defaults keep the
+# "root answers, slug absent" world the original suite was written against.
 batch='' prev=''
 for a in "$@"; do [ "$prev" = "-b" ] && batch=$a; prev=$a; done
 { echo "mock-sftp $*"; [ -n "$batch" ] && cat "$batch"; } >> "${MOCK_LOG:?}"
+[ -n "${MOCK_SFTP_EXIT:-}" ] && exit "$MOCK_SFTP_EXIT"
 if [ -n "$batch" ]; then
   # capture the last uploaded body (publish.sh stamps into a temp deleted on exit)
   src=$(sed -n 's/^put "\([^"]*\)".*/\1/p' "$batch" | tail -1)
@@ -38,12 +46,25 @@ if [ -n "$batch" ]; then
   # download batch ("get <remote> <local>"): serve MOCK_REMOTE_INDEX as the live remote file
   dst=$(sed -n 's/^get "[^"]*" "\([^"]*\)".*/\1/p' "$batch" | tail -1)
   if [ -n "$dst" ] && [ -n "${MOCK_REMOTE_INDEX:-}" ]; then cp "$MOCK_REMOTE_INDEX" "$dst"; fi
-  # existence-check batch (first line "ls ..."): default = slug not found
-  if head -n1 "$batch" | grep -q '^ls '; then
-    exit "${MOCK_REMOTE_EXISTS_EXIT:-1}"
-  fi
+  first=$(head -n1 "$batch")
+  case "$first" in
+    '-ls "'*) exit "${MOCK_ROOT_LS_EXIT:-0}" ;;  # root liveness probe
+    'ls -1 "'*)
+      # version listing: an existing slug lists fine; a missing one fails
+      if [ "${MOCK_REMOTE_EXISTS_EXIT:-1}" -eq 0 ]; then
+        exit "${MOCK_VERSIONS_EXIT:-0}"
+      fi
+      exit "${MOCK_VERSIONS_EXIT_MISSING:-1}"
+      ;;
+    'ls "'*)
+      case "$first" in
+        *'/index.html"'*) exit "${MOCK_REMOTE_EXISTS_EXIT:-1}" ;;  # existence probe
+        *) exit "${MOCK_DIR_EXISTS_EXIT:-${MOCK_REMOTE_EXISTS_EXIT:-1}}" ;;  # delete check
+      esac
+      ;;
+  esac
 fi
-exit "${MOCK_SFTP_EXIT:-0}"
+exit 0
 EOF
 cat > "$WORK/bin/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -255,10 +276,37 @@ out=$(bash "$PUB" --slug ok2 --public "$good" 2>/dev/null)
 printf 'tampered' > "$WORK/other.html"; export MOCK_CURL_BODY="$WORK/other.html"
 expect 6 "public verify detects content mismatch"  -- bash "$PUB" --slug ok3 --public "$good"
 
-# --- upload failure => exit 5 ---
-export MOCK_SFTP_EXIT=1 MOCK_CURL_BODY="$good"
-expect 5 "sftp failure surfaces as exit 5"         -- bash "$PUB" --slug ok4 --force "$good"
+# --- transport failure fails closed at the version gate (no || true left to swallow it) ---
+export MOCK_SFTP_EXIT=255 MOCK_CURL_BODY="$good"
+expect 5 "transport-dead version listing => exit 5" -- bash "$PUB" --slug ok4 --force "$good"
+grep -q 'could not list the existing versions' "$WORK/errout" \
+  && echo "PASS transport-dead dies at the version gate, before any upload" \
+  || { echo "FAIL: version-gate message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
 unset MOCK_SFTP_EXIT
+
+# --- transport failure fails closed at the existence gate even without --force ---
+export MOCK_SFTP_EXIT=255
+expect 5 "transport-dead existence probe => exit 5" -- bash "$PUB" --slug dead-host "$good"
+grep -q 'could not verify whether remote' "$WORK/errout" \
+  && echo "PASS transport-dead existence dies 5, never reads as absent" \
+  || { echo "FAIL: existence-gate message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_SFTP_EXIT
+
+# --- slug probe fails path-level AND the root is unreachable => refuse (the old fail-open hole) ---
+export MOCK_ROOT_LS_EXIT=1
+expect 5 "slug ls fails + root unreachable => exit 5" -- env -u MOCK_CURL_BODY bash "$PUB" --slug orphan "$good"
+grep -q 'remote root unreachable' "$WORK/errout" \
+  && echo "PASS root-unreachable is a failure, not an absent slug" \
+  || { echo "FAIL: root-unreachable message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_ROOT_LS_EXIT
+
+# --- a connection-level 255 during version discovery never falls back to version 1 ---
+export MOCK_VERSIONS_EXIT_MISSING=255
+expect 5 "versions ls 255 => exit 5, no v1 fallback" -- env -u MOCK_CURL_BODY bash "$PUB" --slug vdead "$good"
+grep -q 'could not list the existing versions' "$WORK/errout" \
+  && echo "PASS connection-level 255 at versions dies 5 (no probe trust)" \
+  || { echo "FAIL: versions-255 message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_VERSIONS_EXIT_MISSING
 
 # --- overwrite guard: an existing remote slug needs custody (manifest, or a project archive /
 # read-back cache copy byte-identical to the live index.html) ---
@@ -499,6 +547,28 @@ else
   echo "FAIL: local archive gate — want exit 9 with no upload, got exit $archive_rc"
   sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
 fi
+
+# --- delete of an existing slug actually removes it (the old `ls -d` flag validated nothing) ---
+export MOCK_REMOTE_EXISTS_EXIT=0
+rm -f "$MOCK_LOG"
+del_existing_rc=0
+bash "$PUB" --delete existing-slug >"$WORK/out" 2>"$WORK/del_existing.err" || del_existing_rc=$?
+if [ "$del_existing_rc" -eq 0 ] && grep -q 'deleted: codex/private/existing-slug' "$WORK/del_existing.err" \
+   && grep -q '^-rm ' "$MOCK_LOG" && grep -q '^rmdir ' "$MOCK_LOG"; then
+  echo "PASS delete of an existing slug issues rm+rmdir"
+else
+  echo "FAIL: delete-existing — want exit 0 + rm/rmdir batches, got exit $del_existing_rc"
+  sed 's/^/  | /' "$WORK/del_existing.err"; fails=$((fails+1))
+fi
+unset MOCK_REMOTE_EXISTS_EXIT
+
+# --- delete with a dead transport must not report a completed takedown ---
+export MOCK_SFTP_EXIT=255
+expect 5 "transport-dead delete refuses"           -- bash "$PUB" --delete dead-slug
+grep -q 'nothing was deleted' "$WORK/errout" \
+  && echo "PASS transport-dead delete never reports success" \
+  || { echo "FAIL: delete-dead message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_SFTP_EXIT
 
 # --- delete is idempotent and ignores missing directory ---
 del_rc=0

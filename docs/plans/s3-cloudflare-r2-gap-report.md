@@ -35,7 +35,7 @@
 
 **สถานะ: แก้แล้วใน PR #35** — ครอบคลุม HTTP refusal, transport error และ uncaught exception ในตัว helper ทุกทาง (รวม `urlparse` ที่พังก่อนสร้าง request, body read ที่ตายกลางทางใน HTTPError handler และ stderr ที่เขียนไม่ได้) เหลือเพียงขอบของ shell ที่ถือว่าเป็นเสียงของ environment ไม่ใช่โค้ด
 
-> หมายเหตุ: สาย SFTP มีช่องโหว่เดียวกัน (`publish.sh` ถือว่า non-zero = absent) แต่สาย SFTP ไม่ได้ *claim* ความแตกต่างนี้ จึงไม่ใช่ regression — แต่เป็นจุดที่ควรแก้ต่อในรอบถัดไป
+> หมายเหตุ: สาย SFTP มีช่องโหว่เดียวกัน (`publish.sh` ถือว่า non-zero = absent) แต่สาย SFTP ไม่ได้ *claim* ความแตกต่างนี้ จึงไม่ใช่ regression — แต่เป็นจุดที่ควรแก้ต่อในรอบถัดไป **แก้แล้ว 2026-10-30 — ดูแถว G17**
 
 ---
 
@@ -92,7 +92,7 @@ ADR §3 Step 1 กำหนดให้ **ปิด `r2.dev` public bucket URL**
 | G14 | `Cache-Control` / `Content-Type` ถูกตั้งตอน PUT แต่ไม่เคยถูกตรวจบน response — edge rule ที่ rewrite header จะทำลาย ADR invariant แบบเงียบๆ | `publish.sh` (`verify_url` เทียบแค่ body hash) | ตรวจ response header ใน `verify_url` แล้ว treat mismatch เป็น exit 6 |
 | G15 | version discovery กลืน error (`\|\| true`) → `VER` ตกกลับเป็น 1 ได้ และ snapshot เดิมถูกเขียนทับในวินาทีเดียวกัน | `publish.sh:215` (สาย S3) | ✅ **แก้แล้วใน PR #35** — สาย S3 ล้มเหลวแบบ fail closed (exit 5) แล้ว ส่วนสาย SFTP ยังเป็น `\|\| true` → ดู G17 |
 | G16 | `--list` exit semantics ต่างกัน: S3 ออก 0 เสมอ, SFTP ผ่าน OpenSSH ออก non-zero ถ้าโฟลเดอร์ไม่มี | `publish.sh:227` vs `:232` | ปรับให้ตรงกัน (ผลกระทบต่ำ เพราะ MCP `list` เป็น local-only) |
-| G17 | **สาย SFTP มีช่องโหว่ fail-open แบบเดียวกัน** — version discovery กลืน error และ existence check ถือว่าทุก failure เป็น "ไม่มีอยู่" ทำให้ข้าม custody check ได้ | `publish.sh:213-223, 399-407`; `sftp_helper.py:81-85, 126-129` | **ต้องทำเป็น PR แยก** — ต้องแยก "ไม่พบ path" ออกจาก "เชื่อมต่อไม่ได้" ใน `sftp_helper.py` ซึ่งต้องแตะ error ของ paramiko โดยเฉพาะ (PR #35 จงเจตนาไม่แตะสาย SFTP เพื่อไม่ให้ scope บวม และให้ทีมอ่านลำดับความสำคัญตัดสิน) |
+| G17 | **สาย SFTP มีช่องโหว่ fail-open แบบเดียวกัน** — version discovery กลืน error และ existence check ถือว่าทุก failure เป็น "ไม่มีอยู่" ทำให้ข้าม custody check ได้ | `publish.sh:213-223, 399-407`; `sftp_helper.py:81-85, 126-129` | **✅ แก้แล้ว 2026-10-30 (branch `fix/sftp-fail-closed-custody`)** — `sftp_helper.py` ใช้สัญญา 0/1/2/4/10 (exit 1 = confirmed remote ENOENT เท่านั้น เหมือน `s3_helper.py`) ครบทั้ง connect/exists/versions/get/list/upload/delete; `publish.sh` จัด tri-state ทั้งสาย paramiko และ OpenSSH (root-liveness probe แยก connection, จำแนกด้วยผลลัพธ์ไม่ใช่ข้อความ stderr), version listing fail-closed แบบ capture rc ก่อน pipeline, และแก้ delete ที่ใช้ `ls -d` (flag ที่ sftp(1) ไม่มี) จนรายงาน takedown เทียมว่าสำเร็จ — เศษที่ยอมรับไว้: TOCTOU ระหว่าง exists→upload (เท่าเดิมทั้งสอง driver), slug dir ที่มีอยู่แต่ปฏิเสธ listing บน OpenSSH (`--force` คือทางออก), และ version race วินาทีเดียวกัน |
 
 ---
 

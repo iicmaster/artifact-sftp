@@ -222,14 +222,61 @@ fi
 
 # SFTP only: the S3 driver lists its versions in the version-stamp block
 # below, where a failed listing fails closed instead of being swallowed.
-remote_versions() {
+#
+# OpenSSH sftp cannot tell a missing path from a dead connection: batch mode
+# aborts non-zero for both, and sftp(1) documents no abort-code table. So
+# classification never branches on the numeric value — only 255, the
+# connection-level failure, is treated as definitely dead — and a path-level
+# failure is only trusted as "absent" after a bounded liveness probe of the
+# remote root answers. The probe batch uses a hyphen-prefixed ls, which
+# tolerates a missing root by design, so a zero exit means the transport
+# itself answered — nothing more, nothing less.
+sftp_root_alive() { # -> 0 transport answered | non-zero unreachable
+  local probe rc=0
   if [ "$USE_PY" = 1 ]; then
-    _timeout 90 "$PY" "$HELPER" versions "$RPATH" 2>/dev/null || true
+    _timeout 90 "$PY" "$HELPER" versions "$REMOTE_DIR" >/dev/null 2>&1 || rc=$?
   else
-    BATCH=$(mktemp)
-    printf -- '-ls -1 %s\n' "$RPATH" > "$BATCH"
-    _timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$BATCH" "$DEST" 2>/dev/null || true
+    probe=$(mktemp)
+    printf -- '-ls "%s"\n' "$REMOTE_DIR" > "$probe"
+    _timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$probe" "$DEST" >/dev/null 2>&1 || rc=$?
+    rm -f "$probe"
   fi
+  return "$rc"
+}
+
+# SFTP only: list a slug's version files, failing closed. Prints the listing on
+# stdout (empty when the slug directory does not exist yet on a live host) and
+# returns non-zero when the listing failed for any other reason — the publisher
+# must never fall back to version 1 on a failure, which would overwrite the
+# existing immutable snapshot in place.
+sftp_versions_listing() { # <rpath> -> 0 listing on stdout | non-zero failure
+  local rpath=$1 rc=0 out=''
+  if [ "$USE_PY" = 1 ]; then
+    # The helper reserves exit 1 for a confirmed remote ENOENT and reports every
+    # other failure as 4 — the classification already happened, no probe needed.
+    out=$(_timeout 90 "$PY" "$HELPER" versions "$rpath" 2>/dev/null) || rc=$?
+    [ "$rc" -eq 0 ] || return "$rc"
+    printf '%s\n' "$out"
+    return 0
+  fi
+  local batch
+  batch=$(mktemp)
+  printf 'ls -1 "%s"\n' "$rpath" > "$batch"
+  out=$(_timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$batch" "$DEST" 2>/dev/null) || rc=$?
+  rm -f "$batch"
+  if [ "$rc" -eq 0 ]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  if [ "$rc" -eq 255 ]; then
+    return 255  # connection-level failure is never a missing path
+  fi
+  # Path-level failure — a missing slug directory is the normal first-publish
+  # case: trust it only once the remote root answers on a fresh connection.
+  if sftp_root_alive; then
+    return 0  # empty listing: the slug directory does not exist yet
+  fi
+  return 255
 }
 
 # ---------- list ----------
@@ -285,15 +332,31 @@ if [ "$MODE" = delete ]; then
   if [ "$STORAGE_DRIVER" = "s3" ]; then
     _timeout 90 "$PY" "$S3_HELPER" delete "$RPATH" >&2 || die 5 "s3 delete failed for $RPATH"
   elif [ "$USE_PY" = 1 ]; then
+    # Helper contract: ENOENT -> 0 (idempotent), any real failure -> 4 -> die.
     _timeout 90 "$PY" "$HELPER" delete "$RPATH" >&2 || die 5 "delete failed for $RPATH"
   else
     CHECK_BATCH=$(mktemp)
-    printf -- 'ls -d %s\n' "$RPATH" > "$CHECK_BATCH"
-    if run_sftp "$CHECK_BATCH" 2>/dev/null; then
-      BATCH=$(mktemp)
-      printf -- '-rm %s/*\nrmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
-      run_sftp "$BATCH" || die 5 "delete failed for $RPATH"
-    fi
+    printf 'ls "%s"\n' "$RPATH" > "$CHECK_BATCH"
+    check=0; _timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$CHECK_BATCH" "$DEST" >/dev/null 2>&1 || check=$?
+    rm -f "$CHECK_BATCH"; CHECK_BATCH=''
+    case "$check" in
+      0)
+        BATCH=$(mktemp)
+        printf -- '-rm %s/*\nrmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
+        run_sftp "$BATCH" || die 5 "delete failed for $RPATH"
+        rm -f "$BATCH"; BATCH=''
+        ;;
+      255)
+        die 5 "could not reach the remote host to delete $TOOL/$VIS/$SLUG (sftp exit 255) — nothing was deleted"
+        ;;
+      *)
+        # A missing slug is "already deleted" (idempotent) — but only once the
+        # remote root answers; a dead connection must never masquerade as a
+        # completed takedown reported as success.
+        sftp_root_alive \
+          || die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists for delete (sftp exit $check, remote root unreachable) — nothing was deleted"
+        ;;
+    esac
   fi
   if [ -f "$MANIFEST" ]; then
     grep -vxF "$TOOL/$VIS/$SLUG" "$MANIFEST" > "$MANIFEST.new" || true
@@ -412,14 +475,45 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
       *) die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (s3 exists exit $exists) — refusing to risk overwriting an artifact without custody" ;;
     esac
   elif [ "$USE_PY" = 1 ]; then
-    exists=0; _timeout 90 "$PY" "$HELPER" exists "$RPATH" 2>/dev/null || exists=$?
-    if [ "$exists" -eq 0 ]; then require_custody; fi
+    # The helper reserves exit 1 for a confirmed remote ENOENT; every other
+    # failure exits 4. stderr goes to a real file (a failed redirection would
+    # read as status 1 — the absent code) and rides along on the die path.
+    exists_err=$(mktemp)
+    exists=0; _timeout 90 "$PY" "$HELPER" exists "$RPATH" 2>"$exists_err" || exists=$?
+    case "$exists" in
+      0) rm -f "$exists_err"; require_custody ;;
+      1) rm -f "$exists_err" ;;  # no live artifact at this path — safe to create
+      *)
+        exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
+        die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exists exit $exists${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
+        ;;
+    esac
   else
+    # OpenSSH sftp exits non-zero for a missing path exactly as for a dead
+    # connection, so a path-level failure is only trusted as "absent" after the
+    # bounded root-liveness probe answers. A slug directory that exists but
+    # denies listing is indistinguishable here (documented residual; --force
+    # is the escape hatch).
+    exists_err=$(mktemp)
     BATCH=$(mktemp)
     printf 'ls "%s/index.html"\n' "$RPATH" > "$BATCH"
-    if run_sftp "$BATCH" 2>/dev/null; then
-      require_custody
-    fi
+    exists=0; _timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$BATCH" "$DEST" >/dev/null 2>"$exists_err" || exists=$?
+    rm -f "$BATCH"; BATCH=''
+    case "$exists" in
+      0) rm -f "$exists_err"; require_custody ;;
+      255)
+        exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
+        die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exit 255${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
+        ;;
+      *)
+        if sftp_root_alive; then
+          rm -f "$exists_err"
+        else
+          exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
+          die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exit $exists, remote root unreachable${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
+        fi
+        ;;
+    esac
   fi
 fi
 
@@ -431,9 +525,20 @@ if [ "$STORAGE_DRIVER" = "s3" ]; then
     || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (s3 versions exit $?) — refusing to reuse a version number"
   last=$(printf '%s\n' "$s3_versions" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
 else
-  last=$(remote_versions | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
+  # Same invariant on the SFTP line: capture the listing's status explicitly (a
+  # pipeline would report tail's), and split the assignment — bash 3.2 masks a
+  # failure inside `local x=$(...)` one-liners, which would re-open the hole.
+  sftp_versions_rc=0
+  sftp_listing=''
+  sftp_listing=$(sftp_versions_listing "$RPATH") || sftp_versions_rc=$?
+  [ "$sftp_versions_rc" -eq 0 ] \
+    || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (sftp versions exit $sftp_versions_rc) — refusing to reuse a version number"
+  last=$(printf '%s\n' "$sftp_listing" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
 fi
 [ -n "$last" ] || last=0
+# An adversarial or corrupted listing must not wrap the arithmetic into a
+# negative "version" naming a snapshot nobody can identify.
+[ "$last" -le 999999 ] || die 5 "implausible version number $last listed for $TOOL/$VIS/$SLUG — refusing to publish over it"
 VER=$((last + 1))
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 VFILE="${SLUG}--${VER}--${TS}.html"
