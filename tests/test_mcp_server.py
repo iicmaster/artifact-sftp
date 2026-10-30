@@ -211,6 +211,164 @@ class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("--allow-sensitive", argv)
         self.assertNotIn("--force", argv)
 
+    async def test_publish_resolves_workspace_project_and_expects_project_url(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, source, _, _ = make_project(Path(temp))
+            archive = project / "docs/artifacts/apollo/private/report"
+            archive.mkdir(parents=True)
+            current = archive / "index.html"
+            current.write_text("<html><body>apollo current</body></html>", encoding="utf-8")
+            snapshot = archive / "report--1--20260810T120000Z.html"
+            snapshot.write_bytes(current.read_bytes())
+            (project / ".artifact-sftp.json").write_text('{"project": "apollo"}', encoding="utf-8")
+            fake = FakeRunner(
+                command_result(
+                    0,
+                    stdout="https://artifacts.example/apollo/private/report/\n",
+                    stderr=(
+                        f"read-back: {current}\n"
+                        f"snapshot: {snapshot}\n"
+                        "published v1 (snapshot: report--1--20260810T120000Z.html)\n"
+                    ),
+                )
+            )
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.publish",
+                {
+                    "project_path": str(project),
+                    "source_path": "report.html",
+                    "slug": "report",
+                    "tool": "codex",
+                    "confirm": True,
+                },
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["project"], "apollo")
+        self.assertEqual(result["url"], "https://artifacts.example/apollo/private/report/")
+        argv = fake.calls[0][0]
+        self.assertIn("--project", argv)
+        self.assertEqual(argv[argv.index("--project") + 1], "apollo")
+
+    async def test_publish_project_argument_conflicts_with_workspace_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, source, _, _ = make_project(Path(temp))
+            (project / ".artifact-sftp.json").write_text('{"project": "apollo"}', encoding="utf-8")
+            fake = FakeRunner()
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.publish",
+                {
+                    "project_path": str(project),
+                    "source_path": str(source),
+                    "slug": "report",
+                    "tool": "codex",
+                    "project": "beta",
+                    "confirm": True,
+                },
+            )
+
+        self.assertTrue(response.is_error)
+        self.assertEqual(response.structured_content["error"]["code"], "project_conflict")
+        self.assertEqual(fake.calls, [])
+
+    async def test_publish_rejects_malformed_workspace_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, source, _, _ = make_project(Path(temp))
+            (project / ".artifact-sftp.json").write_text('{"project": 42}', encoding="utf-8")
+            fake = FakeRunner()
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.publish",
+                {
+                    "project_path": str(project),
+                    "source_path": str(source),
+                    "slug": "report",
+                    "tool": "codex",
+                    "confirm": True,
+                },
+            )
+
+        self.assertTrue(response.is_error)
+        self.assertEqual(response.structured_content["error"]["code"], "workspace_project_invalid")
+        self.assertEqual(fake.calls, [])
+
+    async def test_publish_maps_publisher_project_refusals_to_codes(self) -> None:
+        cases = [
+            ("project is required in a v1 profile (PROFILE_VERSION=2)", "project_required"),
+            ("--project requires a v1 profile (PROFILE_VERSION=2 in the config)", "project_unsupported_in_legacy_profile"),
+            ("reserved project id 'codex' — while legacy artifacts coexist", "reserved_project_id"),
+            ("invalid project 'Bad_Name'", "invalid_project"),
+        ]
+        for stderr_line, expected_code in cases:
+            with tempfile.TemporaryDirectory() as temp:
+                project, source, _, _ = make_project(Path(temp))
+                fake = FakeRunner(command_result(2, stderr=f"ERROR: {stderr_line}\n"))
+                server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+                response = await self.call(
+                    server,
+                    "artifact_sftp.publish",
+                    {
+                        "project_path": str(project),
+                        "source_path": str(source),
+                        "slug": "report",
+                        "tool": "codex",
+                        "project": "apollo",
+                        "confirm": True,
+                    },
+                )
+            self.assertTrue(response.is_error, stderr_line)
+            self.assertEqual(response.structured_content["error"]["code"], expected_code, stderr_line)
+
+    async def test_unpublish_passes_resolved_project_to_publisher(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            fake = FakeRunner(command_result(0, stdout="", stderr=""))
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=fake, start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.unpublish",
+                {
+                    "project_path": str(project),
+                    "slug": "report",
+                    "tool": "codex",
+                    "project": "apollo",
+                    "confirm": True,
+                },
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        self.assertEqual(result["project"], "apollo")
+        argv = fake.calls[0][0]
+        self.assertIn("--project", argv)
+        self.assertEqual(argv[argv.index("--project") + 1], "apollo")
+
+    async def test_list_inventory_reports_project_namespaces(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            project, _, _, _ = make_project(Path(temp))
+            v1archive = project / "docs/artifacts/apollo/private/brief"
+            v1archive.mkdir(parents=True)
+            (v1archive / "index.html").write_text("<html>v1</html>", encoding="utf-8")
+            server = build_server(ArtifactSftpService(plugin_root=ROOT, runner=FakeRunner(), start_cwd=project))
+            response = await self.call(
+                server,
+                "artifact_sftp.list",
+                {"project_path": str(project)},
+            )
+
+        self.assertFalse(response.is_error)
+        result = response.structured_content["result"]
+        by_project = {item["project"]: item for item in result["artifacts"]}
+        self.assertEqual(by_project["codex"]["tool"], "codex")  # legacy namespace
+        self.assertEqual(by_project["apollo"]["tool"], None)  # v1 namespace
+        self.assertEqual(by_project["apollo"]["slug"], "brief")
+
     async def test_private_exposure_hides_url_and_raw_stderr(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             project, source, _, _ = make_project(Path(temp))

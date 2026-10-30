@@ -243,6 +243,38 @@ The host process must inherit this same `HOME`. A configuration installed for
 an interactive shell is invisible if the MCP host runs under another account,
 container, sandbox, or service home.
 
+### 2.1 v1 profiles: the project namespace (`PROFILE_VERSION=2`)
+
+A config carrying `PROFILE_VERSION=2` is a **v1 profile**: artifacts publish
+under the project namespace
+`https://<PUBLIC_BASE_URL>/{project}/{private|public}/{slug}/`, and local
+archives mirror `docs/artifacts/{project}/{visibility}/{slug}/`. Profiles
+without the marker keep the legacy `/{tool}/{visibility}/{slug}/` layout and
+its full contract — an upgrade never migrates a profile by itself.
+
+- The publisher takes `--project`; the MCP adapter resolves it from the
+  `project` argument first, then from a `.artifact-sftp.json` file
+  (`{"project": "<id>"}`) at the project root. A mismatch between the two is a
+  hard error. Project ids follow the slug grammar, and `codex`, `openclaw`,
+  and `claude` are reserved while legacy artifacts coexist on the same
+  destination (they would make `/codex/private/…` ambiguous).
+- **Cloudflare R2 is the preselected recipe for new v1 profiles**
+  (`STORAGE_DRIVER=s3`, provider `cloudflare-r2`): a private bucket with
+  `r2.dev` disabled, a bucket-scoped Object Read & Write token, a Cloudflare
+  Access application covering `/*/private/*` **before** the custom domain is
+  bound, and the trailing-slash index rewrite from ADR 0001. The public base
+  URL is always your own domain; nothing is provisioned for you.
+- **Private pre-flight (v1):** before the first upload into
+  `/{project}/private/`, the publisher probes the target URL anonymously. An
+  authenticated-page response (`301/302/401/403`) proceeds; HTTP 200 aborts as
+  a critical exposure with nothing uploaded; anything inconclusive (a bare
+  404, DNS failure) refuses the publish — an unprotected origin would start
+  serving content right after it.
+
+Provision a v1 profile with `setup.sh --profile-version 2 ...` (or accept the
+v1 question in the setup wizard). `artifact_sftp.status` reports
+`profile version: v1 project namespace` for such profiles.
+
 ## 3. How the MCP host discovers and starts the server
 
 Discovery and readiness are separate gates. First install/register the plugin

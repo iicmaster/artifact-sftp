@@ -9,9 +9,14 @@
 #   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
 #                 | 7 private artifact exposed | 8 private protection inconclusive | 9 local archive failed
 #
-# usage: publish.sh --slug SLUG [--tool NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
+# usage: publish.sh --slug SLUG [--tool NAME] [--project NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
 #        publish.sh --list   [--tool NAME]
-#        publish.sh --delete SLUG [--tool NAME] [--public]
+#        publish.sh --delete SLUG [--tool NAME] [--project NAME] [--public]
+#
+# v1 profiles (config PROFILE_VERSION=2) publish under the project namespace
+# /{project}/{visibility}/{slug}/ and REQUIRE --project (or the workspace
+# binding; the MCP adapter passes it). Legacy profiles (no marker) keep the
+# /{tool}/{visibility}/{slug}/ layout and reject --project.
 #
 # Config lives ONLY in ~/.config/artifact-sftp/config (mode 0600). No env overrides —
 # a fixed path keeps injected instructions from redirecting uploads to another host.
@@ -77,11 +82,12 @@ usage() {
 }
 
 # ---------- arg parse ----------
-MODE=publish SLUG='' TOOL='' VIS=private FORCE=0 DRY=0 ALLOW_SENSITIVE=0 FILE=''
+MODE=publish SLUG='' TOOL='' PROJECT='' VIS=private FORCE=0 DRY=0 ALLOW_SENSITIVE=0 FILE=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --slug) [ $# -ge 2 ] || usage; SLUG=$2; shift 2 ;;
     --tool) [ $# -ge 2 ] || usage; TOOL=$2; shift 2 ;;
+    --project) [ $# -ge 2 ] || usage; PROJECT=$2; shift 2 ;;
     --public) VIS=public; shift ;;
     --force) FORCE=1; shift ;;
     --dry-run) DRY=1; shift ;;
@@ -101,7 +107,7 @@ perm=$(_stat_perm "$CONFIG")
 case "$perm" in 600|400) ;; *) die 3 "config $CONFIG must be mode 0600 (is $perm)";; esac
 
 unset STORAGE_DRIVER SFTP_HOST SFTP_USER REMOTE_DIR PUBLIC_BASE_URL SFTP_PORT KNOWN_HOSTS \
-      DEFAULT_TOOL SSH_KEY OP_KEY_REF SFTP_PASS \
+      DEFAULT_TOOL SSH_KEY OP_KEY_REF SFTP_PASS PROFILE_VERSION \
       S3_ENDPOINT S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_REGION \
       CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET DEFAULT_LANG DEFAULT_TIMEZONE
 
@@ -115,6 +121,7 @@ _load_config() {
     value=${line#*=}
     case "$key" in
       STORAGE_DRIVER|SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|KNOWN_HOSTS|\
+      PROFILE_VERSION|\
       SFTP_PASS|SSH_KEY|OP_KEY_REF|\
       S3_ENDPOINT|S3_BUCKET|S3_ACCESS_KEY_ID|S3_SECRET_ACCESS_KEY|S3_REGION|\
       CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|\
@@ -130,6 +137,23 @@ _load_config
 STORAGE_DRIVER=${STORAGE_DRIVER:-sftp}
 TOOL=${TOOL:-${DEFAULT_TOOL:-}}
 case "$TOOL" in openclaw|codex|claude) ;; *) die 2 "--tool must be openclaw, codex or claude (got '${TOOL:-<empty>}')";; esac
+
+# ---------- profile mode: legacy /{tool}/... vs v1 /{project}/... ----------
+# PROFILE_VERSION=2 (owner-set) is the ONLY v1 marker. A missing marker or a
+# package upgrade never migrates an existing profile.
+case "${PROFILE_VERSION:-}" in ''|2) ;; *) die 3 "config PROFILE_VERSION must be 2 (v1 project namespace) or unset (legacy) (got '$PROFILE_VERSION')";; esac
+if [ "${PROFILE_VERSION:-}" = 2 ]; then
+  [ -n "$PROJECT" ] || die 2 "project is required in a v1 profile (PROFILE_VERSION=2) — pass --project or set it in the project's .artifact-sftp.json"
+  [[ "$PROJECT" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
+    || die 2 "invalid project '$PROJECT' (1-63 lowercase letters/digits/hyphens, no leading or trailing hyphen)"
+  case "$PROJECT" in
+    codex|openclaw|claude) die 2 "reserved project id '$PROJECT' — while legacy artifacts coexist these names mean the legacy tool namespaces; choose a different project name" ;;
+  esac
+  NS=$PROJECT
+else
+  [ -z "$PROJECT" ] || die 2 "--project requires a v1 profile (PROFILE_VERSION=2 in the config) — this profile keeps the legacy /tool/ layout"
+  NS=$TOOL
+fi
 
 if [ "$MODE" = publish ]; then
   : "${PUBLIC_BASE_URL:?missing in config}"
@@ -356,15 +380,15 @@ fi
 [ -n "$SLUG" ] || { err "--slug is required"; usage; }
 [[ "$SLUG" =~ $SLUG_RE ]] || die 2 "invalid slug '$SLUG' (must match $SLUG_RE)"
 if [ "$STORAGE_DRIVER" = "s3" ]; then
-  RPATH="$TOOL/$VIS/$SLUG"
+  RPATH="$NS/$VIS/$SLUG"
 else
-  RPATH="$REMOTE_DIR/$TOOL/$VIS/$SLUG"
+  RPATH="$REMOTE_DIR/$NS/$VIS/$SLUG"
 fi
 
 # ---------- delete / unpublish ----------
 if [ "$MODE" = delete ]; then
   if [ "$DRY" = 1 ]; then
-    printf 'dry-run: would delete %s\n' "$TOOL/$VIS/$SLUG"
+    printf 'dry-run: would delete %s\n' "$NS/$VIS/$SLUG"
     exit 0
   fi
   if [ "$STORAGE_DRIVER" = "s3" ]; then
@@ -385,26 +409,26 @@ if [ "$MODE" = delete ]; then
         rm -f "$BATCH"; BATCH=''
         ;;
       255)
-        die 5 "could not reach the remote host to delete $TOOL/$VIS/$SLUG (sftp exit 255) — nothing was deleted"
+        die 5 "could not reach the remote host to delete $NS/$VIS/$SLUG (sftp exit 255) — nothing was deleted"
         ;;
       *)
         # Ambiguous pre-check (missing, denied, or timed out) with the transport
         # alive: run the removal itself and report only what it proves —
         # "deleted" must never follow an unknown result.
         sftp_root_alive \
-          || die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists for delete (sftp exit $check, remote root unreachable) — nothing was deleted"
+          || die 5 "could not verify whether remote $NS/$VIS/$SLUG exists for delete (sftp exit $check, remote root unreachable) — nothing was deleted"
         BATCH=$(mktemp)
         printf -- '-rm %s/*\nrmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
-        run_sftp "$BATCH" || die 5 "could not confirm the deletion of $TOOL/$VIS/$SLUG (unlistable or refused) — nothing was reported deleted"
+        run_sftp "$BATCH" || die 5 "could not confirm the deletion of $NS/$VIS/$SLUG (unlistable or refused) — nothing was reported deleted"
         rm -f "$BATCH"; BATCH=''
         ;;
     esac
   fi
   if [ -f "$MANIFEST" ]; then
-    grep -vxF "$TOOL/$VIS/$SLUG" "$MANIFEST" > "$MANIFEST.new" || true
+    grep -vxF "$NS/$VIS/$SLUG" "$MANIFEST" > "$MANIFEST.new" || true
     mv "$MANIFEST.new" "$MANIFEST"
   fi
-  err "deleted: $TOOL/$VIS/$SLUG"
+  err "deleted: $NS/$VIS/$SLUG"
   exit 0
 fi
 
@@ -429,11 +453,35 @@ if [ "$ALLOW_SENSITIVE" -ne 1 ]; then
   fi
 fi
 
-URL="$PUBLIC_BASE_URL/$TOOL/$VIS/$SLUG/"
+URL="$PUBLIC_BASE_URL/$NS/$VIS/$SLUG/"
+
+# ---------- v1 private pre-flight (ADR 0002) ----------
+# Before anything is uploaded, the anonymous probe must show the private
+# namespace is gated. A 200 means Cloudflare Access is missing or does not
+# cover /{project}/private/ — critical exposure, nothing is uploaded. Anything
+# else (e.g. a bare 404 from an unprotected origin, DNS failure) is
+# inconclusive: an unprotected origin would start serving content right after
+# this publish, so an unproven gate refuses publication.
+if [ "$MODE" = publish ] && [ "${PROFILE_VERSION:-}" = 2 ] && [ "$VIS" = private ] && [ "$DRY" = 0 ]; then
+  pre_code=$(mktemp); pre_out=$(mktemp); pre_rc=0
+  _timeout 45 curl -sS -o "$pre_out" -w '%{http_code}' --max-time 40 "$URL" > "$pre_code" 2>/dev/null || pre_rc=$?
+  pre_status=$(cat "$pre_code" 2>/dev/null || true); rm -f "$pre_code" "$pre_out"
+  case "$pre_status" in
+    301|302|303|307|308|401|403)
+      err "pre-flight: /$PROJECT/private/ is Access-gated (HTTP $pre_status from the anonymous probe)"
+      ;;
+    200)
+      die 7 "CRITICAL_SECURITY_FAILURE: pre-flight fetched the private path anonymously (HTTP 200) — Cloudflare Access is missing or does not cover /$PROJECT/private/. Nothing was uploaded; fix the Access application, then republish."
+      ;;
+    *)
+      die 8 "pre-flight could not prove that /$PROJECT/private/ is Access-gated (anonymous probe: HTTP ${pre_status:-none}, curl rc=$pre_rc). An unprotected origin would serve content right after this publish, so an unproven gate refuses it. Nothing was uploaded."
+      ;;
+  esac
+fi
 
 LOCAL_DOCS_DIR="$PWD/docs"
 LOCAL_ARTIFACT_ROOT="$LOCAL_DOCS_DIR/artifacts"
-LOCAL_ARTIFACT_DIR="$LOCAL_ARTIFACT_ROOT/$TOOL/$VIS/$SLUG"
+LOCAL_ARTIFACT_DIR="$LOCAL_ARTIFACT_ROOT/$NS/$VIS/$SLUG"
 LOCAL_INDEX_PATH="$LOCAL_ARTIFACT_DIR/index.html"
 
 validate_local_archive_path() {
@@ -441,8 +489,8 @@ validate_local_archive_path() {
   for path in \
     "$LOCAL_DOCS_DIR" \
     "$LOCAL_ARTIFACT_ROOT" \
-    "$LOCAL_ARTIFACT_ROOT/$TOOL" \
-    "$LOCAL_ARTIFACT_ROOT/$TOOL/$VIS" \
+    "$LOCAL_ARTIFACT_ROOT/$NS" \
+    "$LOCAL_ARTIFACT_ROOT/$NS/$VIS" \
     "$LOCAL_ARTIFACT_DIR"; do
     [ -L "$path" ] && die 9 "local archive path must not be a symlink: $path"
     if [ -e "$path" ] && [ ! -d "$path" ]; then
@@ -471,8 +519,8 @@ fi
 # bytes are downloaded to compare, so an empty/forged file or a stale copy never matches and a
 # newer remote version is never overwritten silently. For a public artifact the live bytes are not
 # secret, so a match proves the copy is current, not that it came from this user's read.
-READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$TOOL/$VIS/$SLUG/index.html"
-S3_READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote-s3/$TOOL/$VIS/$SLUG/index.html"
+READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote/$NS/$VIS/$SLUG/index.html"
+S3_READ_CACHE_INDEX="$HOME/.cache/artifact-sftp/remote-s3/$NS/$VIS/$SLUG/index.html"
 live_index_custody() { # 0: a local copy equals the live index.html, 1: none does, 2: download failed
   local copy dl
   LIVE_INDEX=$(mktemp)
@@ -499,11 +547,11 @@ require_custody() {
   live_index_custody || rc=$?
   case "$rc" in
     0) ;;
-    2) die 5 "remote $TOOL/$VIS/$SLUG exists but its live index.html could not be downloaded to verify custody — retry, or use --force to overwrite" ;;
-    *) die 5 "remote $TOOL/$VIS/$SLUG already exists and no local copy (project docs/artifacts or read-back cache) matches its live index.html — read it first, or use --force to overwrite" ;;
+    2) die 5 "remote $NS/$VIS/$SLUG exists but its live index.html could not be downloaded to verify custody — retry, or use --force to overwrite" ;;
+    *) die 5 "remote $NS/$VIS/$SLUG already exists and no local copy (project docs/artifacts or read-back cache) matches its live index.html — read it first, or use --force to overwrite" ;;
   esac
 }
-if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
+if [ "$FORCE" -ne 1 ] && ! grep -qxF "$NS/$VIS/$SLUG" "$MANIFEST" 2>/dev/null; then
   if [ "$STORAGE_DRIVER" = "s3" ]; then
     # The probe's stderr goes to a real file, not /dev/null: if the
     # redirection itself failed, bash would report status 1 — the same code
@@ -514,7 +562,7 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
     case "$exists" in
       0) require_custody ;;
       1) : ;; # the slug is genuinely absent — safe to create
-      *) die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (s3 exists exit $exists) — refusing to risk overwriting an artifact without custody" ;;
+      *) die 5 "could not verify whether remote $NS/$VIS/$SLUG exists (s3 exists exit $exists) — refusing to risk overwriting an artifact without custody" ;;
     esac
   elif [ "$USE_PY" = 1 ]; then
     # The helper reserves exit 1 for a confirmed remote ENOENT; every other
@@ -527,7 +575,7 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
       1) rm -f "$exists_err" ;;  # no live artifact at this path — safe to create
       *)
         exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
-        die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exists exit $exists${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
+        die 5 "could not verify whether remote $NS/$VIS/$SLUG exists (sftp exists exit $exists${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
         ;;
     esac
   else
@@ -545,17 +593,17 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
       0) rm -f "$exists_err"; require_custody ;;
       255)
         exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
-        die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exit 255${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
+        die 5 "could not verify whether remote $NS/$VIS/$SLUG exists (sftp exit 255${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
         ;;
       *)
         if sftp_root_alive && sftp_mkdir_probe "$RPATH"; then
           rm -f "$exists_err"  # mkdir proved the directory was absent — no live artifact possible
         elif sftp_root_alive; then
           exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
-          die 5 "remote $TOOL/$VIS/$SLUG exists but its live index.html could not be resolved (sftp exit $exists${exists_reason:+: $exists_reason}) — read it first, or use --force to overwrite"
+          die 5 "remote $NS/$VIS/$SLUG exists but its live index.html could not be resolved (sftp exit $exists${exists_reason:+: $exists_reason}) — read it first, or use --force to overwrite"
         else
           exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
-          die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exit $exists, remote root unreachable${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
+          die 5 "could not verify whether remote $NS/$VIS/$SLUG exists (sftp exit $exists, remote root unreachable${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
         fi
         ;;
     esac
@@ -566,8 +614,8 @@ fi
 if [ "$STORAGE_DRIVER" = "s3" ]; then
   # A failed listing must never look like "no versions": the publisher would
   # reuse version 1 and overwrite the existing immutable snapshot in place.
-  s3_versions=$(_timeout 90 "$PY" "$S3_HELPER" versions "$TOOL/$VIS/$SLUG" 2>/dev/null) \
-    || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (s3 versions exit $?) — refusing to reuse a version number"
+  s3_versions=$(_timeout 90 "$PY" "$S3_HELPER" versions "$NS/$VIS/$SLUG" 2>/dev/null) \
+    || die 5 "could not list the existing versions of $NS/$VIS/$SLUG (s3 versions exit $?) — refusing to reuse a version number"
   last=$(printf '%s\n' "$s3_versions" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
 else
   # Same invariant on the SFTP line: capture the listing's status explicitly (a
@@ -577,13 +625,13 @@ else
   sftp_listing=''
   sftp_listing=$(sftp_versions_listing "$RPATH") || sftp_versions_rc=$?
   [ "$sftp_versions_rc" -eq 0 ] \
-    || die 5 "could not list the existing versions of $TOOL/$VIS/$SLUG (sftp versions exit $sftp_versions_rc) — refusing to reuse a version number"
+    || die 5 "could not list the existing versions of $NS/$VIS/$SLUG (sftp versions exit $sftp_versions_rc) — refusing to reuse a version number"
   last=$(printf '%s\n' "$sftp_listing" | sed -nE "s|.*${SLUG}--([0-9]+)--[0-9TZ]+\.html$|\1|p" | sort -n | tail -1)
 fi
 [ -n "$last" ] || last=0
 # An adversarial or corrupted listing must not wrap the arithmetic into a
 # negative "version" naming a snapshot nobody can identify.
-[ "$last" -le 999999 ] || die 5 "implausible version number $last listed for $TOOL/$VIS/$SLUG — refusing to publish over it"
+[ "$last" -le 999999 ] || die 5 "implausible version number $last listed for $NS/$VIS/$SLUG — refusing to publish over it"
 VER=$((last + 1))
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 VFILE="${SLUG}--${VER}--${TS}.html"
@@ -784,8 +832,8 @@ elif [ "$USE_PY" = 1 ]; then
 else
   BATCH=$(mktemp)
   {
-    printf -- '-mkdir %s/%s\n'    "$REMOTE_DIR" "$TOOL"
-    printf -- '-mkdir %s/%s/%s\n' "$REMOTE_DIR" "$TOOL" "$VIS"
+    printf -- '-mkdir %s/%s\n'    "$REMOTE_DIR" "$NS"
+    printf -- '-mkdir %s/%s/%s\n' "$REMOTE_DIR" "$NS" "$VIS"
     printf -- '-mkdir %s\n'       "$RPATH"
     printf 'put "%s" "%s/index.html.tmp"\n' "$STAMPED" "$RPATH"
     printf -- '-rm "%s/index.html"\n' "$RPATH"
@@ -799,7 +847,7 @@ fi
 err "published v${VER} (snapshot: ${VFILE})"
 
 mkdir -p "$(dirname "$MANIFEST")"
-grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null || printf '%s/%s/%s\n' "$TOOL" "$VIS" "$SLUG" >> "$MANIFEST"
+grep -qxF "$NS/$VIS/$SLUG" "$MANIFEST" 2>/dev/null || printf '%s/%s/%s\n' "$NS" "$VIS" "$SLUG" >> "$MANIFEST"
 
 # ---------- verify ----------
 verify_url() {
@@ -837,8 +885,8 @@ probe_private() {
     0)
       err "EXPOSED: private $label is readable by unauthenticated requests. It is NOT private."
       err "The content is live and readable by anyone with the URL. Take it down now:"
-      err "  $0 --delete $SLUG --tool $TOOL"
-      err "Then make the host require auth on /$TOOL/private/ before republishing."
+      if [ -n "$PROJECT" ]; then err "  $0 --delete $SLUG --project $PROJECT"; else err "  $0 --delete $SLUG --tool $TOOL"; fi
+      err "Then make the host require auth on /$NS/private/ before republishing."
       return 7
       ;;
     2|3)

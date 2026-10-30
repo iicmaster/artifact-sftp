@@ -552,5 +552,38 @@ assert_contains "$S3_STATUS_OUT" 'auth: s3-api-token' "S3 auth mode was not repo
 assert_contains "$S3_STATUS_OUT" 'READY' "S3 readiness was not reported"
 assert_not_contains "$S3_STATUS_OUT" "$S3_TEST_SECRET" "S3 status leaked secret"
 
+# ---------- v1 profile marker (ADR 0002) ----------
+V1_HOME="$TMP_ROOT/home-v1"
+mkdir -p "$V1_HOME"
+V1_CFG_DIR="$V1_HOME/.config/artifact-sftp"
+V1_SECRET_INPUT="$TMP_ROOT/v1-secret.stdin"
+printf '%s\n' "$S3_TEST_SECRET" >"$V1_SECRET_INPUT"
+V1_SETUP_OUT="$TMP_ROOT/v1-setup.out"
+run_capture "$V1_SETUP_OUT" env HOME="$V1_HOME" PATH="$TEST_PATH" bash "$SETUP" \
+  --driver s3 \
+  --s3-endpoint https://account123.r2.cloudflarestorage.com \
+  --s3-bucket test-artifacts \
+  --s3-key-id TEST-ACCESS-KEY-ID-EXAMPLE \
+  --s3-secret - \
+  --s3-region auto \
+  --url https://v1.test.invalid \
+  --tool codex \
+  --profile-version 2 \
+  <"$V1_SECRET_INPUT"
+assert_rc 0 "v1 setup should succeed"
+grep -Fqx 'PROFILE_VERSION=2' "$V1_CFG_DIR/config" || fail "PROFILE_VERSION=2 was not recorded"
+
+V1_STATUS_OUT="$TMP_ROOT/status-v1.out"
+run_capture "$V1_STATUS_OUT" env HOME="$V1_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+grep -Fq 'profile version: v1 project namespace' "$V1_STATUS_OUT" || fail "v1 status line missing"
+
+V1_BAD_OUT="$TMP_ROOT/v1-bad.out"
+run_capture "$V1_BAD_OUT" env HOME="$V1_HOME" PATH="$TEST_PATH" bash "$SETUP" --driver s3 --profile-version 3
+assert_rc 2 "setup should reject --profile-version values other than 2"
+
+LEGACY_STATUS_OUT="$TMP_ROOT/status-legacy.out"
+run_capture "$LEGACY_STATUS_OUT" env HOME="$S3_HOME" PATH="$TEST_PATH" bash "$SETUP" --status
+grep -Fq 'profile: legacy (/tool/ layout)' "$LEGACY_STATUS_OUT" || fail "legacy status line missing"
+
 printf 'PASS: artifact-sftp setup offline regression tests\n'
 
