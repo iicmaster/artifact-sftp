@@ -2,7 +2,7 @@
  
 All notable changes to this project are documented here.
  
-## [Unreleased]
+## [1.0.0] - 2026-10-30
 
 - **Added: v1 project profiles — the canonical artifact identity becomes `/{project}/{visibility}/{slug}/` with Cloudflare R2 as the preselected new-profile recipe (ADR 0002, the v1.0 spec).**
   - A config marker `PROFILE_VERSION=2` (owner-set via `setup.sh --profile-version 2` or the wizard's v1 question) selects the project namespace: URL and object keys `{project}/{visibility}/{slug}/…`, local archive `docs/artifacts/{project}/{visibility}/{slug}/…`. Profiles without the marker keep the legacy `/{tool}/{visibility}/{slug}/` layout and their entire contract — upgrades never migrate a profile implicitly.
@@ -10,6 +10,8 @@ All notable changes to this project are documented here.
   - `tool` remains an accepted argument as provenance metadata only — it never grants custody, and identity in a v1 profile is `(profile, project, visibility, slug)`.
   - **Private pre-flight gate:** in a v1 profile, the first anonymous probe of `/{project}/private/…` must answer with an Access-style response (301/302/307/308/401/403) before anything is uploaded; HTTP 200 aborts as `CRITICAL_SECURITY_FAILURE` (exit 7, nothing uploaded), and anything inconclusive (a bare 404 from an unprotected origin, DNS failure) refuses the publish (exit 8). The post-publish probes remain.
   - **Cloudflare R2 is the preselected recipe for new v1 profiles** (recommended driver in the wizard, R2 provisioning checklist surfaced, public base URL now required with **no default** — the wizard no longer offers any third-party default domain, for SFTP hosts either). Readiness stays honest: `status` reports `profile version: v1 project namespace` (or `legacy`), and nothing claims Cloudflare readiness before the owner provisions bucket, scoped token, custom domain, and Access.
+
+Full suite: 109 passed.
 
 ## [0.22.5] - 2026-10-30
 
