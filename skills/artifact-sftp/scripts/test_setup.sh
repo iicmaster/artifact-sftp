@@ -662,8 +662,9 @@ assert_not_contains "$WIZ_OUT" "WIZARD-SECRET-EXAMPLE" "wizard leaked the R2 sec
 assert_rc 0 "wizard should complete with the preselected R2 driver"
 grep -Fqx 'STORAGE_DRIVER=s3' "$WIZ_CFG_DIR/config.normalized" \
   || fail "wizard default driver is not s3 — R2 is no longer preselected for new profiles"
-grep -Fqx 'S3_BUCKET=wizard-bucket' "$WIZ_CFG_DIR/config.normalized" || fail "wizard did not record the R2 bucket"
-grep -Fqx 'S3_SECRET_ACCESS_KEY=WIZARD-SECRET-EXAMPLE' "$WIZ_CFG_DIR/config.normalized" \
+grep -Fqx 'S3_BUCKET=wizard-bucket' "$WIZ_CFG_DIR/config.normalized" || fail "wizard did not record the R2 bucket"  # pragma: allowlist secret
+expected_secret_line='S3_SECRET_ACCESS_KEY=WIZARD-SECRET-EXAMPLE'  # pragma: allowlist secret
+grep -Fqx "$expected_secret_line" "$WIZ_CFG_DIR/config.normalized" \
   || fail "wizard did not record the R2 secret"
 grep -Fqx 'S3_REGION=auto' "$WIZ_CFG_DIR/config.normalized" || fail "wizard default region missing"
 assert_not_contains "$WIZ_OUT" "WIZARD-SECRET-EXAMPLE" "wizard leaked the R2 secret to output"
