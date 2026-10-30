@@ -59,11 +59,17 @@ def _remote_enoent(e):
     pinned known_hosts load, local file opens inside put/get) share the errno
     space, so wrapping anything but a remote call in this predicate can turn a
     local failure into "remote absent". paramiko maps SSH_FX_NO_SUCH_FILE to
-    IOError(errno.ENOENT, ...); servers that send only the text without the code
-    are covered by the string fallback (wording varies by server and locale, so
-    it is a fallback, never the primary signal).
+    IOError(errno.ENOENT, ...) and every other status to a DIFFERENT errno or to
+    IOError(text) with errno None — so a present errno is authoritative and must
+    never be overridden by message text (a server may word a permission denial
+    "No such file or directory"); the string fallback applies only when the
+    server sent no code at all.
     """
-    return isinstance(e, OSError) and (e.errno == errno.ENOENT or "No such file" in str(e))
+    if not isinstance(e, OSError):
+        return False
+    if e.errno is not None:
+        return e.errno == errno.ENOENT
+    return "No such file" in str(e)
 
 
 def read_cfg():

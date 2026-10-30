@@ -154,6 +154,13 @@ class HelperContractTests(unittest.TestCase):
         self.sftp.stat_exc = IOError("No such file or directory")  # errno None
         self.assert_exit(["exists", "/tool/private/slug"], 1)
 
+    def test_present_errno_beats_message_text(self):
+        # A server may word a permission denial "No such file or directory";
+        # once an errno is present it is authoritative and must never be
+        # overridden by the message (completion-review finding, P1).
+        self.sftp.stat_exc = IOError(errno.EACCES, "No such file or directory")
+        self.assert_exit(["exists", "/tool/private/slug"], 4)
+
     def test_exists_permission_denied_exits_4(self):
         exc = IOError(errno.EACCES, "Permission denied")
         self.assertIsInstance(exc, PermissionError)

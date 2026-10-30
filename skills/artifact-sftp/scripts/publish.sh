@@ -244,6 +244,21 @@ sftp_root_alive() { # -> 0 transport answered | non-zero unreachable
   return "$rc"
 }
 
+# Evidence that a slug directory does NOT exist: creating it. mkdir succeeding
+# proves the path was absent (and creates exactly what a first publish needs
+# anyway), while mkdir failing with the transport alive proves the directory
+# exists or the server refused — both of which must read as failure, never as
+# absence. This replaces trusting a liveness probe as an existence proof: the
+# root answering says nothing about whether the slug directory is listable.
+sftp_mkdir_probe() { # <path> -> 0 created (was absent) | non-zero exists/refused
+  local path=$1 probe rc=0
+  probe=$(mktemp)
+  printf 'mkdir "%s"\n' "$path" > "$probe"
+  _timeout 90 sftp -q "${SSH_OPTS[@]}" -b "$probe" "$DEST" >/dev/null 2>&1 || rc=$?
+  rm -f "$probe"
+  return "$rc"
+}
+
 # SFTP only: list a slug's version files, failing closed. Prints the listing on
 # stdout (empty when the slug directory does not exist yet on a live host) and
 # returns non-zero when the listing failed for any other reason — the publisher
@@ -272,11 +287,17 @@ sftp_versions_listing() { # <rpath> -> 0 listing on stdout | non-zero failure
     return 255  # connection-level failure is never a missing path
   fi
   # Path-level failure — a missing slug directory is the normal first-publish
-  # case: trust it only once the remote root answers on a fresh connection.
-  if sftp_root_alive; then
-    return 0  # empty listing: the slug directory does not exist yet
+  # case, but "missing" must be PROVEN, not inferred from a liveness probe: a
+  # directory that exists but denies listing, or a first-command timeout, would
+  # otherwise hand back an empty listing and the publisher would reuse version 1
+  # over snapshots it could not see.
+  if ! sftp_root_alive; then
+    return 255
   fi
-  return 255
+  if sftp_mkdir_probe "$rpath"; then
+    return 0  # proved absent (and now created): empty listing
+  fi
+  return 1  # exists or refused — caller must fail closed
 }
 
 # ---------- list ----------
@@ -350,11 +371,15 @@ if [ "$MODE" = delete ]; then
         die 5 "could not reach the remote host to delete $TOOL/$VIS/$SLUG (sftp exit 255) — nothing was deleted"
         ;;
       *)
-        # A missing slug is "already deleted" (idempotent) — but only once the
-        # remote root answers; a dead connection must never masquerade as a
-        # completed takedown reported as success.
+        # Ambiguous pre-check (missing, denied, or timed out) with the transport
+        # alive: run the removal itself and report only what it proves —
+        # "deleted" must never follow an unknown result.
         sftp_root_alive \
           || die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists for delete (sftp exit $check, remote root unreachable) — nothing was deleted"
+        BATCH=$(mktemp)
+        printf -- '-rm %s/*\nrmdir "%s"\n' "$RPATH" "$RPATH" > "$BATCH"
+        run_sftp "$BATCH" || die 5 "could not confirm the deletion of $TOOL/$VIS/$SLUG (unlistable or refused) — nothing was reported deleted"
+        rm -f "$BATCH"; BATCH=''
         ;;
     esac
   fi
@@ -506,8 +531,11 @@ if [ "$FORCE" -ne 1 ] && ! grep -qxF "$TOOL/$VIS/$SLUG" "$MANIFEST" 2>/dev/null;
         die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exit 255${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"
         ;;
       *)
-        if sftp_root_alive; then
-          rm -f "$exists_err"
+        if sftp_root_alive && sftp_mkdir_probe "$RPATH"; then
+          rm -f "$exists_err"  # mkdir proved the directory was absent — no live artifact possible
+        elif sftp_root_alive; then
+          exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
+          die 5 "remote $TOOL/$VIS/$SLUG exists but its live index.html could not be resolved (sftp exit $exists${exists_reason:+: $exists_reason}) — read it first, or use --force to overwrite"
         else
           exists_reason=$(cat "$exists_err" 2>/dev/null || true); rm -f "$exists_err"
           die 5 "could not verify whether remote $TOOL/$VIS/$SLUG exists (sftp exit $exists, remote root unreachable${exists_reason:+: $exists_reason}) — refusing to risk overwriting an artifact without custody"

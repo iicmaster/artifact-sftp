@@ -49,6 +49,8 @@ if [ -n "$batch" ]; then
   first=$(head -n1 "$batch")
   case "$first" in
     '-ls "'*) exit "${MOCK_ROOT_LS_EXIT:-0}" ;;  # root liveness probe
+    'mkdir "'*) exit "${MOCK_MKDIR_EXIT:-0}" ;;  # absence-evidence probe (created = was absent)
+    '-rm '*) exit "${MOCK_RM_EXIT:-0}" ;;        # removal batch (delete)
     'ls -1 "'*)
       # version listing: an existing slug lists fine; a missing one fails
       if [ "${MOCK_REMOTE_EXISTS_EXIT:-1}" -eq 0 ]; then
@@ -307,6 +309,20 @@ grep -q 'could not list the existing versions' "$WORK/errout" \
   && echo "PASS connection-level 255 at versions dies 5 (no probe trust)" \
   || { echo "FAIL: versions-255 message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
 unset MOCK_VERSIONS_EXIT_MISSING
+
+# --- a slug directory that exists but cannot be resolved is refused, never "absent" ---
+# The liveness probe answers, mkdir does not: absence must be PROVEN by creation,
+# not inferred from a live root (denied listing / timeout would otherwise pass).
+export MOCK_MKDIR_EXIT=1
+expect 5 "unresolvable existing dir at existence => exit 5" -- env -u MOCK_CURL_BODY bash "$PUB" --slug denied-dir "$good"
+grep -q 'could not be resolved' "$WORK/errout" \
+  && echo "PASS unresolvable slug dir refuses instead of reading as absent" \
+  || { echo "FAIL: unresolvable-dir message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+expect 5 "denied listing at versions => exit 5, no v1" -- env -u MOCK_CURL_BODY bash "$PUB" --slug denied-v --force "$good"
+grep -q 'could not list the existing versions' "$WORK/errout" \
+  && echo "PASS denied listing at versions cannot mint v1 over unseen snapshots" \
+  || { echo "FAIL: denied-versions message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_MKDIR_EXIT
 
 # --- overwrite guard: an existing remote slug needs custody (manifest, or a project archive /
 # read-back cache copy byte-identical to the live index.html) ---
@@ -569,6 +585,14 @@ grep -q 'nothing was deleted' "$WORK/errout" \
   && echo "PASS transport-dead delete never reports success" \
   || { echo "FAIL: delete-dead message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
 unset MOCK_SFTP_EXIT
+
+# --- ambiguous delete runs the removal and reports only what it proves ---
+export MOCK_RM_EXIT=1
+expect 5 "delete that cannot confirm removal refuses" -- bash "$PUB" --delete denied-del
+grep -q 'could not confirm the deletion' "$WORK/errout" \
+  && echo "PASS unconfirmable deletion is never reported as deleted" \
+  || { echo "FAIL: unconfirmable-delete message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_RM_EXIT
 
 # --- delete is idempotent and ignores missing directory ---
 del_rc=0
