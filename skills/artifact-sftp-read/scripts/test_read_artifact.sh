@@ -62,6 +62,16 @@ expect_path "read-back line resolves its exact archive" "read-back: $CURRENT" "$
 expect_path "relative archive path resolves from project root" \
   'docs/artifacts/codex/private/report/index.html' "$CURRENT"
 
+# v1 project namespace: the first URL segment is a project id, not a tool.
+PROJECT_ARCHIVE="$PROJECT/docs/artifacts/apollo/private/brief"
+mkdir -p "$PROJECT_ARCHIVE"
+PROJECT_CURRENT="$PROJECT_ARCHIVE/index.html"
+printf 'v1 project archive bytes' > "$PROJECT_CURRENT"
+expect_path "v1 project URL resolves the project archive" \
+  'https://artifacts.example/apollo/private/brief/' "$PROJECT_CURRENT"
+expect_path "v1 project relative archive reference resolves" \
+  'docs/artifacts/apollo/private/brief/index.html' "$PROJECT_CURRENT"
+
 from_elsewhere='' outside_rc=0
 from_elsewhere=$(cd "$WORK" && bash "$READ" --project "$PROJECT" \
   'https://artifacts.example/codex/private/report/' 2>"$WORK/err") || outside_rc=$?

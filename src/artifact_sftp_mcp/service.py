@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -24,6 +25,7 @@ from .models import ErrorDetail, ToolOutput
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 SNAPSHOT_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$")
+PROFILE_V1_RE = re.compile(r"^profile version: v1 project namespace$")
 PUBLISHED_RE = re.compile(r"^published v([1-9][0-9]*) \(snapshot: ([^)]+)\)$")
 def _posix_to_win(value: str) -> str:
     # Windows hosts: Git Bash child scripts print POSIX drive paths (/e/...);
@@ -41,6 +43,7 @@ STORAGE_DRIVER_RE = re.compile(r"^storage driver: (sftp|s3)$")
 DEFAULT_TOOL_RE = re.compile(r"^default tool: (codex|openclaw|claude)$")
 TOOLS = frozenset({"codex", "openclaw", "claude"})
 VISIBILITIES = frozenset({"private", "public"})
+WORKSPACE_FILE = ".artifact-sftp.json"
 MAX_READ_BYTES = 65_536
 DEFAULT_READ_BYTES = 16_384
 DEFAULT_LIST_LIMIT = 100
@@ -293,6 +296,7 @@ class ArtifactSftpService:
         storage_driver = self._first_match(lines, STORAGE_DRIVER_RE) or "sftp"
         auth_mode = self._first_match(lines, AUTH_RE)
         default_tool = self._first_match(lines, DEFAULT_TOOL_RE)
+        profile = "v1" if self._first_match(lines, PROFILE_V1_RE) else "legacy"
         prerequisites, missing = self._setup_prerequisites(lines, overall_ready=local_ready)
         connection_probe: dict[str, object] = {
             "requested": verify_connection,
@@ -319,6 +323,7 @@ class ArtifactSftpService:
             "ready": ready,
             "local_ready": local_ready,
             "storage_driver": storage_driver,
+            "profile": profile,
             "auth_mode": auth_mode,
             "default_tool": default_tool,
             "diagnostics": lines,
@@ -388,6 +393,7 @@ class ArtifactSftpService:
         source_path: str,
         slug: str,
         tool: str,
+        project: str | None = None,
         visibility: str = "private",
         dry_run: bool = False,
         confirm: bool = False,
@@ -395,6 +401,7 @@ class ArtifactSftpService:
     ) -> ServiceResponse:
         """Publish one project-local HTML file through the hardened publisher."""
 
+        project_arg = project
         project = self._project(project_path, "publish")
         if isinstance(project, ServiceResponse):
             return project
@@ -416,6 +423,22 @@ class ArtifactSftpService:
                 "publish", 2, "invalid_visibility", "Visibility must be private or public.",
                 "Use private unless public sharing is intentional.",
             )
+        bound = self._workspace_project(project, "publish")
+        if isinstance(bound, ServiceResponse):
+            return bound
+        project_id: str | None = project_arg or bound
+        if project_arg and bound and project_arg != bound:
+            return self._error(
+                "publish", 2, "project_conflict",
+                "The project argument does not match the workspace binding in .artifact-sftp.json.",
+                "Use one value for both, or update the workspace binding deliberately.",
+            )
+        if project_id is not None and not SLUG_RE.fullmatch(project_id):
+            return self._error(
+                "publish", 2, "invalid_project",
+                "Project must match the Artifact SFTP slug format.",
+                "Use 1–63 lowercase letters, digits, and single hyphens (no leading/trailing hyphen).",
+            )
         if not dry_run and not confirm:
             return self._error(
                 "publish", None, "confirmation_required",
@@ -433,6 +456,9 @@ class ArtifactSftpService:
         if isinstance(script, ServiceResponse):
             return script
         argv = ["bash", str(script), "--slug", slug, "--tool", tool]
+        namespace = project_id or tool
+        if project_id is not None:
+            argv.extend(["--project", project_id])
         if visibility == "public":
             argv.append("--public")
         if dry_run:
@@ -442,9 +468,9 @@ class ArtifactSftpService:
         if command.timed_out or command.spawn_error:
             return self._server_failure("publish", command)
         if command.returncode != 0:
-            return self._publish_failure(command.returncode)
+            return self._publish_failure(command.returncode, command.stderr)
 
-        url = self._published_url(command.stdout, tool, visibility, slug)
+        url = self._published_url(command.stdout, namespace, visibility, slug)
         if url is None:
             return self._error(
                 "publish", 0, "publish_contract_error",
@@ -463,6 +489,7 @@ class ArtifactSftpService:
                         "url": url,
                         "slug": slug,
                         "tool": tool,
+                        "project": project_id,
                         "visibility": visibility,
                         "local_archive_created": False,
                     },
@@ -490,7 +517,7 @@ class ArtifactSftpService:
                 "Publisher returned archive paths with unexpected identities.",
                 "Do not retry blindly; inspect the archive path contract.",
             )
-        if current["tool"] != tool or current["visibility"] != visibility or current["slug"] != slug:
+        if current["project"] != namespace or current["visibility"] != visibility or current["slug"] != slug:
             return self._error(
                 "publish", 0, "publish_contract_error",
                 "Publisher archive identity does not match the requested target.",
@@ -503,6 +530,7 @@ class ArtifactSftpService:
             "url": url,
             "slug": slug,
             "tool": tool,
+            "project": project_id,
             "visibility": visibility,
             "version": version,
             "read_back_path": current["path"],
@@ -523,6 +551,7 @@ class ArtifactSftpService:
         project_path: str,
         slug: str,
         tool: str,
+        project: str | None = None,
         visibility: str = "private",
         dry_run: bool = False,
         confirm: bool = False,
@@ -530,6 +559,7 @@ class ArtifactSftpService:
     ) -> ServiceResponse:
         """Remove a published artifact slug from the remote SFTP server."""
 
+        project_arg = project
         project = self._project(project_path, "unpublish")
         if isinstance(project, ServiceResponse):
             return project
@@ -560,11 +590,29 @@ class ArtifactSftpService:
                 "Public unpublishing removes a publicly accessible URL.",
                 "Obtain explicit public-sharing approval and call again with confirm_public=true.",
             )
+        bound = self._workspace_project(project, "unpublish")
+        if isinstance(bound, ServiceResponse):
+            return bound
+        project_id: str | None = project_arg or bound
+        if project_arg and bound and project_arg != bound:
+            return self._error(
+                "unpublish", 2, "project_conflict",
+                "The project argument does not match the workspace binding in .artifact-sftp.json.",
+                "Use one value for both, or update the workspace binding deliberately.",
+            )
+        if project_id is not None and not SLUG_RE.fullmatch(project_id):
+            return self._error(
+                "unpublish", 2, "invalid_project",
+                "Project must match the Artifact SFTP slug format.",
+                "Use 1–63 lowercase letters, digits, and single hyphens (no leading/trailing hyphen).",
+            )
 
         script = self._script("skills/artifact-sftp/scripts/publish.sh")
         if isinstance(script, ServiceResponse):
             return script
         argv = ["bash", str(script), "--delete", slug, "--tool", tool]
+        if project_id is not None:
+            argv.extend(["--project", project_id])
         if visibility == "public":
             argv.append("--public")
         if dry_run:
@@ -573,13 +621,14 @@ class ArtifactSftpService:
         if command.timed_out or command.spawn_error:
             return self._server_failure("unpublish", command)
         if command.returncode != 0:
-            return self._unpublish_failure(command.returncode)
+            return self._unpublish_failure(command.returncode, command.stderr)
 
         result = {
             "status": "dry_run" if dry_run else "unpublished",
             "dry_run": dry_run,
             "slug": slug,
             "tool": tool,
+            "project": project_id,
             "visibility": visibility,
             "remote_removed": not dry_run,
             "local_archive_retained": True,
@@ -588,7 +637,54 @@ class ArtifactSftpService:
             ToolOutput(ok=True, operation="unpublish", exit_code=0, result=result)
         )
 
-    def _unpublish_failure(self, exit_code: int) -> ServiceResponse:
+    def _workspace_project(self, root: Path, operation: str) -> str | None | ServiceResponse:
+        """Resolve the optional v1 project namespace from the workspace binding.
+
+        ``.artifact-sftp.json`` at the project root may carry exactly one key,
+        ``"project"``. The file is optional; anything malformed fails closed
+        rather than being silently ignored.
+        """
+
+        path = root / ".artifact-sftp.json"
+        try:
+            if path.is_symlink() or not path.is_file():
+                return None
+            raw = path.read_bytes()
+        except OSError:
+            return None
+        if len(raw) > 65536:
+            return self._error(
+                operation, 2, "workspace_project_invalid",
+                f"{WORKSPACE_FILE} is larger than 64 KiB.",
+                "Keep the workspace binding to a single small JSON object.",
+            )
+        try:
+            data = json.loads(raw)
+        except (ValueError, UnicodeDecodeError):
+            return self._error(
+                operation, 2, "workspace_project_invalid",
+                f"{WORKSPACE_FILE} is not valid JSON.",
+                "Fix the JSON so it holds exactly {\"project\": \"<id>\"}.",
+            )
+        if not isinstance(data, dict) or set(data) != {"project"} or not isinstance(data["project"], str):
+            return self._error(
+                operation, 2, "workspace_project_invalid",
+                f"{WORKSPACE_FILE} must hold exactly {{\"project\": \"<id>\"}}.",
+                "Add the single project key, or remove the file to use the legacy layout.",
+            )
+        if not SLUG_RE.fullmatch(data["project"]):
+            return self._error(
+                operation, 2, "workspace_project_invalid",
+                f"{WORKSPACE_FILE} project does not match the slug format.",
+                "Use 1–63 lowercase letters, digits, and single hyphens (no leading/trailing hyphen).",
+            )
+        return data["project"]
+
+    def _unpublish_failure(self, exit_code: int, stderr: str = "") -> ServiceResponse:
+        if exit_code == 2:
+            classified = self._project_arg_failure("unpublish", stderr)
+            if classified is not None:
+                return classified
         mapping = {
             2: ("invalid_input", "Publisher rejected the unpublish arguments.", "Correct the tool arguments and retry."),
             3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.status and stop; an MCP owner must provision the environment out of band."),
@@ -633,11 +729,20 @@ class ArtifactSftpService:
         artifacts: list[dict[str, object]] = []
         known_archive_dirs: set[Path] = set()
 
-        allowed_tools = (tool,) if tool else tuple(sorted(TOOLS))
         allowed_vis = (visibility,) if visibility else tuple(sorted(VISIBILITIES))
 
         if artifacts_root.is_dir() and not artifacts_root.is_symlink():
-            for t_name in allowed_tools:
+            # First-level directories are namespaces: legacy tool roots when the
+            # name is a supported tool, otherwise a v1 project id. Reserved-root
+            # discipline (ADR 0002) keeps the two unambiguous.
+            if tool is not None:
+                namespaces: list[str] = [tool]
+            else:
+                namespaces = sorted(
+                    d.name for d in artifacts_root.iterdir()
+                    if d.is_dir() and not d.is_symlink() and SLUG_RE.fullmatch(d.name)
+                )
+            for t_name in namespaces:
                 t_dir = artifacts_root / t_name
                 if not t_dir.is_dir() or t_dir.is_symlink():
                     continue
@@ -686,7 +791,8 @@ class ArtifactSftpService:
                             pass
 
                         artifacts.append({
-                            "tool": t_name,
+                            "project": t_name,
+                            "tool": t_name if t_name in TOOLS else None,
                             "visibility": v_name,
                             "slug": slug,
                             "latest_version": latest_version,
@@ -995,7 +1101,7 @@ class ArtifactSftpService:
             )
 
         parts = relative.parts
-        if len(parts) != 4 or parts[0] not in TOOLS or parts[1] not in VISIBILITIES or not SLUG_RE.fullmatch(parts[2]):
+        if len(parts) != 4 or not SLUG_RE.fullmatch(parts[0]) or parts[1] not in VISIBILITIES or not SLUG_RE.fullmatch(parts[2]):
             return self._error(
                 operation, 2, "invalid_archive_identity",
                 "Archive path does not match the Artifact SFTP layout.",
@@ -1026,7 +1132,8 @@ class ArtifactSftpService:
             "network_accessed": network_accessed,
             "path": str(resolved),
             "relative_path": str(relative),
-            "tool": parts[0],
+            "project": parts[0],
+            "tool": parts[0] if parts[0] in TOOLS else None,
             "visibility": parts[1],
             "slug": parts[2],
             "filename": filename,
@@ -1035,13 +1142,42 @@ class ArtifactSftpService:
             "sha256": archive_sha256,
         }
 
-    def _published_url(self, stdout: str, tool: str, visibility: str, slug: str) -> str | None:
+    def _project_arg_failure(self, operation: str, stderr: str) -> ServiceResponse | None:
+        """Map the publisher's specific project-argument refusals to codes."""
+
+        if "project is required in a v1 profile" in stderr:
+            return self._error(
+                operation, 2, "project_required",
+                "A v1 profile (PROFILE_VERSION=2) publishes under a project namespace and requires one.",
+                "Pass project=... or create .artifact-sftp.json with {\"project\": \"<id>\"} at the project root.",
+            )
+        if "--project requires a v1 profile" in stderr:
+            return self._error(
+                operation, 2, "project_unsupported_in_legacy_profile",
+                "This profile has no PROFILE_VERSION=2 marker, so it keeps the legacy /tool/ layout and cannot take a project.",
+                "Remove the project argument, or have the owner provision a v1 profile.",
+            )
+        if "reserved project id" in stderr:
+            return self._error(
+                operation, 2, "reserved_project_id",
+                "codex, openclaw, and claude are reserved as legacy tool namespaces while legacy artifacts coexist.",
+                "Choose a different project name.",
+            )
+        if "invalid project" in stderr:
+            return self._error(
+                operation, 2, "invalid_project",
+                "Project must match the Artifact SFTP slug format.",
+                "Use 1–63 lowercase letters, digits, and single hyphens (no leading/trailing hyphen).",
+            )
+        return None
+
+    def _published_url(self, stdout: str, namespace: str, visibility: str, slug: str) -> str | None:
         lines = [line.strip() for line in stdout.splitlines() if line.strip()]
         if not lines:
             return None
         value = lines[-1]
         parsed = urlsplit(value)
-        expected = f"/{tool}/{visibility}/{slug}/"
+        expected = f"/{namespace}/{visibility}/{slug}/"
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return None
         if parsed.query or parsed.fragment or parsed.path.rstrip("/") + "/" != expected:
@@ -1059,7 +1195,11 @@ class ArtifactSftpService:
                 markers["version"] = int(match.group(1))
         return markers
 
-    def _publish_failure(self, exit_code: int) -> ServiceResponse:
+    def _publish_failure(self, exit_code: int, stderr: str = "") -> ServiceResponse:
+        if exit_code == 2:
+            classified = self._project_arg_failure("publish", stderr)
+            if classified is not None:
+                return classified
         mapping = {
             2: ("invalid_input", "Publisher rejected the requested input.", "Correct the tool arguments and retry."),
             3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.status and stop; an MCP owner must provision the environment out of band."),

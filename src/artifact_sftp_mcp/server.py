@@ -87,7 +87,9 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         description=(
             "Publish one regular .html/.htm file within an absolute project_path. "
             "Private is the default. A real publish requires confirm=true; a public publish also requires "
-            "confirm_public=true. This v1 tool never exposes force or allow-sensitive overrides."
+            "confirm_public=true. This v1 tool never exposes force or allow-sensitive overrides. "
+            "Optional project selects the v1 project namespace (/PROJECT/visibility/slug/; also read from "
+            ".artifact-sftp.json in v1 profiles)."
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
     )
@@ -96,6 +98,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         source_path: str,
         slug: str,
         tool: str,
+        project: str | None = None,
         visibility: str = "private",
         dry_run: bool = False,
         confirm: bool = False,
@@ -107,6 +110,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
                 source_path=source_path,
                 slug=slug,
                 tool=tool,
+                project=project,
                 visibility=visibility,
                 dry_run=dry_run,
                 confirm=confirm,
@@ -128,6 +132,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
         project_path: str,
         slug: str,
         tool: str,
+        project: str | None = None,
         visibility: str = "private",
         dry_run: bool = False,
         confirm: bool = False,
@@ -138,6 +143,7 @@ def build_server(service: ArtifactSftpService | None = None) -> MCPServer:
                 project_path=project_path,
                 slug=slug,
                 tool=tool,
+                project=project,
                 visibility=visibility,
                 dry_run=dry_run,
                 confirm=confirm,

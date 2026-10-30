@@ -672,5 +672,88 @@ expect 3 "unknown config key rejected"            -- bash "$PUB" --slug unknown-
 mv "$cfg.before-unknown" "$cfg"
 chmod 600 "$cfg"
 
+# ---------- v1 project namespace (PROFILE_VERSION=2, ADR 0002) ----------
+cat > "$cfg" <<'EOF'
+SFTP_HOST=example.invalid
+SFTP_USER=artifacts
+REMOTE_DIR=domains/example.invalid/public_html
+PUBLIC_BASE_URL=https://example.invalid
+DEFAULT_TOOL=codex
+SSH_KEY=/dev/null
+PROFILE_VERSION=2
+EOF
+chmod 600 "$cfg"
+
+expect 2 "v1 without a project is refused"        -- bash "$PUB" --slug ns-required "$good"
+grep -q 'project is required in a v1 profile' "$WORK/errout" \
+  && echo "PASS v1 missing-project message" \
+  || { echo "FAIL: v1 missing-project message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+
+expect 2 "reserved legacy root refused as project" -- bash "$PUB" --slug ns-reserved --project codex "$good"
+grep -q 'reserved project id' "$WORK/errout" \
+  && echo "PASS reserved-project message" \
+  || { echo "FAIL: reserved-project message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+
+# Pre-flight exposure: an anonymous 200 on the private namespace must abort before any upload.
+export MOCK_ANON_EXPOSED=1
+rm -f "$MOCK_LOG"
+expect 7 "v1 private pre-flight exposure aborts"   -- bash "$PUB" --slug ns-leak --project apollo "$good"
+grep -q 'CRITICAL_SECURITY_FAILURE' "$WORK/errout" && ! grep -q '^put ' "$MOCK_LOG" \
+  && echo "PASS pre-flight exposure blocks before upload" \
+  || { echo "FAIL: pre-flight exposure did not block before upload"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_ANON_EXPOSED
+
+# Pre-flight inconclusive (404 from an unprotected origin) must also refuse.
+export MOCK_ANON_CODE=404
+expect 8 "v1 private pre-flight inconclusive refuses" -- bash "$PUB" --slug ns-unknown --project apollo "$good"
+grep -q 'pre-flight could not prove' "$WORK/errout" \
+  && echo "PASS pre-flight inconclusive refuses (fail-closed)" \
+  || { echo "FAIL: pre-flight inconclusive message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+unset MOCK_ANON_CODE
+
+# Gated namespace (default mock: anonymous private -> 403) + public verify serving the
+# stamped upload back (unset MOCK_CURL_BODY so the mock serves MOCK_LAST_PUT, like the
+# legacy public-verify test).
+unset MOCK_CURL_BODY
+rm -f "$MOCK_LOG"
+v1_rc=0
+bash "$PUB" --slug ns-page --project apollo --public "$good" >"$WORK/out" 2>"$WORK/ns.err" || v1_rc=$?
+v1_url=$(tail -n1 "$WORK/out")
+if [ "$v1_rc" -eq 0 ] && grep -q '/apollo/public/ns-page/' "$WORK/out" \
+   && grep -qxF 'apollo/public/ns-page' "$HOME/.config/artifact-sftp/published.list" \
+   && grep -q -- '-mkdir domains/example.invalid/public_html/apollo' "$MOCK_LOG" \
+   && grep -q 'mkdir "domains/example.invalid/public_html/apollo/public/ns-page"' "$MOCK_LOG"; then
+  echo "PASS v1 publish uses the /{project}/{visibility}/{slug}/ layout (url=$v1_url)"
+else
+  echo "FAIL: v1 project-namespace publish — exit $v1_url url=$v1_url"; sed 's/^/  | /' "$WORK/ns.err"; fails=$((fails+1))
+fi
+unset MOCK_CURL_BODY
+
+# v1 unpublish removes under the project namespace.
+rm -f "$MOCK_LOG"
+v1_del_rc=0
+bash "$PUB" --delete ns-page --project apollo --public >"$WORK/out" 2>"$WORK/nsdel.err" || v1_del_rc=$?
+if [ "$v1_del_rc" -eq 0 ] && grep -q 'deleted: apollo/public/ns-page' "$WORK/nsdel.err" \
+   && grep -q '^rmdir "domains/example.invalid/public_html/apollo/public/ns-page"' "$MOCK_LOG"; then
+  echo "PASS v1 delete removes the project namespace path"
+else
+  echo "FAIL: v1 delete — exit $v1_del_rc"; sed 's/^/  | /' "$WORK/nsdel.err"; fails=$((fails+1))
+fi
+
+# Restore the legacy profile: --project must be refused there, never silently ignored.
+cat > "$cfg" <<'EOF'
+SFTP_HOST=example.invalid
+SFTP_USER=artifacts
+REMOTE_DIR=domains/example.invalid/public_html
+PUBLIC_BASE_URL=https://example.invalid
+DEFAULT_TOOL=codex
+SSH_KEY=/dev/null
+EOF
+chmod 600 "$cfg"
+expect 2 "legacy profile rejects --project"       -- bash "$PUB" --slug ns-legacy --project apollo "$good"
+grep -q -- '--project requires a v1 profile' "$WORK/errout" \
+  && echo "PASS legacy --project refusal message" \
+  || { echo "FAIL: legacy --project message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+
 echo
 if [ "$fails" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$fails CHECK(S) FAILED"; exit 1; fi

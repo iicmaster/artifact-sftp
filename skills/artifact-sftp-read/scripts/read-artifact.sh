@@ -105,9 +105,9 @@ slug=''
 target_file='index.html'
 candidate=''
 
-current_re='^/(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/?$'
-index_re='^/(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/index\.html$'
-snapshot_re='^/(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$'
+current_re='^/([a-z0-9][a-z0-9-]{0,62})/(private|public)/([a-z0-9][a-z0-9-]{0,62})/?$'
+index_re='^/([a-z0-9][a-z0-9-]{0,62})/(private|public)/([a-z0-9][a-z0-9-]{0,62})/index\.html$'
+snapshot_re='^/([a-z0-9][a-z0-9-]{0,62})/(private|public)/([a-z0-9][a-z0-9-]{0,62})/([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$'
 
 if [[ "$reference" == http://* ]]; then
   fail 2 "artifact URLs must use HTTPS: $reference"
@@ -139,7 +139,7 @@ elif [[ "$reference" == https://* ]]; then
   fi
   candidate="$project/docs/artifacts/$tool/$vis/$slug/$target_file"
 elif [[ "$reference" = /* || "$reference" = [A-Za-z]:/* || "$reference" = //* ]]; then
-  abs_re='^.*/docs/artifacts/(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
+  abs_re='^.*/docs/artifacts/([a-z0-9][a-z0-9-]{0,62})/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
   if [[ "$reference" =~ $abs_re ]]; then
     tool=${BASH_REMATCH[1]}
     vis=${BASH_REMATCH[2]}
@@ -153,7 +153,7 @@ elif [[ "$reference" = /* || "$reference" = [A-Za-z]:/* || "$reference" = //* ]]
     candidate=$reference
   fi
 else
-  rel_re='^(docs/artifacts/)?(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
+  rel_re='^(docs/artifacts/)?([a-z0-9][a-z0-9-]{0,62})/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
   if [[ "$reference" =~ $rel_re ]]; then
     tool=${BASH_REMATCH[2]}
     vis=${BASH_REMATCH[3]}
@@ -178,7 +178,7 @@ if [ -f "$candidate" ] && [ ! -L "$candidate" ]; then
   case "$resolved" in
     "$archive_root"*)
       archive_rel=${resolved#"$archive_root"}
-      archive_re='^(codex|openclaw|claude)/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
+      archive_re='^([a-z0-9][a-z0-9-]{0,62})/(private|public)/([a-z0-9][a-z0-9-]{0,62})/(index\.html|[a-z0-9][a-z0-9-]{0,62}--[1-9][0-9]*--[0-9]{8}T[0-9]{6}Z\.html)$'
       if [[ "$archive_rel" =~ $archive_re ]]; then
         if [ "${BASH_REMATCH[4]}" != 'index.html' ] && [ "${BASH_REMATCH[4]%%--*}" != "${BASH_REMATCH[3]}" ]; then
           fail 2 "snapshot filename does not match its artifact slug"

@@ -88,7 +88,7 @@ _config_shape_valid() {
       SFTP_PASS|S3_SECRET_ACCESS_KEY)
         case "$value" in *$'\r'*) return 1 ;; esac
         ;;
-      STORAGE_DRIVER|SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE|S3_ENDPOINT|S3_BUCKET|S3_ACCESS_KEY_ID|S3_REGION)
+      STORAGE_DRIVER|SFTP_HOST|SFTP_USER|SFTP_PORT|REMOTE_DIR|PUBLIC_BASE_URL|DEFAULT_TOOL|SSH_KEY|OP_KEY_REF|CF_ACCESS_CLIENT_ID|CF_ACCESS_CLIENT_SECRET|DEFAULT_LANG|DEFAULT_TIMEZONE|S3_ENDPOINT|S3_BUCKET|S3_ACCESS_KEY_ID|S3_REGION|PROFILE_VERSION)
         _shell_safe "$value" || return 1
         ;;
       *) return 1 ;;
@@ -260,6 +260,16 @@ status() {
     esac
   fi
 
+  pv=''
+  if [ "$config_ok" -eq 1 ]; then
+    pv=$(_config_value PROFILE_VERSION)
+  fi
+  case "$pv" in
+    '') printf 'profile: legacy (/tool/ layout)\n' ;;
+    2) printf 'profile version: v1 project namespace\n' ;;
+    *) printf 'profile version: invalid (%s)\n' "$pv"; issues=$((issues + 1)) ;;
+  esac
+
   if ! command -v curl >/dev/null 2>&1; then
     printf 'dependency: curl missing\n'; issues=$((issues + 1))
   fi
@@ -284,7 +294,7 @@ fi
 DRIVER='sftp'
 HOST='' SUSER='' PORT=22 REMOTE='' URL='' TOOL=codex AUTH_MODE='' SSH_KEY='' OP_REF='' READ_PASS=0 REPLACE=0 AUTH_CHOICES=0 LANG_VAL='' TZ_VAL=''
 KNOWN_SOURCE=''
-S3_ENDPOINT='' S3_BUCKET='' S3_KEY_ID='' S3_REGION='auto' READ_S3SEC=0
+S3_ENDPOINT='' S3_BUCKET='' S3_KEY_ID='' S3_REGION='auto' READ_S3SEC=0 PROFILE_VERSION=''
 CF_ID='' CF_SECRET='' READ_CFSEC=0
 
 while [ $# -gt 0 ]; do
@@ -299,6 +309,7 @@ while [ $# -gt 0 ]; do
     --s3-key-id)   [ $# -ge 2 ] || die "--s3-key-id needs a value"; S3_KEY_ID=$2; shift 2 ;;
     --s3-secret)   [ "${2:-}" = - ] || die "--s3-secret only accepts '-' (secret is read from stdin)"; READ_S3SEC=1; shift 2 ;;
     --s3-region)   [ $# -ge 2 ] || die "--s3-region needs a value"; S3_REGION=$2; shift 2 ;;
+    --profile-version) [ $# -ge 2 ] || die "--profile-version needs a value"; [ "$2" = 2 ] || die "--profile-version only accepts 2 (v1 project namespace)"; PROFILE_VERSION=2; shift 2 ;;
     --url)         [ $# -ge 2 ] || die "--url needs a value"; URL=$2; shift 2 ;;
     --tool)        [ $# -ge 2 ] || die "--tool needs a value"; TOOL=$2; shift 2 ;;
     --pass)        [ "${2:-}" = - ] || die "--pass only accepts '-' (password is read from stdin)"; AUTH_MODE=pass; READ_PASS=1; AUTH_CHOICES=$((AUTH_CHOICES + 1)); shift 2 ;;
@@ -453,6 +464,7 @@ tmpcfg=$(mktemp "$CFG_DIR/config.XXXXXX")
   fi
   printf 'PUBLIC_BASE_URL=%s\n' "$URL"
   [ -n "$TOOL" ]  && printf 'DEFAULT_TOOL=%s\n' "$TOOL"
+  [ -n "$PROFILE_VERSION" ] && printf 'PROFILE_VERSION=%s\n' "$PROFILE_VERSION"
   [ -n "$LANG_VAL" ] && printf 'DEFAULT_LANG=%s\n' "$LANG_VAL"
   [ -n "$TZ_VAL" ] && printf 'DEFAULT_TIMEZONE=%s\n' "$TZ_VAL"
   [ -n "$CF_ID" ] && printf 'CF_ACCESS_CLIENT_ID=%s\n' "$CF_ID"

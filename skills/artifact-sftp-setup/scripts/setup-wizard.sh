@@ -165,13 +165,18 @@ if [ "$driver_choice" = "s3" ]; then
   prompt_required s3_key_id "S3 Access Key ID"
   prompt_secret s3_secret "S3 Secret Access Key (hidden)"
   prompt_default s3_region "S3 Region" "auto"
-  prompt_default public_url "Public base URL (Custom Domain)" "https://artifacts.ngs.bz"
+  prompt_required public_url "Public base URL (your own custom domain, no default)"
 else
-  prompt_default host "SFTP host" "sftp.artifacts.ngs.bz"
+  prompt_required host "SFTP host (no default)"
   prompt_default sftp_user "SFTP user" "artifacts"
   prompt_default port "SFTP port" "22"
   prompt_default remote_dir "Remote base directory" "/files"
-  prompt_default public_url "Public base URL" "https://artifacts.ngs.bz"
+  prompt_required public_url "Public base URL (your own custom domain, no default)"
+fi
+
+profile_version=''
+if confirm "Use the v1 project namespace (URL /{project}/{visibility}/{slug}/, PROFILE_VERSION=2)?"; then
+  profile_version=2
 fi
 
 prompt_default lang "Default page language (html lang)" "th"
@@ -280,6 +285,7 @@ setup_args=(
   --lang "$lang"
   --timezone "$timezone"
 )
+[ -n "$profile_version" ] && setup_args+=(--profile-version "$profile_version")
 
 if [ "$driver_choice" = "s3" ]; then
   setup_args+=(
