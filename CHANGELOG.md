@@ -2,7 +2,7 @@
  
 All notable changes to this project are documented here.
  
-## [Unreleased]
+## [1.0.2] - 2026-10-30
 
 - **Added: the artifact-audit "Third-Party Active Content on a Shared Origin" blocker (v1.0 spec §6, same-origin trust ruling).** All artifacts on one custom domain share a single browser trust domain, so external `<script>/<iframe>/<object>/<embed>` sources (absolute `http(s)://` or protocol-relative `//host` URLs that are not the deployment's own `PUBLIC_BASE_URL`) are untrusted third-party HTML and now **HALT PUBLISH** under Dimension 5. Inline scripts and same-document relative URLs remain allowed. The exact detection pattern is pinned by a new regression suite (`tests/test_audit_third_party_html.py`: 14 cases — positives for every external form including protocol-relative/uppercase/multiline, negatives for inline scripts, relative paths, plain links/images, plus a drift lock asserting SKILL.md publishes this exact pattern).
 - **Verified: the Cloudflare Access wildcard `/*/private/*` covers arbitrary project namespaces on the live tenant** (v1.0 spec Phase C, the last spec precondition). Anonymous probes against the production domain answered `302 → cloudflareaccess.com/cdn-cgi/access/login/…` identically for an existing private artifact (`/openclaw/private/diagram-demo/`) and an arbitrary never-published first segment (`/zz-wildcard-probe-x7/private/canary/`), while the control path `/zz-wildcard-probe-x7/public/canary/` answered `404` (public namespace ungated by design; no content served during probing). The shipped per-publish pre-flight/post-publish gates remain as the standing guard against policy drift. Spec Phase C record updated.
