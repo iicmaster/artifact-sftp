@@ -628,13 +628,21 @@ steps = [
     (b"Zero Trust service token", b"\r"),
     (b"Write the private config?", b"y\r"),
 ]
+def master_read(fd):
+    # Linux raises EIO on the master once the slave side is fully closed;
+    # macOS returns EOF. Both mean "child is gone".
+    try:
+        return os.read(fd, 4096)
+    except OSError:
+        return b""
+
 buf = b""
 for prompt, answer in steps:
     while prompt not in buf:
         ready, _, _ = select.select([master], [], [], 30)
         if not ready:
             sys.exit(f"wizard timed out waiting for: {prompt!r}")
-        chunk = os.read(master, 4096)
+        chunk = master_read(master)
         if not chunk:
             sys.exit(f"wizard exited before prompting for: {prompt!r}")
         buf += chunk
@@ -644,7 +652,7 @@ while True:  # drain to process exit
     ready, _, _ = select.select([master], [], [], 30)
     if not ready:
         break
-    if not os.read(master, 4096):
+    if not master_read(master):
         break
 sys.exit(proc.wait(timeout=60))
 PYEOF
