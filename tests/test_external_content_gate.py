@@ -90,6 +90,23 @@ class GateSemanticsTests(unittest.TestCase):
         self.flag('<iframe srcdoc="<p>x</p>" height=10></iframe>')
         self.flag('<iframe height=10 srcdoc="<p>x</p>"></iframe>')
 
+    def test_permissive_sandbox_allow_scripts_plus_same_origin_is_flagged(self) -> None:
+        # Round-4 Luna BLOCKER: presence of a sandbox attribute is not enough —
+        # allow-scripts + allow-same-origin can run same-origin script against
+        # the embedding document.
+        self.flag('<iframe sandbox="allow-scripts allow-same-origin" srcdoc="<script>top.pwned=1</script>"></iframe>')
+
+    def test_permissive_sandbox_uppercase_and_extra_tokens(self) -> None:
+        self.flag('<iframe sandbox="allow-forms ALLOW-SCRIPTS allow-same-origin" srcdoc="<p>x</p>"></iframe>')
+
+    def test_scripts_only_sandbox_is_allowed(self) -> None:
+        # Scripts run in a unique opaque origin — no parent access.
+        self.clean('<iframe sandbox="allow-scripts" srcdoc="<script>alert(1)</script>"></iframe>')
+
+    def test_same_origin_only_sandbox_is_allowed(self) -> None:
+        # No allow-scripts -> no script execution inside the frame.
+        self.clean('<iframe sandbox="allow-same-origin" srcdoc="<p>x</p>"></iframe>')
+
     def test_quoted_attribute_value_sandbox_text_does_not_clear_the_gate(self) -> None:
         # Round-3 Luna BLOCKER: sandbox inside another attribute's value.
         self.flag('<iframe title="prefix sandbox " srcdoc="<script>top.pwned=1</script>"></iframe>')

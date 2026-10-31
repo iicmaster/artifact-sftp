@@ -773,6 +773,14 @@ expect 4 "unsandboxed srcdoc blocked" -- bash "$PUB" --slug extsrcdoc "$WORK/src
 printf '<html><body><iframe title=sandbox srcdoc="<p>x</p>"></iframe></body></html>\n' > "$WORK/fakesb.html"
 expect 4 "fake sandbox text does not clear the gate" -- bash "$PUB" --slug extfakesb "$WORK/fakesb.html"
 
+printf '<html><body><iframe sandbox="allow-scripts allow-same-origin" srcdoc="<script>alert(1)</script>"></iframe></body></html>\n' > "$WORK/permissivesb.html"
+psb_before=$(grep -c '^put ' "$MOCK_LOG" || true)
+expect 4 "permissive sandbox srcdoc blocked" -- bash "$PUB" --slug extpermsb "$WORK/permissivesb.html"
+psb_after=$(grep -c '^put ' "$MOCK_LOG" || true)
+[ "$psb_after" -eq "$psb_before" ] \
+  && echo "PASS permissive-sandbox srcdoc blocked with zero uploads" \
+  || { echo "FAIL: permissive-sandbox srcdoc was uploaded"; fails=$((fails+1)); }
+
 out=$(bash "$PUB" --slug datasync-ok --dry-run "$WORK/data-src.html" 2>"$WORK/errout") || true
 printf '<html><body><script data-src="https://evil.example/x.js"></script><p>fine</p></body></html>\n' > "$WORK/data-src.html"
 dr_rc=0
