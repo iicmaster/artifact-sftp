@@ -171,16 +171,14 @@ class NegativeSamplesTests(unittest.TestCase):
             '<iframe sandbox srcdoc="<p>static preview</p>"></iframe>'
         )
 
-    def test_publish_gate_embeds_the_same_patterns(self) -> None:
-        # The executable gate in publish.sh must carry the exact published
-        # patterns — rule text, test fixtures, and gate cannot drift apart.
-        import ast
+    def test_publish_gate_is_the_parser_implementation(self) -> None:
+        # The executable gate parses real HTML (html.parser) — not these
+        # regexes — so attribute-value text and comments cannot bypass or
+        # false-flag it; its semantics are unit-tested in
+        # tests/test_external_content_gate.py.
         publisher = (ROOT / "skills" / "artifact-sftp" / "scripts" / "publish.sh").read_text(encoding="utf-8")
-        start = publisher.index("PATTERNS = ") + len("PATTERNS = ")
-        end = publisher.index("\n)", start)
-        embedded = ast.literal_eval(publisher[start : end + 2])
-        self.assertEqual(tuple(embedded), PATTERNS)
+        self.assertIn("external_content_gate.py", publisher)
+        gate = (ROOT / "skills" / "artifact-sftp" / "scripts" / "external_content_gate.py").read_text(encoding="utf-8")
+        self.assertIn("class ExternalContentParser(HTMLParser)", gate)
 
 
-if __name__ == "__main__":
-    unittest.main()

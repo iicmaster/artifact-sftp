@@ -458,22 +458,9 @@ fi
 # external active embed — or an unsandboxed srcdoc, or an entity-encoded scheme — runs
 # same-origin beside private artifacts. Same-origin is not publisher identity: absolute
 # URLs to our own origin are blocked too; rewrite them inline or relative.
-"$PY" - "$FILE" <<'AUDITGATE' >&2 || die 4 "external active content blocked by the shared-origin audit gate (artifact-audit Dimension 5) — rewrite the highlighted source inline or relative; this gate has no override"
-import re
-import sys
-
-PATTERNS = (
-    '<(?:script|iframe|object|embed)\\b[^>]*?(?<![-\\w])(?:src|data)(?![-\\w])\\s*=\\s*(["\']?)\\s*(?:(?:https?:)?//|data:)',
-    '<(?:script|iframe|object|embed)\\b[^>]*?(?<![-\\w])(?:src|data)(?![-\\w])\\s*=\\s*(["\']?)\\s*[^"\'>]*(?:&#x0*3a;|&#0*58;|&#x0*2f;|&#0*47;|&colon;|&sol;)',
-    '<iframe\\b(?![^>]*?[\\s"\']sandbox(?:\\s*=|[\\s/>]))[^>]*?(?<![-\\w])srcdoc(?![-\\w])',
-)
-text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-for pattern in PATTERNS:
-    match = re.search(pattern, text, flags=re.IGNORECASE)
-    if match:
-        print("external active content:", match.group(0)[:160])
-        sys.exit(1)
-AUDITGATE
+GATE="$(cd "$(dirname "$0")" && pwd)/external_content_gate.py"
+"$PY" "$GATE" "$FILE" >&2 \
+  || die 4 "external active content blocked by the shared-origin audit gate (artifact-audit Dimension 5) — rewrite the highlighted source inline or relative; this gate has no override"
 
 URL="$PUBLIC_BASE_URL/$NS/$VIS/$SLUG/"
 
