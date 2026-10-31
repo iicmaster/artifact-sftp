@@ -6,7 +6,7 @@
 #   - stderr always carries a parseable `read-back: <path>` line naming the local copy of the
 #     upload (the same stamped bytes the server serves). Private artifacts cannot be fetched
 #     over HTTP, so read them back from that path (or from SFTP/S3, see SKILL.md).
-#   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
+#   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret/external-content scan blocked | 5 upload failed | 6 verify failed
 #                 | 7 private artifact exposed | 8 private protection inconclusive | 9 local archive failed
 #
 # usage: publish.sh --slug SLUG [--tool NAME] [--project NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
@@ -452,6 +452,15 @@ if [ "$ALLOW_SENSITIVE" -ne 1 ]; then
     die 4 "possible secret detected in $FILE — refusing to publish (override: --allow-sensitive)"
   fi
 fi
+
+# Shared-origin external-content gate (artifact-audit Dimension 5; cannot be bypassed).
+# All artifacts on one custom domain share one browser trust domain (ADR 0002), so an
+# external active embed — or an unsandboxed srcdoc, or an entity-encoded scheme — runs
+# same-origin beside private artifacts. Same-origin is not publisher identity: absolute
+# URLs to our own origin are blocked too; rewrite them inline or relative.
+GATE="$(cd "$(dirname "$0")" && pwd)/external_content_gate.py"
+"$PY" "$GATE" "$FILE" >&2 \
+  || die 4 "external active content blocked by the shared-origin audit gate (artifact-audit Dimension 5) — rewrite the highlighted source inline or relative; this gate has no override"
 
 URL="$PUBLIC_BASE_URL/$NS/$VIS/$SLUG/"
 
