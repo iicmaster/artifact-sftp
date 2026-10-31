@@ -2,13 +2,19 @@
 
 The v1.0 spec (ADR 0002) declares every artifact on one custom domain a single
 browser trust domain, and the audit gate therefore blocks third-party active
-content — external `<script>/<iframe>/<object>/<embed>` sources — before it can
-share an origin with private artifacts.
+content before it can share an origin with private artifacts. The rule carries
+NO automatic first-party exemption: same-origin is not publisher identity, so
+absolute URLs pointing at the deployment's own origin are flagged too (the
+artifact must rewrite them to inline or relative sources).
 
-This test pins the EXACT detection pattern published in
+This test pins the EXACT detection patterns published in
 skills/artifact-audit/SKILL.md (so the rule text and the detector cannot drift)
-and exercises it against positive and negative HTML samples, case-insensitively,
-the way the auditor runs it against the serialized HTML the artifact serves.
+and exercises them against positive and negative HTML samples, case-insensitively,
+the way the auditor runs them against the serialized HTML the artifact serves.
+
+Scope note: these are pattern-text regressions for the published rule — the
+audit itself is an instruction skill whose BLOCK verdict is enforced by the
+publishing workflow, not by an executable scanner in this repository.
 """
 
 from __future__ import annotations
@@ -20,21 +26,36 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "artifact-audit" / "SKILL.md"
 
-PATTERN = r"""<(?:script|iframe|object|embed)\b[^>]*?\b(?:src|data)\s*=\s*(["']?)\s*(?:https?:)?//"""
+P_EXTERNAL = (
+    r"""<(?:script|iframe|object|embed)\b[^>]*?(?<![-\w])(?:src|data)(?![-\w])"""
+    r"""\s*=\s*(["']?)\s*(?:(?:https?:)?//|data:)"""
+)
+P_ENTITY = (
+    r"""<(?:script|iframe|object|embed)\b[^>]*?(?<![-\w])(?:src|data)(?![-\w])"""
+    r"""\s*=\s*(["']?)\s*[^"'>]*(?:&#x0*3a;|&#0*58;|&#x0*2f;|&#0*47;)"""
+)
+P_SRCDOC = r"""<iframe\b(?![^>]*?\bsandbox\b)[^>]*?(?<![-\w])srcdoc(?![-\w])"""
+
+PATTERNS = (P_EXTERNAL, P_ENTITY, P_SRCDOC)
 
 
 def hits(html: str) -> list[str]:
-    return [
-        match.group(0)
-        for match in re.finditer(PATTERN, html, flags=re.IGNORECASE)
-    ]
+    found: list[str] = []
+    for pattern in PATTERNS:
+        found.extend(
+            match.group(0)
+            for match in re.finditer(pattern, html, flags=re.IGNORECASE)
+        )
+    return found
 
 
 class PatternDocumentedTests(unittest.TestCase):
-    def test_skill_document_pins_this_exact_pattern(self) -> None:
+    def test_skill_document_pins_every_exact_pattern(self) -> None:
         text = SKILL.read_text(encoding="utf-8")
-        self.assertIn(PATTERN, text, "SKILL.md rule drifted from the tested pattern")
+        for pattern in PATTERNS:
+            self.assertIn(pattern, text, "SKILL.md rule drifted from the tested pattern")
         self.assertIn("Third-Party Active Content on a Shared Origin", text)
+        self.assertIn("no automatic first-party", text)
 
 
 class PositiveSamplesTests(unittest.TestCase):
@@ -44,8 +65,14 @@ class PositiveSamplesTests(unittest.TestCase):
     def test_external_script_src(self) -> None:
         self.assert_flags('<script src="https://evil.example/tracker.js"></script>')
 
+    def test_external_http_script_src(self) -> None:
+        self.assert_flags('<script src="http://evil.example/x.js"></script>')
+
     def test_protocol_relative_script_src(self) -> None:
         self.assert_flags("<script src='//cdn.evil.dev/a.js'></script>")
+
+    def test_unquoted_external_script_src(self) -> None:
+        self.assert_flags("<script src=https://evil.example/x.js></script>")
 
     def test_external_iframe_src(self) -> None:
         self.assert_flags('<iframe src="https://embed.example/page"></iframe>')
@@ -55,6 +82,29 @@ class PositiveSamplesTests(unittest.TestCase):
 
     def test_external_embed_src(self) -> None:
         self.assert_flags('<embed src="https://evil.example/e.swf">')
+
+    def test_data_uri_in_active_element(self) -> None:
+        self.assert_flags(
+            '<script src="data:text/javascript,alert(1)"></script>'
+        )
+
+    def test_same_origin_absolute_url_is_still_flagged(self) -> None:
+        # Same-origin is not publisher identity: an absolute URL to this very
+        # deployment can point at another project's active artifact.
+        self.assert_flags(
+            '<script src="https://artifacts.example/codex/private/x.js"></script>'
+        )
+
+    def test_entity_encoded_colon_bypass(self) -> None:
+        # The browser decodes &#x3a; into ':'; the raw source has no https://.
+        self.assert_flags(
+            '<script src="https&#x3a;&#x2f;&#x2f;evil.example/x.js"></script>'
+        )
+
+    def test_entity_encoded_decimal_colon(self) -> None:
+        self.assert_flags(
+            '<iframe src="https&#58;//evil.example/frame"></iframe>'
+        )
 
     def test_uppercase_attributes_and_spacing(self) -> None:
         self.assert_flags("<SCRIPT SRC = 'HTTPS://EVIL.EXAMPLE/x.js'></SCRIPT>")
@@ -73,6 +123,9 @@ class PositiveSamplesTests(unittest.TestCase):
         )
         self.assertEqual(len(hits(html)), 4)
 
+    def test_srcdoc_iframe_without_sandbox_is_flagged(self) -> None:
+        self.assert_flags('<iframe srcdoc="<script>alert(1)</script>"></iframe>')
+
 
 class NegativeSamplesTests(unittest.TestCase):
     def assert_clean(self, html: str) -> None:
@@ -87,13 +140,20 @@ class NegativeSamplesTests(unittest.TestCase):
     def test_root_relative_script_src(self) -> None:
         self.assert_clean('<script src="/static/app.js"></script>')
 
-    def test_same_document_iframe_without_src(self) -> None:
-        self.assert_clean('<iframe srcdoc="<p>local</p>"></iframe>')
-
     def test_plain_link_and_image_are_not_active_embeds(self) -> None:
         self.assert_clean(
             '<a href="https://example.com/x">link</a>'
             '<img src="https://img.example/i.png" alt="">'
+        )
+
+    def test_hyphenated_attribute_data_src_is_not_the_real_src(self) -> None:
+        self.assert_clean(
+            '<script data-src="https://evil.example/x.js"></script>'
+        )
+
+    def test_sandboxed_srcdoc_is_allowed(self) -> None:
+        self.assert_clean(
+            '<iframe sandbox="" srcdoc="<p>static preview</p>"></iframe>'
         )
 
 

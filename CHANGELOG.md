@@ -1,5 +1,16 @@
 # Changelog
  
+## [Unreleased]
+
+- **Corrected + hardened (from the `gpt-6-luna[max]` review of v1.0.2, receipt `cce22a9e`): the artifact-audit third-party rule now matches its own implementation and drops the unsafe origin exception.**
+  - **No automatic first-party/`PUBLIC_BASE_URL` exemption.** The v1.0.2 prose allowed same-origin absolute URLs, but on a shared origin another project's path is still same-origin and can execute with the embedding document's privileges — origin is not publisher identity. The rule now blocks absolute/protocol-relative sources **including this deployment's own origin**; the artifact must rewrite them to inline or relative sources. The published regex never implemented the old exception, so rule text and detector now agree by being maximally conservative.
+  - **Entity-encoding bypass closed:** a second pattern flags HTML-entity-encoded colon/slash (`&#x3a;`/`&#58;`, `&#x2f;`/`&#47;`) inside an active element's `src`/`data` — browsers decode them into an external scheme the raw `https://` regex never sees.
+  - **`srcdoc` reclassified:** an `<iframe srcdoc>` without a `sandbox` attribute is now blocked (unsandboxed srcdoc content is same-origin); the pattern scans the whole tag, so `sandbox` before or after `srcdoc` both clear it.
+  - **Attribute-boundary false positive fixed:** patterns now guard `src`/`data` with `(?<![-\w])…(?![-\w])`, so hyphenated attributes like `data-src` no longer match; the optional-quote form still catches unquoted `src=https://…`.
+  - Known limitation stated in the rule: the patterns are intentionally coarse over raw source — a match in a comment or code sample is a candidate, and the auditor confirms element context before declaring BLOCK.
+  - Regression suite grown from 14 to 22 cases: entity-encoded colon (hex + decimal), `data:` URI, same-origin absolute flagged, unquoted src, `data-src` negative, sandboxed-srcdoc negative, plus the drift-lock over all three published patterns.
+- **Corrected: v1.0.2's "Access wildcard proven" claim is scoped down to its evidence.** Three anonymous GETs (existing private artifact, invented-prefix private canary, invented-prefix public control) proved the edge challenge for exactly those requests — including with the object absent — not universal coverage across every first segment, method, slash/query variant, snapshot route, host alias, or future policy revision. The spec record and this entry state the proven/not-proven boundary; the per-publish pre-flight/post-publish gates remain the real enforcement, and repeat re-verification is a checklist (status/headers only, never a private body).
+
 All notable changes to this project are documented here.
  
 ## [1.0.2] - 2026-10-30
