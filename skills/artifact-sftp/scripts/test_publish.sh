@@ -755,6 +755,34 @@ grep -q -- '--project requires a v1 profile' "$WORK/errout" \
   && echo "PASS legacy --project refusal message" \
   || { echo "FAIL: legacy --project message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
 
+# ---------- shared-origin external-content gate (artifact-audit Dimension 5, cannot bypass) ----------
+printf '<html><body><script src="https://evil.example/x.js"></script></body></html>\n' > "$WORK/ext.html"
+ext_before=$(grep -c '^put ' "$MOCK_LOG" || true)
+expect 4 "external script src blocked by the shared-origin gate" -- bash "$PUB" --slug extblock "$WORK/ext.html"
+ext_after=$(grep -c '^put ' "$MOCK_LOG" || true)
+grep -q 'shared-origin audit gate' "$WORK/errout" && [ "$ext_after" -eq "$ext_before" ] \
+  && echo "PASS external-embed gate blocks with zero uploads" \
+  || { echo "FAIL: external-embed gate did not block before upload"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+
+printf '<html><body><script src="https&colon;&sol;&sol;evil.example/x.js"></script></body></html>\n' > "$WORK/entity.html"
+expect 4 "entity-encoded scheme blocked" -- bash "$PUB" --slug extentity "$WORK/entity.html"
+
+printf '<html><body><iframe srcdoc="<script>alert(1)</script>"></iframe></body></html>\n' > "$WORK/srcdoc.html"
+expect 4 "unsandboxed srcdoc blocked" -- bash "$PUB" --slug extsrcdoc "$WORK/srcdoc.html"
+
+printf '<html><body><iframe title=sandbox srcdoc="<p>x</p>"></iframe></body></html>\n' > "$WORK/fakesb.html"
+expect 4 "fake sandbox text does not clear the gate" -- bash "$PUB" --slug extfakesb "$WORK/fakesb.html"
+
+out=$(bash "$PUB" --slug datasync-ok --dry-run "$WORK/data-src.html" 2>"$WORK/errout") || true
+printf '<html><body><script data-src="https://evil.example/x.js"></script><p>fine</p></body></html>\n' > "$WORK/data-src.html"
+dr_rc=0
+out=$(bash "$PUB" --slug datasync-ok --dry-run "$WORK/data-src.html" 2>"$WORK/errout") || dr_rc=$?
+if [ "$dr_rc" -eq 0 ] && [ "$out" = "https://example.invalid/codex/private/datasync-ok/" ]; then
+  echo "PASS data-src hyphenated attribute is not the real src (dry-run proceeds)"
+else
+  echo "FAIL: data-src wrongly gated — exit $dr_rc '$out'"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1))
+fi
+
 # ---------- fresh, unprovisioned machine: not-ready, fail-closed ----------
 mkdir -p "$WORK/empty-home"
 expect 3 "publish without any config refuses (not-ready, never a silent fallback)" \

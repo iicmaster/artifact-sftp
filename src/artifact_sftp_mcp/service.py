@@ -1200,6 +1200,12 @@ class ArtifactSftpService:
             classified = self._project_arg_failure("publish", stderr)
             if classified is not None:
                 return classified
+        if exit_code == 4 and "shared-origin audit gate" in stderr:
+            return self._error(
+                "publish", 4, "external_content_blocked",
+                "The publisher's shared-origin audit gate detected external active content (artifact-audit Dimension 5).",
+                "Rewrite the highlighted source as inline or relative; the gate has no override.",
+            )
         mapping = {
             2: ("invalid_input", "Publisher rejected the requested input.", "Correct the tool arguments and retry."),
             3: ("config_or_auth_failed", "Artifact SFTP configuration or authentication is not ready.", "Call artifact_sftp.status and stop; an MCP owner must provision the environment out of band."),

@@ -32,9 +32,9 @@ P_EXTERNAL = (
 )
 P_ENTITY = (
     r"""<(?:script|iframe|object|embed)\b[^>]*?(?<![-\w])(?:src|data)(?![-\w])"""
-    r"""\s*=\s*(["']?)\s*[^"'>]*(?:&#x0*3a;|&#0*58;|&#x0*2f;|&#0*47;)"""
+    r"""\s*=\s*(["']?)\s*[^"'>]*(?:&#x0*3a;|&#0*58;|&#x0*2f;|&#0*47;|&colon;|&sol;)"""
 )
-P_SRCDOC = r"""<iframe\b(?![^>]*?\bsandbox\b)[^>]*?(?<![-\w])srcdoc(?![-\w])"""
+P_SRCDOC = r"""<iframe\b(?![^>]*?[\s"']sandbox(?:\s*=|[\s/>]))[^>]*?(?<![-\w])srcdoc(?![-\w])"""
 
 PATTERNS = (P_EXTERNAL, P_ENTITY, P_SRCDOC)
 
@@ -126,6 +126,16 @@ class PositiveSamplesTests(unittest.TestCase):
     def test_srcdoc_iframe_without_sandbox_is_flagged(self) -> None:
         self.assert_flags('<iframe srcdoc="<script>alert(1)</script>"></iframe>')
 
+    def test_entity_encoded_named_references(self) -> None:
+        self.assert_flags(
+            '<script src="https&colon;&sol;&sol;evil.example/x.js"></script>'
+        )
+
+    def test_unrelated_sandbox_text_does_not_satisfy_the_guard(self) -> None:
+        self.assert_flags(
+            '<iframe title=sandbox srcdoc="<script>alert(1)</script>"></iframe>'
+        )
+
 
 class NegativeSamplesTests(unittest.TestCase):
     def assert_clean(self, html: str) -> None:
@@ -155,6 +165,21 @@ class NegativeSamplesTests(unittest.TestCase):
         self.assert_clean(
             '<iframe sandbox="" srcdoc="<p>static preview</p>"></iframe>'
         )
+
+    def test_boolean_sandbox_attribute_is_allowed(self) -> None:
+        self.assert_clean(
+            '<iframe sandbox srcdoc="<p>static preview</p>"></iframe>'
+        )
+
+    def test_publish_gate_embeds_the_same_patterns(self) -> None:
+        # The executable gate in publish.sh must carry the exact published
+        # patterns — rule text, test fixtures, and gate cannot drift apart.
+        import ast
+        publisher = (ROOT / "skills" / "artifact-sftp" / "scripts" / "publish.sh").read_text(encoding="utf-8")
+        start = publisher.index("PATTERNS = ") + len("PATTERNS = ")
+        end = publisher.index("\n)", start)
+        embedded = ast.literal_eval(publisher[start : end + 2])
+        self.assertEqual(tuple(embedded), PATTERNS)
 
 
 if __name__ == "__main__":

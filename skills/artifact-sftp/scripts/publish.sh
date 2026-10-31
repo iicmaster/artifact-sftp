@@ -6,7 +6,7 @@
 #   - stderr always carries a parseable `read-back: <path>` line naming the local copy of the
 #     upload (the same stamped bytes the server serves). Private artifacts cannot be fetched
 #     over HTTP, so read them back from that path (or from SFTP/S3, see SKILL.md).
-#   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret scan blocked | 5 upload failed | 6 verify failed
+#   - Exit codes: 0 ok | 2 usage | 3 config/auth | 4 secret/external-content scan blocked | 5 upload failed | 6 verify failed
 #                 | 7 private artifact exposed | 8 private protection inconclusive | 9 local archive failed
 #
 # usage: publish.sh --slug SLUG [--tool NAME] [--project NAME] [--public] [--force] [--dry-run] [--allow-sensitive] FILE.html
@@ -452,6 +452,28 @@ if [ "$ALLOW_SENSITIVE" -ne 1 ]; then
     die 4 "possible secret detected in $FILE — refusing to publish (override: --allow-sensitive)"
   fi
 fi
+
+# Shared-origin external-content gate (artifact-audit Dimension 5; cannot be bypassed).
+# All artifacts on one custom domain share one browser trust domain (ADR 0002), so an
+# external active embed — or an unsandboxed srcdoc, or an entity-encoded scheme — runs
+# same-origin beside private artifacts. Same-origin is not publisher identity: absolute
+# URLs to our own origin are blocked too; rewrite them inline or relative.
+"$PY" - "$FILE" <<'AUDITGATE' >&2 || die 4 "external active content blocked by the shared-origin audit gate (artifact-audit Dimension 5) — rewrite the highlighted source inline or relative; this gate has no override"
+import re
+import sys
+
+PATTERNS = (
+    '<(?:script|iframe|object|embed)\\b[^>]*?(?<![-\\w])(?:src|data)(?![-\\w])\\s*=\\s*(["\']?)\\s*(?:(?:https?:)?//|data:)',
+    '<(?:script|iframe|object|embed)\\b[^>]*?(?<![-\\w])(?:src|data)(?![-\\w])\\s*=\\s*(["\']?)\\s*[^"\'>]*(?:&#x0*3a;|&#0*58;|&#x0*2f;|&#0*47;|&colon;|&sol;)',
+    '<iframe\\b(?![^>]*?[\\s"\']sandbox(?:\\s*=|[\\s/>]))[^>]*?(?<![-\\w])srcdoc(?![-\\w])',
+)
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+for pattern in PATTERNS:
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    if match:
+        print("external active content:", match.group(0)[:160])
+        sys.exit(1)
+AUDITGATE
 
 URL="$PUBLIC_BASE_URL/$NS/$VIS/$SLUG/"
 
