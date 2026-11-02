@@ -10,7 +10,7 @@
 
 | Fact | Evidence |
 |---|---|
-| Active profile is still **legacy SFTP** (password auth), READY, remote preflight `verified` | `artifact_sftp.setup(verify_connection=true)` → `auth: password`, `READY`, `remote_connection.status: verified`; no `PROFILE_VERSION` line |
+| Active profile is still **legacy SFTP** (password auth), READY, remote preflight `verified` | `artifact_sftp.setup(verify_connection=true)` → `auth: password`, `READY`, `remote_connection.status: verified`; no `PROFILE_VERSION` line | <!-- pragma: allowlist secret -->
 | R2 bucket **`pundai`** exists (APAC, Standard, created 2024-05-29), no `r2.dev` indication | `GET /accounts/{id}/r2/buckets` + `/r2/buckets/pundai` |
 | Access app **`Artifacts all tools private`** already covers `artifacts.ngs.bz/*/private/*` | `GET /accounts/{id}/access/apps` |
 | **No** Access app for a new R2 hostname yet | same listing — only `artifacts.ngs.bz` + two `thclaws.ngs.bz` apps |
