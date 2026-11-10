@@ -143,13 +143,21 @@ case "$TOOL" in openclaw|codex|claude) ;; *) die 2 "--tool must be openclaw, cod
 # package upgrade never migrates an existing profile.
 case "${PROFILE_VERSION:-}" in ''|2) ;; *) die 3 "config PROFILE_VERSION must be 2 (v1 project namespace) or unset (legacy) (got '$PROFILE_VERSION')";; esac
 if [ "${PROFILE_VERSION:-}" = 2 ]; then
-  [ -n "$PROJECT" ] || die 2 "project is required in a v1 profile (PROFILE_VERSION=2) — pass --project or set it in the project's .artifact-sftp.json"
-  [[ "$PROJECT" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
-    || die 2 "invalid project '$PROJECT' (1-63 lowercase letters/digits/hyphens, no leading or trailing hyphen)"
-  case "$PROJECT" in
-    codex|openclaw|claude) die 2 "reserved project id '$PROJECT' — while legacy artifacts coexist these names mean the legacy tool namespaces; choose a different project name" ;;
+  # Only modes that resolve an artifact identity need a project. --ping,
+  # --list and --help are connection/inventory probes and must work before any
+  # project is known (setup_status runs --ping right after writing the config).
+  case "$MODE" in
+    publish|delete)
+      [ -n "$PROJECT" ] || die 2 "project is required in a v1 profile (PROFILE_VERSION=2) — pass --project or set it in the project's .artifact-sftp.json"
+      [[ "$PROJECT" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
+        || die 2 "invalid project '$PROJECT' (1-63 lowercase letters/digits/hyphens, no leading or trailing hyphen)"
+      case "$PROJECT" in
+        codex|openclaw|claude) die 2 "reserved project id '$PROJECT' — while legacy artifacts coexist these names mean the legacy tool namespaces; choose a different project name" ;;
+      esac
+      NS=$PROJECT
+      ;;
+    *) NS=$PROJECT ;;
   esac
-  NS=$PROJECT
 else
   [ -z "$PROJECT" ] || die 2 "--project requires a v1 profile (PROFILE_VERSION=2 in the config) — this profile keeps the legacy /tool/ layout"
   NS=$TOOL
