@@ -1,6 +1,6 @@
 # Changelog
  
-## [Unreleased]
+## [1.0.5] - 2026-11-10
 
 - **Added: negative regressions for the v1 identity guard** (from the three-lane audit of the R2 onboarding). `publish` and `delete` on a v1 profile must fail with `project is required` **before any upload or deletion**, a malformed project name and a path-traversal project are rejected in those modes, while `--ping`/`--list` keep working without a project. This closes the audit's "the guard was narrowed but only positive cases were tested" gap.
 
