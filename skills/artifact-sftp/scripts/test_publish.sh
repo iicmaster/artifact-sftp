@@ -705,7 +705,19 @@ expect 2 "v1 without a project is refused"        -- bash "$PUB" --slug ns-requi
 grep -q 'project is required in a v1 profile' "$WORK/errout" \
   && echo "PASS v1 missing-project message" \
   || { echo "FAIL: v1 missing-project message missing"; sed 's/^/  | /' "$WORK/errout"; fails=$((fails+1)); }
+grep -q 'project is required in a v1 profile' "$WORK/errout" \
+  && echo "PASS v1 publish without project fails before any upload" \
+  || { echo "FAIL: v1 publish-without-project message missing"; fails=$((fails+1)); }
 
+# delete is the other identity mode: it must refuse a project-less v1 request too.
+expect 2 "v1 delete without a project is refused"  -- bash "$PUB" --delete ns-del --public
+grep -q 'project is required in a v1 profile' "$WORK/errout" \
+  && echo "PASS v1 delete without project refused" \
+  || { echo "FAIL: v1 delete-without-project message missing"; fails=$((fails+1)); }
+
+# project grammar + reserved roots are enforced in the guarded modes only.
+expect 2 "v1 publish rejects a malformed project"  -- bash "$PUB" --slug ns-bad --project Bad_Name "$good"
+expect 2 "v1 publish rejects a traversal project"  -- bash "$PUB" --slug ns-trav --project ../etc "$good"
 expect 2 "reserved legacy root refused as project" -- bash "$PUB" --slug ns-reserved --project codex "$good"
 grep -q 'reserved project id' "$WORK/errout" \
   && echo "PASS reserved-project message" \
