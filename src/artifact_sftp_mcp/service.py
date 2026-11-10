@@ -25,7 +25,7 @@ from .models import ErrorDetail, ToolOutput
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 SNAPSHOT_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})--([1-9][0-9]*)--([0-9]{8}T[0-9]{6}Z)\.html$")
-PROFILE_V1_RE = re.compile(r"^profile version: v1 project namespace$")
+PROFILE_V1_RE = re.compile(r"^(profile version: v1 project namespace)$")
 PUBLISHED_RE = re.compile(r"^published v([1-9][0-9]*) \(snapshot: ([^)]+)\)$")
 def _posix_to_win(value: str) -> str:
     # Windows hosts: Git Bash child scripts print POSIX drive paths (/e/...);

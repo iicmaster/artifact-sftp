@@ -55,6 +55,35 @@ def make_project(base: Path) -> tuple[Path, Path, Path, Path]:
     return project, source, current, snapshot
 
 
+class ProfileStatusRegressionTests(unittest.TestCase):
+    """v1 profile status must parse without crashing (regression: PROFILE_V1_RE
+    had no capture group while _first_match calls group(1), so every v1 setup
+    status raised IndexError and the MCP surface reported a broken config)."""
+
+    def test_v1_profile_status_lines_parse(self) -> None:
+        from artifact_sftp_mcp import service as svc_mod
+
+        self.assertIsNotNone(
+            svc_mod.PROFILE_V1_RE.fullmatch("profile version: v1 project namespace")
+        )
+        self.assertEqual(
+            svc_mod.ArtifactSftpService._first_match(
+                ["storage driver: s3", "profile version: v1 project namespace"],
+                svc_mod.PROFILE_V1_RE,
+            ),
+            "profile version: v1 project namespace",
+        )
+
+    def test_legacy_status_has_no_v1_match(self) -> None:
+        from artifact_sftp_mcp import service as svc_mod
+
+        self.assertIsNone(
+            svc_mod.ArtifactSftpService._first_match(
+                ["profile: legacy (/tool/ layout)"], svc_mod.PROFILE_V1_RE
+            )
+        )
+
+
 class ArtifactSftpMcpTests(unittest.IsolatedAsyncioTestCase):
     async def call(self, server, name: str, arguments: dict):
         async with Client(server) as client:

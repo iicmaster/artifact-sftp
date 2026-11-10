@@ -684,6 +684,23 @@ PROFILE_VERSION=2
 EOF
 chmod 600 "$cfg"
 
+# --ping/--list are connection/inventory probes: a v1 profile must run them
+# BEFORE any project is known (setup_status calls --ping right after setup).
+ping_rc=0
+env -u MOCK_CURL_BODY bash "$PUB" --ping >"$WORK/out" 2>"$WORK/ping.err" || ping_rc=$?
+if [ "$ping_rc" -eq 0 ] && ! grep -q 'project is required' "$WORK/ping.err"; then
+  echo "PASS v1 profile runs --ping without a project"
+else
+  echo "FAIL: v1 --ping demanded a project (rc=$ping_rc)"; sed 's/^/  | /' "$WORK/ping.err"; fails=$((fails+1))
+fi
+list_rc=0
+env -u MOCK_CURL_BODY bash "$PUB" --list >"$WORK/out" 2>"$WORK/list.err" || list_rc=$?
+if [ "$list_rc" -eq 0 ] && ! grep -q 'project is required' "$WORK/list.err"; then
+  echo "PASS v1 profile runs --list without a project"
+else
+  echo "FAIL: v1 --list demanded a project (rc=$list_rc)"; sed 's/^/  | /' "$WORK/list.err"; fails=$((fails+1))
+fi
+
 expect 2 "v1 without a project is refused"        -- bash "$PUB" --slug ns-required "$good"
 grep -q 'project is required in a v1 profile' "$WORK/errout" \
   && echo "PASS v1 missing-project message" \
