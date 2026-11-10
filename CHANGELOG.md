@@ -1,12 +1,14 @@
 # Changelog
  
-## [Unreleased]
+## [1.0.4] - 2026-11-10
 
 - **Fixed: a v1 profile could not be reported or probed at all — two defects found while bringing this machine onto R2.**
   - `PROFILE_V1_RE` had no capture group while `_first_match()` reads `group(1)`, so **every** `artifact_sftp.setup`/`status` call on a `PROFILE_VERSION=2` profile raised `IndexError`; the MCP surface then reported the config as invalid/missing. The regex now captures the line it matches.
   - The publisher's v1 project guard ran for **every** mode, so `publish.sh --ping` and `--list` demanded `--project` even though they resolve no artifact identity — which is exactly what `setup_status(verify_connection=true)` calls right after a profile is written. The guard now applies only to `publish`/`delete`.
   - Regressions: `ProfileStatusRegressionTests` (v1 status lines parse; legacy status does not match) and two shell cases proving a v1 profile runs `--ping` and `--list` without a project.
 - **Verified end to end on Cloudflare R2:** this machine now runs a v1 profile (`STORAGE_DRIVER=s3`, `PROFILE_VERSION=2`, `PUBLIC_BASE_URL=https://r2-artifacts.ngs.bz`). A canary published to `artifact-sftp/private/r2-canary` — pre-flight saw `302` from the Access gate before upload, the object landed in bucket `pundai`, and an anonymous GET is still gated (`302`). Access app `Artifacts R2 private (v1)` (`r2-artifacts.ngs.bz/*/private/*`, mirrored policy) and the R2 custom domain were provisioned for it; the legacy `artifacts.ngs.bz` SFTP origin was left untouched.
+
+Full suite: 167 passed.
 
 ## [1.0.3] - 2026-10-31
 
