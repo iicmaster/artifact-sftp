@@ -29,6 +29,11 @@ Full suite: 165 passed.
 
 All notable changes to this project are documented here.
  
+## [Unreleased]
+
+## [Unreleased]
+
+- **Provisioned (owner-side): the trailing-slash Transform Rule for `r2-artifacts.ngs.bz` is live.** Request path `/{project}/{visibility}/{slug}/` is rewritten to append `index.html`, so artifact URLs render on the R2 custom domain. Anonymous requests are still challenged by Cloudflare Access (`302` to the Access login) — the rule runs only for authenticated viewers. This was the final item flagged by the three-vendor audit of the v1 onboarding.
 ## [1.0.2] - 2026-10-30
 
 - **Added: the artifact-audit "Third-Party Active Content on a Shared Origin" blocker (v1.0 spec §6, same-origin trust ruling).** All artifacts on one custom domain share a single browser trust domain, so external `<script>/<iframe>/<object>/<embed>` sources (absolute `http(s)://` or protocol-relative `//host` URLs that are not the deployment's own `PUBLIC_BASE_URL`) are untrusted third-party HTML and now **HALT PUBLISH** under Dimension 5. Inline scripts and same-document relative URLs remain allowed. The exact detection pattern is pinned by a new regression suite (`tests/test_audit_third_party_html.py`: 14 cases — positives for every external form including protocol-relative/uppercase/multiline, negatives for inline scripts, relative paths, plain links/images, plus a drift lock asserting SKILL.md publishes this exact pattern).
