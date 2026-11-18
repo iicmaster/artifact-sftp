@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="th">
+<head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap"><style data-artifact-sftp-font="sarabun">html,body,button,input,select,textarea{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบ Artifact SFTP v1.0 ทำงานอย่างไร</title>
+<style>
+  :root { --ink:#1f2937; --muted:#4b5563; --line:#e5e7eb; --accent:#4f46e5; }
+  * { box-sizing: border-box; }
+  body { margin:0 auto; max-width:880px; padding:24px 20px 64px; color:var(--ink);
+         font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif; line-height:1.6; }
+  h1 { font-size:1.7rem; line-height:1.4; margin:.2rem 0 .4rem; }
+  h2 { font-size:1.15rem; margin:2rem 0 .5rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  .depth-badge { display:inline-block; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;
+                 border-radius:999px; padding:.15rem .8rem; font-size:.85rem; font-weight:600; }
+  .callout { border-left:4px solid #0891b2; background:#ecfeff; padding:.7rem 1rem; border-radius:0 8px 8px 0;
+             margin:1rem 0; }
+  .callout p { margin:.2rem 0; }
+  .diagram-card { border:1px solid var(--line); border-radius:12px; padding:12px; overflow:hidden;
+                  background:#fff; }
+  .diagram-card svg { display:block; width:100%; max-width:100%; height:auto; }
+  .open-lb { margin:.6rem 0 0; }
+  table { border-collapse:collapse; width:100%; font-size:.95rem; }
+  th,td { border:1px solid var(--line); padding:.5rem .7rem; text-align:left; vertical-align:top; }
+  th { background:#f9fafb; }
+  td.id { white-space:nowrap; font-family:ui-monospace,monospace; font-size:.85rem; }
+  ol li, ul li { margin:.35rem 0; }
+  code { background:#f3f4f6; border-radius:4px; padding:.1rem .35rem; font-size:.88em; }
+  a { color:var(--accent); }
+  /* Viewport lightbox — two tiers + toolbar */
+  .lightbox-toolbar { display:flex; gap:.4rem; justify-content:flex-end; padding:.4rem .6rem;
+                      background:#111827; border-radius:10px 10px 0 0; }
+  .lightbox-toolbar button { min-width:2.4rem; padding:.3rem .55rem; border:0; border-radius:6px;
+                             background:#374151; color:#f9fafb; font-size:1rem; cursor:pointer; }
+  .lightbox-toolbar button:hover { background:#4b5563; }
+  .lightbox-viewport { height:70vh; overflow:hidden; background:#0b1020; cursor:grab; touch-action:none; }
+  .lightbox-viewport.grabbing { cursor:grabbing; }
+  .lightbox-canvas { transform-origin:0 0; padding:16px; width:100%; }
+  .lightbox-canvas svg { background:#fff; border-radius:8px; }
+  dialog.diagram-lightbox { border:0; padding:0; width:min(96vw,1100px); border-radius:12px; }
+  dialog.diagram-lightbox::backdrop { background:rgba(2,6,23,.72); }
+</style>
+</head>
+<body>
+
+<span class="depth-badge">🎯 Level: ELI5</span>
+<h1>ระบบ Artifact SFTP v1.0 ทำงานอย่างไร</h1>
+
+<div class="callout">
+  <p><strong>💡 ข้อสังเกตก่อนอ่าน:</strong> v1.0 คือ <em>กติกาและเครื่องมือ</em> ที่เพิ่งประกาศใช้ (เผยแพร่ถึง v1.0.3) — บนเครื่องนี้ยังไม่มี artifact ใดถูกอัปโหลดขึ้น Cloudflare R2 เพราะยังไม่มีใคร provision bucket ระบบจึงใช้ profile SFTP เดิมต่อไป จนกว่าเจ้าของจะตั้งค่า R2</p>
+</div>
+
+<h2>สรุป 3 บรรทัด</h2>
+<ul>
+  <li><strong>ประตูเดียว:</strong> AI Agent ขึ้นของผ่านเครื่องมือ <code>artifact_sftp.publish</code> เท่านั้น — เหมือนเคาน์เตอร์ส่งพัสดุที่มีหน้าเดียว ตรวจของก่อนรับเสมอ</li>
+  <li><strong>ด่านตรวจซ้อน:</strong> ก่อนของขึ้น host ระบบตรวจคุณภาพไฟล์ แสกนของต้องห้าม กันเขียนทับของผู้อื่น และยืนยันว่าของ private ถูกปิดตายจริง</li>
+  <li><strong>ที่อยู่ใหม่แบบมีโครง:</strong> v1 จัดเก็บตาม <code>/{project}/{private|public}/{slug}/</code> แทนการเรียงตามชื่อ AI tool</li>
+</ul>
+
+<h2>แผนผังการไหล</h2>
+<div class="diagram-card">
+  <span id="v1a-svg-holder">
+  <svg id="v1a-arch" viewBox="0 0 960 470" role="img" aria-label="ผังการไหลของการเผยแพร่ artifact ในระบบ v1.0" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="v1a-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#475569"></path>
+      </marker>
+    </defs>
+    <!-- Row 1: Agent -> MCP -> Gates -->
+    <rect x="20" y="60" width="200" height="86" rx="12" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"></rect>
+    <text x="120" y="96" text-anchor="middle" font-size="17" font-weight="700" fill="#312e81">AI Agent</text>
+    <text x="120" y="120" text-anchor="middle" font-size="12.5" fill="#4b5563">เรียกผ่าน MCP เท่านั้น</text>
+
+    <line x1="222" y1="103" x2="296" y2="103" stroke="#475569" stroke-width="1.6" marker-end="url(#v1a-arrow)"></line>
+
+    <rect x="300" y="60" width="212" height="86" rx="12" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"></rect>
+    <text x="406" y="92" text-anchor="middle" font-size="16" font-weight="700" fill="#312e81">artifact_sftp.publish</text>
+    <text x="406" y="114" text-anchor="middle" font-size="12" fill="#4b5563">ต้องมี confirm=true</text>
+    <text x="406" y="131" text-anchor="middle" font-size="12" fill="#4b5563">(public ต้องยืนยัน 2 ชั้น)</text>
+
+    <line x1="514" y1="103" x2="588" y2="103" stroke="#475569" stroke-width="1.6" marker-end="url(#v1a-arrow)"></line>
+
+    <rect x="592" y="38" width="348" height="130" rx="12" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.5"></rect>
+    <text x="766" y="64" text-anchor="middle" font-size="15.5" font-weight="700" fill="#92400e">ด่านตรวจก่อนรับของ</text>
+    <text x="610" y="90" font-size="12.5" fill="#7c2d12">1. artifact-audit — คุณภาพ + ของต้องห้าม</text>
+    <text x="610" y="112" font-size="12.5" fill="#7c2d12">2. สแกน secret / external active content</text>
+    <text x="610" y="134" font-size="12.5" fill="#7c2d12">3. custody — ห้ามเขียนทับ slug ผู้อื่น</text>
+    <text x="610" y="156" font-size="12.5" fill="#7c2d12">4. pre-flight — ทดสอบว่า private ถูกปิดจริง</text>
+
+    <!-- Row 2: profile decides destination -->
+    <line x1="766" y1="170" x2="766" y2="216" stroke="#475569" stroke-width="1.6" marker-end="url(#v1a-arrow)"></line>
+    <rect x="774" y="186" width="162" height="20" rx="4" fill="#ffffff" stroke="#e2e8f0"></rect>
+    <text x="782" y="200" font-size="12" fill="#4b5563">profile ตัดสินปลายทาง</text>
+
+    <rect x="580" y="222" width="360" height="86" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="1.5"></rect>
+    <text x="760" y="252" text-anchor="middle" font-size="15.5" font-weight="700" fill="#155e75">Cloudflare R2 — v1 profile</text>
+    <text x="760" y="274" text-anchor="middle" font-size="12" fill="#4b5563">PROFILE_VERSION=2</text>
+    <text x="760" y="292" text-anchor="middle" font-size="12.5" fill="#0e7490">/{project}/{private|public}/{slug}/</text>
+
+    <rect x="300" y="222" width="240" height="86" rx="12" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"></rect>
+    <text x="420" y="252" text-anchor="middle" font-size="15.5" font-weight="700" fill="#334155">SFTP — legacy profile</text>
+    <text x="420" y="274" text-anchor="middle" font-size="12" fill="#4b5563">ไม่มี marker = ใช้รูปแบบเดิม</text>
+    <text x="420" y="292" text-anchor="middle" font-size="12.5" fill="#475569">/{tool}/{private|public}/{slug}/</text>
+
+    <line x1="760" y1="310" x2="760" y2="356" stroke="#475569" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#v1a-arrow)"></line>
+    <line x1="420" y1="310" x2="420" y2="356" stroke="#475569" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#v1a-arrow)"></line>
+
+    <rect x="180" y="362" width="580" height="80" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"></rect>
+    <text x="470" y="392" text-anchor="middle" font-size="15.5" font-weight="700" fill="#166534">ผลลัพธ์ที่ Agent ได้รับเสมอ</text>
+    <text x="470" y="416" text-anchor="middle" font-size="12.5" fill="#4b5563">URL ของ artifact + เอกสารสำเนาในเครื่อง (read-back path) + รายงานสถานะแยกชัด</text>
+    <text x="470" y="433" text-anchor="middle" font-size="11.5" fill="#6b7280">snapshot เก็บก่อน index เสมอ — แก้ทับของเก่าไม่ได้โดยไม่มีหลักฐานความเป็นเจ้าของ</text>
+  </svg>
+  </span>
+  <button class="open-lb" id="v1a-open" type="button">ขยายภาพ 🔍</button>
+</div>
+
+<h2>5 ขั้นตอนเมื่อ “publish” หนึ่งครั้ง</h2>
+<ol>
+  <li>Agent ส่งไฟล์ HTML เข้า <code>artifact_sftp.publish</code> — ประตู MCP เดียวที่ระบบอนุญาต (สั่งตรงผ่าน shell ถือเป็นการ bypass และถูกปฏิเสธ)</li>
+  <li><strong>artifact-audit</strong> ให้คะแนนไฟล์ 5 มิติ — ถ้าเจอปัญหาร้ายแรง (🔴 BLOCK) เช่น secret หรือ active content จากเว็บอื่น การเผยแพร่หยุดทันที</li>
+  <li>publisher สแกนซ้ำในตัว (secret + external active content โดย parse HTML จริง) แล้วตรวจ <strong>custody</strong> — ถ้า slug นี้มีของอยู่แล้ว ต้องพิสูจน์ว่าเรามีสำเนาตรงกัน จึงจะอัปเดตได้</li>
+  <li>ก่อนขึ้น <code>private</code> (v1) ระบบลองเข้า URL แบบไม่ติดตั้งตัวตน — ต้องโดน Cloudflare Access ต้อน (302/401/403) ถ้าเปิดอ่านได้ฟรี (200) ระบบหยุดและไม่อัปโหลดอะไรเลย</li>
+  <li>ของถูกเก็บสำเนาในเครื่องก่อน แล้วอัปโหลดตาม profile — Agent ได้ทั้ง URL และพาธไฟล์สำรองในเครื่องกลับไปตรวจสอบ</li>
+</ol>
+
+<h2>อะไรเปลี่ยนใน v1.0</h2>
+<ul>
+  <li><strong>ที่อยู่จัดตามโครงการ:</strong> URL ใหม่เป็น <code>/{project}/{visibility}/{slug}/</code> — โปรเจกต์คือ namespace ที่เจ้าของตั้ง ไม่ผูกกับชื่อ AI tool ที่สร้างไฟล์</li>
+  <li><strong>Cloudflare R2 เป็นค่าตั้งต้นของโปรไฟล์ใหม่:</strong> กด setup แล้วระบบชี้ R2 เป็นทางที่แนะนำ พร้อมเช็กลิสต์ (bucket ปิดหูรับสาธารณะ, token เฉพาะงาน, Access ต้องตั้งก่อนผูกโดเมน) — แต่ระบบไม่สร้างของพวกนี้ให้เอง และไม่เคยสลับไป backend อื่นเงียบ ๆ</li>
+  <li><strong>โปรไฟล์เดิมไม่ถูกยุบ:</strong> config เก่าที่ไม่มี marker ยังทำงานรูปแบบเดิม 100% — การอัปเกรดตัว plugin ไม่มีวันย้ายของใคร</li>
+</ul>
+
+<h2>องค์ประกอบหลักและจุดตรวจ</h2>
+<table>
+  <thead><tr><th>องค์ประกอบ</th><th>หน้าที่</th><th>ตำแหน่งในโค้ด</th></tr></thead>
+  <tbody>
+    <tr><td>artifact_sftp.publish</td><td>ประตู MCP เดียวสำหรับการเผยแพร่</td><td class="id">server.py:L85-L116</td></tr>
+    <tr><td>external_content_gate.py</td><td>บล็อก active content จากภายนอกโดย parse HTML จริง</td><td class="id">external_content_gate.py:L35-L75</td></tr>
+    <tr><td>ด่านตรวจใน publisher</td><td>secret / external content / custody / Access probe</td><td class="id">publish.sh:L461-L485</td></tr>
+    <tr><td>PROFILE_VERSION=2</td><td>สวิตช์เปิด v1 project namespace</td><td class="id">publish.sh:L144</td></tr>
+    <tr><td>reserved project ids</td><td>กันชื่อ codex/openclaw/claude ชนกับของเก่า</td><td class="id">publish.sh:L150</td></tr>
+  </tbody>
+</table>
+
+<h2>แหล่งอ้างอิงที่คลิกตรวจได้</h2>
+<ul>
+  <li><a href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/src/artifact_sftp_mcp/server.py#L85-L116">MCP publish tool — server.py:L85-L116</a></li>
+  <li><a href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/skills/artifact-sftp/scripts/external_content_gate.py#L35-L75">Parser gate — external_content_gate.py:L35-L75</a></li>
+  <li><a href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/skills/artifact-sftp/scripts/publish.sh#L467-L485">Pre-flight Access probe — publish.sh:L467-L485</a></li>
+  <li><a href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/docs/plans/artifact-sftp-v1.0-spec.md#L1">สเปก v1.0 ฉบับเต็ม</a></li>
+  <li><a href="file:///Users/ngs/agent-skills/plugins/artifact-sftp/CHANGELOG.md#L3">CHANGELOG รุ่น 1.0.3</a></li>
+</ul>
+
+<dialog class="diagram-lightbox" id="v1a-lb" aria-label="ภาพขยายผังการไหล">
+  <div class="lightbox-toolbar">
+    <button type="button" id="v1a-zin" aria-label="ซูมเข้า">＋</button>
+    <button type="button" id="v1a-zout" aria-label="ซูมออก">−</button>
+    <button type="button" id="v1a-reset" aria-label="รีเซ็ตมุมมอง">↺</button>
+    <button type="button" id="v1a-close" aria-label="ปิด">✕</button>
+  </div>
+  <div class="lightbox-viewport" id="v1a-vp">
+    <div class="lightbox-canvas" id="v1a-canvas"></div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var lb = document.getElementById("v1a-lb");
+  var vp = document.getElementById("v1a-vp");
+  var canvas = document.getElementById("v1a-canvas");
+  var svg = document.getElementById("v1a-arch");
+  var holder = document.getElementById("v1a-svg-holder");
+  var s = 1, x = 0, y = 0, dragging = false, sx = 0, sy = 0;
+
+  function applyTransform() {
+    canvas.style.transform = "translate(" + x + "px," + y + "px) scale(" + s + ")";
+  }
+  function resetView() { s = 1; x = 0; y = 0; applyTransform(); }
+  function zoomBy(factor) {
+    var next = Math.min(6, Math.max(0.5, s * factor));
+    x = Math.round(x * (next / s)); y = Math.round(y * (next / s)); s = next;
+    applyTransform();
+  }
+  function openLightbox() {
+    canvas.appendChild(svg);           /* single-node transfer: move, never clone */
+    resetView();
+    if (typeof lb.showModal === "function") { lb.showModal(); } else { lb.setAttribute("open", ""); }
+  }
+  function closeLightbox() {
+    if (typeof lb.close === "function") { lb.close(); } else { lb.removeAttribute("open"); }
+    holder.appendChild(svg);           /* return the same node home */
+  }
+
+  document.getElementById("v1a-open").addEventListener("click", openLightbox);
+  document.getElementById("v1a-zin").addEventListener("click", function () { zoomBy(1.25); });
+  document.getElementById("v1a-zout").addEventListener("click", function () { zoomBy(0.8); });
+  document.getElementById("v1a-reset").addEventListener("click", resetView);
+  document.getElementById("v1a-close").addEventListener("click", closeLightbox);
+  lb.addEventListener("close", function () { if (svg.parentNode !== holder) { holder.appendChild(svg); } });
+
+  vp.addEventListener("mousedown", function (e) {
+    dragging = true; sx = e.clientX - x; sy = e.clientY - y;
+    vp.classList.add("grabbing"); e.preventDefault();
+  });
+  window.addEventListener("mousemove", function (e) {
+    if (!dragging) { return; }
+    x = e.clientX - sx; y = e.clientY - sy; applyTransform();
+  });
+  window.addEventListener("mouseup", function () {
+    dragging = false; vp.classList.remove("grabbing");
+  });
+})();
+</script>
+
+<footer data-artifact-meta style="max-width:860px;margin:2.5rem auto 0;padding-top:.8rem;border-top:1px solid #88888855;font:14px/1.6 system-ui;color:#666">artifact: v1-system-explainer · v1 · artifact-sftp v0.21.0 · created 2026-10-31 21:54 +07</footer></body>
+</html>
